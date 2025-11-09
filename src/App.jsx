@@ -1,7 +1,12 @@
+// App.js
+import React from 'react';
+import BmiCalculator from './BmiCalculator.jsx';
+import './App.css';
+
 function App() {
   return (
     <div className="App">
-      <h1>test REAFEEQQQQQQ</h1>
+      <BmiCalculator />
     </div>
   );
 }
