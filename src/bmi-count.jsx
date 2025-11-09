@@ -33,8 +33,6 @@ const BmiCalculator = () => {
 
   return (
     <div className='container'>
-            <h1>BMI Calculator -paan</h1>
-
       <h1>BMI Calculator TESTTT -RAfeq</h1>
       <div className='input-group'>
         <label>
