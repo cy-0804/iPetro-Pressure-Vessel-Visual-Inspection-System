@@ -1,13 +1,29 @@
-// App.js
-import React from 'react';
-import BmiCalculator from './bmi-count.jsx';
-import './App.css';
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "./AuthContext";
+import Login from "./login";
+import Register from "./register";
+import Dashboard from "./dashboard";
+import ProtectedRoute from "./ProtectedRoute";
 
 function App() {
   return (
-    <div className="App">
-      <BmiCalculator />
-    </div>
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="*" element={<Login />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 
