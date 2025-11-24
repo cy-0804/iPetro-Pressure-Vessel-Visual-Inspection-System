@@ -8,8 +8,7 @@ function App() {
         <Routes>
           <Route
             path="/dashboard"
-            element={<Dashboard />}
-          />
+            element={<Dashboard />} />
         </Routes>
     </BrowserRouter>
   );
