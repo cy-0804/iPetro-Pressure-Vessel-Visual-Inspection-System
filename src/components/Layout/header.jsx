@@ -4,7 +4,7 @@ import { useDisclosure } from '@mantine/hooks';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const links = [
- 
+
 ];
 
 export function Header() {
@@ -27,7 +27,7 @@ export function Header() {
 
   return (
     <Box h={60} px="md">
-      <Container  p={0} h="100%">
+      <Container  p={0} m={0} h="100%">
         <Group justify="space-between" h="100%">
           
           {/* 1. Logo Area */}

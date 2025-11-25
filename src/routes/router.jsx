@@ -35,8 +35,44 @@ export const router = createBrowserRouter([
             element: <Dashboard />,
           },
           {
-            path: '/history',
+            path: '/:pageName',
             element: <div>History Page</div>,
+          },
+          {
+            path: '/notification',
+            element: <div>Notification and Reminder</div>,
+          },
+          {
+            path: '/equipment-registration',
+            element: <div>Equipment Registration</div>,
+          },
+          {
+            path: '/report-generation',
+            element: <div>Report Generation</div>,
+          },
+          {
+            path: '/ssh-inspection-plan',
+            element: <div>SSH Inspection Plan Scheduling and Progress Tracking</div>,
+          },
+          {
+            path: '/inspection-history',
+            element: <div>Inspection History & Data Storage</div>,
+          },
+          {
+            path: '/supervisor-review',
+            element: <div>Supervisor Review & Approval</div>,
+          },
+          {
+            path: '/document-upload',
+            element: <div>Document Upload & Management</div>,
+          },
+          {
+            path: '/inspection-form',
+            element: <div>Inspection Form Module</div>,
+          },
+          {
+            path: '/other-settings',
+            element: <div>Other Settings</div>,
           },
           // Default redirect: If they go to /, send them to dashboard
           {

@@ -4,8 +4,8 @@
   padding: var(--mantine-spacing-md);
   display: flex;
   flex-direction: column;
-  border-right: 1px solid
-    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  border-right: 1px solid var(--mantine-color-gray-3);
+  box-sizing: border-box;
 }
 
 .navbarMain {
@@ -15,15 +15,13 @@
 .header {
   padding-bottom: var(--mantine-spacing-md);
   margin-bottom: calc(var(--mantine-spacing-md) * 1.5);
-  border-bottom: 1px solid
-    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  border-bottom: 1px solid var(--mantine-color-gray-3);
 }
 
 .footer {
   padding-top: var(--mantine-spacing-md);
   margin-top: var(--mantine-spacing-md);
-  border-top: 1px solid
-    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  border-top: 1px solid var(--mantine-color-gray-3);
 }
 
 .link {
@@ -31,39 +29,35 @@
   align-items: center;
   text-decoration: none;
   font-size: var(--mantine-font-size-sm);
-  color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1));
+  color: var(--mantine-color-gray-7);
   padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
   border-radius: var(--mantine-radius-sm);
   font-weight: 500;
-
-  @mixin hover {
-    background-color: light-dark(
-      var(--mantine-color-gray-0),
-      var(--mantine-color-dark-6)
-    );
-    color: light-dark(var(--mantine-color-black), var(--mantine-color-white));
-
-    .linkIcon {
-      color: light-dark(var(--mantine-color-black), var(--mantine-color-white));
-    }
-  }
-
-  &[data-active] {
-    &,
-    &:hover {
-      background-color: var(--mantine-color-primary-light);
-      color: var(--mantine-color-primary-light-color);
-
-      .linkIcon {
-        color: var(--mantine-color-primary-light-color);
-      }
-    }
-  }
+  transition: background-color 150ms ease, color 150ms ease;
 }
 
-.linkIcon {
-  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
+/* hover state for normal links */
+.link:hover {
+  background-color: var(--mantine-color-gray-0);
+  color: var(--mantine-color-black);
+}
+
+/* icon inside link */
+.link .linkIcon {
+  color: var(--mantine-color-gray-6);
   margin-right: var(--mantine-spacing-sm);
   width: 25px;
   height: 25px;
+  flex-shrink: 0;
+}
+
+/* active link class applied by NavLink in JS */
+.linkActive,
+.linkActive:hover {
+  background-color: var(--mantine-color-primary-light);
+  color: var(--mantine-color-primary-light-color);
+}
+
+.linkActive .linkIcon {
+  color: var(--mantine-color-primary-light-color);
 }

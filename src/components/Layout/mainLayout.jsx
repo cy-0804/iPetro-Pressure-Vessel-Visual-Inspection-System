@@ -31,7 +31,7 @@ export function MainLayout() {
             It renders whatever page you are currently on (Dashboard, Settings, etc.)
             inside this exact spot.
         */}
-        <Outlet />
+        <Outlet /> {/*benda ni amik page dalam router.jsx*/}
       </AppShell.Main>
     </AppShell>
   );
