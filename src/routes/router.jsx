@@ -3,12 +3,13 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 
 // Layouts & Guards
 // import ProtectedRoute from './ProtectedRoute';
-import { MainLayout } from "@/components/Layout/mainLayout";
+import { MainLayout } from "../components/Layout/mainLayout.jsx";
 
 
 // Pages
 // import login from '@/auth/login';
-import Dashboard from '@/pages/Dashboard';
+import Dashboard from '../pages/dashboard.jsx';
+import InspectionCalendar from '../pages/InspectionCalendar.jsx';
 // import GeneratorPage from '@/pages/GeneratorPage';
 
 export const router = createBrowserRouter([
@@ -51,8 +52,8 @@ export const router = createBrowserRouter([
             element: <div>Report Generation</div>,
           },
           {
-            path: '/ssh-inspection-plan',
-            element: <div>SSH Inspection Plan Scheduling and Progress Tracking</div>,
+            path: '/inspection-plan',
+            element: <InspectionCalendar />,
           },
           {
             path: '/inspection-history',

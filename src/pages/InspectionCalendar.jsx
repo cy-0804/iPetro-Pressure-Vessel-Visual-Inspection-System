@@ -5,7 +5,7 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import AddInspectionEvent from "../components/calendar/AddInspectionEvent";
-import "./calendar.css"; 
+import "../components/calendar/calendar.css"; 
 
 export default function InspectionCalendar() {
   const calendarRef = useRef(null);

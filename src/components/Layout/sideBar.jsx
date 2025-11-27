@@ -36,8 +36,8 @@ const pages = [
     icon: IconReportMedical,
   },
   {
-    link: "/ssh-inspection-plan",
-    label: "SSH Inspection Plan Scheduling and Progress Tracking",
+    link: "/inspection-plan",
+    label: "Inspection Plan",
     icon: IconKey,
   },
   {
