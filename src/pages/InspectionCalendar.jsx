@@ -1,11 +1,11 @@
-// InspectionCalendar.jsx (updated integration)
+// InspectionCalendar.jsx
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
-import AddInspectionEvent from "./AddInspectionEvent";
-import "./calendar.css"; // your existing calendar styles
+import AddInspectionEvent from "../components/calendar/AddInspectionEvent";
+import "./calendar.css"; 
 
 export default function InspectionCalendar() {
   const calendarRef = useRef(null);
@@ -18,16 +18,16 @@ export default function InspectionCalendar() {
   useEffect(() => {
     const api = calendarRef.current?.getApi();
     if (api) {
-        // Use a short delay to allow the CSS transition to complete before resizing
+       
         const timeout = setTimeout(() => {
             api.updateSize();
-        }, 260); // 300ms is slightly longer than the 260ms transition
+        }, 260); //
 
         return () => clearTimeout(timeout);
     }
     }, [panelOpen]);
 
-  // base sample events (keep or replace with your data)
+
   const baseEvents = useMemo(() => ([
     {
       id: 1, title: "Inspection A", start: "2025-11-15T09:00",
@@ -41,7 +41,7 @@ export default function InspectionCalendar() {
 
   const allEvents = [...baseEvents, ...userEvents];
 
-  // filters (kept simple)
+
   const [inspectorFilter, setInspectorFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
@@ -55,7 +55,7 @@ export default function InspectionCalendar() {
     });
   }, [allEvents, inspectorFilter, statusFilter, dateFilter]);
 
-  // change view when dropdown changes
+
   useEffect(() => {
     const api = calendarRef.current?.getApi();
     if (api) api.changeView(view);
@@ -86,7 +86,7 @@ export default function InspectionCalendar() {
   };
 
 
-  // sample inspectors list (you can replace with dynamic)
+  // sample inspectors list 
   const inspectors = ["Inspector A", "Inspector B", "Inspector C"];
 
   return (
@@ -145,6 +145,7 @@ export default function InspectionCalendar() {
             eventClassNames={(arg) => [arg.event.extendedProps?.status || ""]}
           />
         </div>
+
       </div>   
       </div>
   );
