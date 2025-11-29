@@ -11,6 +11,7 @@ import { MainLayout } from "../components/Layout/MainLayout.jsx";
 import Dashboard from '../pages/Dashboard.jsx';
 import SupervisorReview from '../pages/SupervisorReview.jsx';
 import InspectionCalendar from '../pages/InspectionCalendar.jsx';
+import DocumentUploadManagement from '../pages/DocUpload.jsx';
 // import GeneratorPage from '@/pages/GeneratorPage';
 
 export const router = createBrowserRouter([
@@ -66,7 +67,7 @@ export const router = createBrowserRouter([
           },
           {
             path: '/document-upload',
-            element: <div>Document Upload & Management</div>,
+            element: <DocumentUploadManagement />,
           },
           {
             path: '/inspection-form',

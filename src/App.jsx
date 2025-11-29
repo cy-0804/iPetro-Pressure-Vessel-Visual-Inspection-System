@@ -3,6 +3,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import BmiCalculator from './bmi-count.jsx';
 import InspectionCalendar from './components/calendar/InspectionCalendar.jsx';
+import DocumentUploadManagement from './components/doc-upload/FileUpload.jsx';
 import './App.css';
 
 
