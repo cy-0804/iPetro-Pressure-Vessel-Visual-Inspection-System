@@ -64,7 +64,7 @@ button:focus-visible {
   button {
     background-color: #f9f9f9;
   }
-}
+}q
 
 /* Ensure AppShell.Main fills viewport height and creates a flex context */
 .mantine-AppShell-main {

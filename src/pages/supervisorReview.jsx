@@ -159,52 +159,52 @@ export default function SupervisorReview() {
 				</Card>
 			</SimpleGrid>
 
-			<Modal
-				opened={modalOpen}
-				onClose={closePreview}
-				title={preview ? `${preview.reportId} — ${preview.inspector}` : 'Report preview'}
-				size="100%"
-				centered
-			>
-				{preview ? (
-					<Stack spacing="sm">
-						{/* PDF preview (dummy PDF if no attachment) */}
-						<div style={{ width: '100%', height: 500, border: '1px solid var(--mantine-color-gray-3)', borderRadius: 6, overflow: 'hidden' }}>
-							<iframe
-								src={preview.attachment ? preview.attachment : 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf'}
-								style={{ width: '100%', height: '100%', border: 'none' }}
-								title="report-preview"
-							/>
-						</div>
+<Modal
+  opened={modalOpen}
+  onClose={closePreview}
+  title={preview ? `${preview.reportId} — ${preview.inspector}` : 'Report preview'}
+  size="100%"
+  centered
+>
+  {preview ? (
+    <Stack spacing="sm">
+      {/* PDF preview (dummy PDF if no attachment) */}
+      <div style={{ width: '100%', height: 500, border: '1px solid var(--mantine-color-gray-3)', borderRadius: 6, overflow: 'hidden' }}>
+        <iframe
+          src={preview.attachment ? preview.attachment : 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf'}
+          style={{ width: '100%', height: '100%', border: 'none' }}
+          title="report-preview"
+        />
+      </div>
 
-						<Group position="apart">
-							<Text weight={700}>{preview.reportId}</Text>
-							<Text size="sm" color="dimmed">Received: {preview.receivedAt}</Text>
-						</Group>
+      <Group position="apart">
+        <Text weight={700}>{preview.reportId}</Text>
+        <Text size="sm" color="dimmed">Received: {preview.receivedAt}</Text>
+      </Group>
 
-						<Text size="sm"><strong>Inspection date:</strong> {preview.inspectionDate}</Text>
+      <Text size="sm"><strong>Inspection date:</strong> {preview.inspectionDate}</Text>
 
-						<Text><strong>Findings:</strong></Text>
-						<Text color="dimmed">{preview.findings || '—'}</Text>
+      <Text><strong>Findings:</strong></Text>
+      <Text color="dimmed">{preview.findings || '—'}</Text>
 
-						<Text><strong>Notes:</strong></Text>
-						<Text color="dimmed">{preview.notes || '—'}</Text>
+      <Text><strong>Notes:</strong></Text>
+      <Text color="dimmed">{preview.notes || '—'}</Text>
 
-						{preview.attachment ? (
-							<Text><strong>Attachment:</strong> {preview.attachment}</Text>
-						) : null}
+      {preview.attachment ? (
+        <Text><strong>Attachment:</strong> {preview.attachment}</Text>
+      ) : null}
 
-						<Group position="right" mt="md">
-							<Button color="green" onClick={() => { handleApprove(preview.id); }}>
-								Approve
-							</Button>
-							<Button variant="outline" color="gray" onClick={closePreview}>
-								Close
-							</Button>
-						</Group>
-					</Stack>
-				) : null}
-			</Modal>
+      <Group position="right" mt="md">
+        <Button color="green" onClick={() => { handleApprove(preview.id); }}>
+          Approve
+        </Button>
+        <Button variant="outline" color="gray" onClick={closePreview}>
+          Close
+        </Button>
+      </Group>
+    </Stack>
+  ) : null}
+</Modal>
 		</Container>
 	);
 }
