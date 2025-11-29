@@ -26,9 +26,9 @@ export function Header() {
   ));
 
   return (
-    <Box h={60} px="md">
-      <Container  p={0} m={0} h="100%">
-        <Group justify="space-between" h="100%">
+    <Box h={60} p={0}>
+      <Container  fluid  px={0} mx={80}  h="100%">
+        <Group justify="space-between" align="center" h="100%">
           
           {/* 1. Logo Area */}
            <Image src="../src/assets/ipetro-logo.png" w={200} alt="IPETRO Logo" />
@@ -38,6 +38,7 @@ export function Header() {
             {items}
           </Group>
 
+          <Button variant="default">Log Out</Button>
           {/* 3. Mobile Menu Button */}
           <Burger opened={opened} onClick={toggle} hiddenFrom="xs" size="sm" />
         

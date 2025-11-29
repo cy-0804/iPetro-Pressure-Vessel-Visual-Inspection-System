@@ -1,8 +1,8 @@
-import { Title, SimpleGrid, Paper, Text } from "@mantine/core";
+import {Container, Title, SimpleGrid, Paper, Text } from "@mantine/core";
 
 export default function DashboardPage() {
   return (
-    <div>
+    <Container mx={0} >
       {/* This Title will appear INSIDE the Main area of your AppShell */}
       <Title order={2} mb="md">
         Dashboard Overview
@@ -39,6 +39,6 @@ export default function DashboardPage() {
           </Text>
         </Paper>
       </SimpleGrid>
-    </div>
+    </Container>
   );
 }

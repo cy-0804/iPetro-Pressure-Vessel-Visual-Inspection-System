@@ -9,6 +9,7 @@ import { MainLayout } from "@/components/Layout/mainLayout";
 // Pages
 // import login from '@/auth/login';
 import Dashboard from '@/pages/Dashboard';
+import SupervisorReview from '@/pages/SupervisorReview';
 // import GeneratorPage from '@/pages/GeneratorPage';
 
 export const router = createBrowserRouter([
@@ -60,7 +61,7 @@ export const router = createBrowserRouter([
           },
           {
             path: '/supervisor-review',
-            element: <div>Supervisor Review & Approval</div>,
+            element: <SupervisorReview />,
           },
           {
             path: '/document-upload',
