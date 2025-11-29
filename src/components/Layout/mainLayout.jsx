@@ -12,8 +12,7 @@ export function MainLayout() {
       header={{ height: 60 }}
       navbar={{
         width: 300,
-        breakpoint: "sm",
-        collapsed: { mobile: !opened },
+  
       }}
       padding="md"
     >
@@ -31,7 +30,7 @@ export function MainLayout() {
             It renders whatever page you are currently on (Dashboard, Settings, etc.)
             inside this exact spot.
         */}
-        <Outlet />
+        <Outlet /> {/*benda ni amik page dalam router.jsx*/}
       </AppShell.Main>
     </AppShell>
   );

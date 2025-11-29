@@ -3,12 +3,14 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 
 // Layouts & Guards
 // import ProtectedRoute from './ProtectedRoute';
-import { MainLayout } from "@/components/Layout/mainLayout";
+import { MainLayout } from "../components/Layout/MainLayout.jsx";
 
 
 // Pages
 // import login from '@/auth/login';
-import Dashboard from '@/pages/Dashboard';
+import Dashboard from '../pages/Dashboard.jsx';
+import SupervisorReview from '../pages/SupervisorReview.jsx';
+import InspectionCalendar from '../pages/InspectionCalendar.jsx';
 // import GeneratorPage from '@/pages/GeneratorPage';
 
 export const router = createBrowserRouter([
@@ -35,8 +37,44 @@ export const router = createBrowserRouter([
             element: <Dashboard />,
           },
           {
-            path: '/history',
+            path: '/:pageName',
             element: <div>History Page</div>,
+          },
+          {
+            path: '/notification',
+            element: <div>Notification and Reminder</div>,
+          },
+          {
+            path: '/equipment-registration',
+            element: <div>Equipment Registration</div>,
+          },
+          {
+            path: '/report-generation',
+            element: <div>Report Generation</div>,
+          },
+          {
+            path: '/inspection-plan',
+            element: <InspectionCalendar />,
+          },
+          {
+            path: '/inspection-history',
+            element: <div>Inspection History & Data Storage</div>,
+          },
+          {
+            path: '/supervisor-review',
+            element: <SupervisorReview />,
+          },
+          {
+            path: '/document-upload',
+            element: <div>Document Upload & Management</div>,
+          },
+          {
+            path: '/inspection-form',
+            element: <div>Inspection Form Module</div>,
+          },
+          {
+            path: '/other-settings',
+            element: <div>Other Settings</div>,
           },
           // Default redirect: If they go to /, send them to dashboard
           {

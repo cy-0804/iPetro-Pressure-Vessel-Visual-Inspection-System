@@ -15,8 +15,10 @@ import {
 } from "@tabler/icons-react";
 import { Code, Group, Text, Image } from "@mantine/core";
 import classes from "./sideBar.module.css";
+import { NavLink,Outlet, useParams } from "react-router-dom";
 
-const data = [
+
+const pages = [
   { link: "/dashboard", label: "Dashboard & Analytics", icon: IconDashboard },
   {
     link: "/notification",
@@ -34,8 +36,8 @@ const data = [
     icon: IconReportMedical,
   },
   {
-    link: "/ssh-inspection-plan",
-    label: "SSH Inspection Plan Scheduling and Progress Tracking",
+    link: "/inspection-plan",
+    label: "Inspection Plan",
     icon: IconKey,
   },
   {
@@ -62,23 +64,18 @@ const data = [
 ];
 
 export function SideBar() {
-  const [active, setActive] = useState("Dashboard & Analytics");
-
-  const links = data.map((item) => (
-    <a
-      className={classes.link}
-      data-active={item.label === active || undefined}
-      href={item.link}
-      key={item.label}
-      onClick={(event) => {
-        event.preventDefault();
-        setActive(item.label);
-      }}
-    >
-      <item.icon className={classes.linkIcon} stroke={1.5} />
-      <span>{item.label}</span>
-    </a>
-  ));
+const links = pages.map((item) => (
+  <NavLink
+    key={item.label}
+    to={item.link}
+    className={({ isActive }) => 
+      `${classes.link} ${isActive ? classes.linkActive : ''}`
+    }
+  >
+    <item.icon className={classes.linkIcon} stroke={1.5} />
+    <span>{item.label}</span>
+  </NavLink>
+));
 
   return (
     <nav className={classes.navbar}>
@@ -87,6 +84,7 @@ export function SideBar() {
         <Text fw={700} size="lg" c="myTeal">Name</Text>
         </Group>
         {links}
+   
       </div>
 
     
