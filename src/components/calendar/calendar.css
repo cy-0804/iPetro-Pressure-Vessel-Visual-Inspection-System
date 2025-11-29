@@ -1,0 +1,153 @@
+.calendar-wrapper {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  background: #f7f9fc;
+  position: relative; 
+  overflow: hidden; 
+  --panel-width: 380px;
+}
+
+.main-content-area {
+  display: flex; /* Establish flex context */
+  height: calc(100vh - 56px); /* 100vh - height of the .top-toolbar (adjust 56px if needed) */
+  width: 100%;
+  transition: transform 260ms cubic-bezier(.22,.9,.36,1);
+}
+
+.top-toolbar {
+  display: flex;
+  flex-wrap: wrap; /* allow items to move to next line on small screens */
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #fff;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.top-toolbar .btn,
+.top-toolbar .date-input,
+.top-toolbar select {
+  flex: 1 1 auto; /* grow/shrink to fill space */
+  min-width: 100px;
+  max-width: 180px;
+}
+
+.calendar-container {
+flex: 1; /* Calendar takes all remaining space */
+  width: 100%;
+  min-width: 0; /* Allows the calendar to shrink */
+  transition: width 260ms cubic-bezier(.22,.9,.36,1); /* Transition calendar size too */
+}
+
+.fc {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.fc-view-harness {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Event colors by status */
+.fc-event.pending {
+  background-color: #fdd835 !important; /* yellow */
+  border-color: #fdd835 !important;
+  color: #000 !important;
+}
+
+.fc-event.in-progress {
+  background-color: #42a5f5 !important; /* blue */
+  border-color: #42a5f5 !important;
+  color: #fff !important;
+}
+
+.fc-event.completed {
+  background-color: #66bb6a !important; /* green */
+  border-color: #66bb6a !important;
+  color: #fff !important;
+}
+
+.status-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto; /* push legend to the right */
+  font-size: 14px;
+  flex-wrap: wrap; /* wrap legend items if needed */
+}
+
+.legend-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #fff;
+  font-weight: 500;
+  cursor: default;
+}
+
+/* match event colors */
+.legend-item.pending {
+  background-color: #fdd835; /* yellow */
+  color: #000;
+}
+
+.legend-item.in-progress {
+  background-color: #42a5f5; /* blue */
+}
+
+.legend-item.completed {
+  background-color: #66bb6a; /* green */
+}
+
+/* Small screen adjustments */
+@media (max-width: 768px) {
+  .top-toolbar {
+    gap: 6px;
+    padding: 8px 10px;
+  }
+
+  .top-toolbar .btn,
+  .top-toolbar .date-input,
+  .top-toolbar select {
+    min-width: 80px;
+    max-width: 140px;
+    font-size: 13px;
+  }
+
+  .status-legend {
+    font-size: 12px;
+    gap: 4px;
+  }
+
+  .legend-item {
+    padding: 2px 4px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .top-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .top-toolbar .btn,
+  .top-toolbar .date-input,
+  .top-toolbar select {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .status-legend {
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+}
