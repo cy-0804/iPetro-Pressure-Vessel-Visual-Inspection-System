@@ -3,13 +3,13 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 
 // Layouts & Guards
 // import ProtectedRoute from './ProtectedRoute';
-import { MainLayout } from "@/components/Layout/mainLayout";
+import { MainLayout } from "../components/Layout/MainLayout";
 
 
 // Pages
 // import login from '@/auth/login';
-import Dashboard from '@/pages/Dashboard';
-import SupervisorReview from '@/pages/SupervisorReview';
+import Dashboard from '../pages/Dashboard';
+import SupervisorReview from '../pages/supervisorReview';
 // import GeneratorPage from '@/pages/GeneratorPage';
 
 export const router = createBrowserRouter([
