@@ -111,3 +111,8 @@
 .fc th {
   border-color: #e5e5e5 !important;
 }
+
+/* Make events look clickable */
+.fc-event {
+  cursor: pointer;
+}
