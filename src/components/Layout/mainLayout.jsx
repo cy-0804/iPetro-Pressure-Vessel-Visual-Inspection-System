@@ -1,10 +1,12 @@
-import { AppShell, Burger, Group, Text } from "@mantine/core";
+import { AppShell } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { Outlet } from "react-router-dom"; 
-import { SideBar } from "./sideBar.jsx";
-import { Header } from "./header.jsx"; 
+import { Outlet } from "react-router-dom";
+import { SideBar } from "../Layout/sideBar.jsx"; // Adjust path as needed
+import { Header } from "../Layout/header.jsx";   // Adjust path as needed
 
 export function MainLayout() {
+  // defaulting to false means it starts CLOSED. 
+  // Change to useDisclosure(true) if you want it open by default.
   const [opened, { toggle }] = useDisclosure();
 
   return (
@@ -12,25 +14,22 @@ export function MainLayout() {
       header={{ height: 60 }}
       navbar={{
         width: 300,
-  
+        breakpoint: "sm",
+        // UPDATE HERE: Control desktop state too
+        collapsed: { mobile: !opened, desktop: !opened },
       }}
-      padding="md"
+      padding={0}
     >
       <AppShell.Header>
-      <Header/>
+        <Header opened={opened} toggle={toggle} />
       </AppShell.Header>
 
-      <AppShell.Navbar >
-        {/* Isolate the links in a separate file so this file stays clean */}
-        <SideBar />
+      <AppShell.Navbar p="md">
+        <SideBar toggle={toggle} />
       </AppShell.Navbar>
 
       <AppShell.Main>
-        {/* This 'Outlet' is magic. 
-            It renders whatever page you are currently on (Dashboard, Settings, etc.)
-            inside this exact spot.
-        */}
-        <Outlet /> {/*benda ni amik page dalam router.jsx*/}
+        <Outlet />
       </AppShell.Main>
     </AppShell>
   );

@@ -1,19 +1,11 @@
-.navbar {
-  height: 700px;
+/* sideBar.module.css */
 
-  padding: var(--mantine-spacing-md);
-
-  box-sizing: border-box;
-}
+/* Removed .navbar class since AppShell.Navbar handles the container */
 
 .navbarMain {
   flex: 1;
-}
-
-.header {
-  padding-bottom: var(--mantine-spacing-md);
-  margin-bottom: calc(var(--mantine-spacing-md) * 1.5);
-  border-bottom: 1px solid var(--mantine-color-gray-3);
+  /* Optional: Add padding if you want spacing inside the scroll area */
+  padding-top: var(--mantine-spacing-xs); 
 }
 
 .link {
@@ -21,24 +13,20 @@
   align-items: center;
   text-decoration: none;
   font-size: var(--mantine-font-size-sm);
-  color: var(--mantine-color-white);
+  color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1));
   padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
   border-radius: var(--mantine-radius-sm);
   font-weight: 500;
+  margin-bottom: 4px; /* Add slight spacing between items */
   transition: background-color 150ms ease, color 150ms ease;
 }
 
-/* hover state for normal links */
+/* Hover state */
 .link:hover {
-  background-color: light-dark(
-    var(--mantine-color-gray-0),
-    var(--mantine-color-dark-6)
-  );
-
+  background-color: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6));
   color: light-dark(var(--mantine-color-black), var(--mantine-color-white));
 }
 
-/* icon inside link */
 .link .linkIcon {
   color: var(--mantine-color-gray-6);
   margin-right: var(--mantine-spacing-sm);
@@ -47,13 +35,14 @@
   flex-shrink: 0;
 }
 
-/* active link class applied by NavLink in JS */
+/* Active link class */
 .linkActive,
 .linkActive:hover {
-  background-color: var(--mantine-color-primary-light);
-  color: var(--mantine-color-primary-light-color);
+  /* Using your primary theme color */
+  background-color: var(--mantine-color-primary-1);
+  color: var(--mantine-color-primary-9);
 }
 
 .linkActive .linkIcon {
-  color: var(--mantine-color-primary-light-color);
+  color: var(--mantine-color-primary-9);
 }

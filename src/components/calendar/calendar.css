@@ -1,153 +1,113 @@
+/* calendar.css */
 .calendar-wrapper {
   display: flex;
   flex-direction: column;
-  width: 100vw;
-  height: 100vh;
-  margin: 0;
-  padding: 0;
-  background: #f7f9fc;
-  position: relative; 
-  overflow: hidden; 
-  --panel-width: 380px;
-}
-
-.main-content-area {
-  display: flex; /* Establish flex context */
-  height: calc(100vh - 56px); /* 100vh - height of the .top-toolbar (adjust 56px if needed) */
   width: 100%;
-  transition: transform 260ms cubic-bezier(.22,.9,.36,1);
+  height: 100%;
+  /* Fill parent dynamically */
+  background: #ffffff;
+  color: #3c4043;
+  /* Force dark text color */
+  overflow: hidden;
 }
 
 .top-toolbar {
   display: flex;
-  flex-wrap: wrap; /* allow items to move to next line on small screens */
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
+  gap: 12px;
+  padding: 12px 20px;
   background: #fff;
   border-bottom: 1px solid #e5e5e5;
+  flex-shrink: 0;
+  /* Keeps toolbar size constant */
 }
 
+/* Toolbar inputs */
 .top-toolbar .btn,
 .top-toolbar .date-input,
 .top-toolbar select {
-  flex: 1 1 auto; /* grow/shrink to fill space */
-  min-width: 100px;
-  max-width: 180px;
+  padding: 8px 32px 8px 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 6px;
+  font-size: 14px;
+  background-color: white;
+  color: #333;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+/* Make select dropdowns more obvious with arrow indicator */
+.top-toolbar select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px;
+  padding-right: 32px;
+}
+
+.top-toolbar select:hover {
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.1);
+}
+
+.top-toolbar select:focus {
+  outline: none;
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.2);
+}
+
+.btn-primary {
+  background-color: #1a73e8 !important;
+  color: white !important;
+  border: none !important;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .calendar-container {
-flex: 1; /* Calendar takes all remaining space */
+  /* Flex 1 makes it fill all remaining vertical space */
+  flex: 1;
+  flex-grow: 1;
+  /* Explicitly set grow */
   width: 100%;
-  min-width: 0; /* Allows the calendar to shrink */
-  transition: width 260ms cubic-bezier(.22,.9,.36,1); /* Transition calendar size too */
+  min-height: 0;
+  padding: 0;
+  position: relative;
 }
 
+/* FullCalendar Styling to match Google */
 .fc {
   width: 100% !important;
   height: 100% !important;
+  --fc-border-color: #e5e5e5;
+  --fc-today-bg-color: rgba(26, 115, 232, 0.04);
+  --fc-page-bg-color: #ffffff;
+  --fc-neutral-bg-color: rgba(208, 208, 208, 0.3);
+  --fc-list-event-hover-bg-color: #f5f5f5;
 }
 
-.fc-view-harness {
-  width: 100% !important;
-  height: 100% !important;
-}
-
-/* Event colors by status */
-.fc-event.pending {
-  background-color: #fdd835 !important; /* yellow */
-  border-color: #fdd835 !important;
-  color: #000 !important;
-}
-
-.fc-event.in-progress {
-  background-color: #42a5f5 !important; /* blue */
-  border-color: #42a5f5 !important;
-  color: #fff !important;
-}
-
-.fc-event.completed {
-  background-color: #66bb6a !important; /* green */
-  border-color: #66bb6a !important;
-  color: #fff !important;
-}
-
-.status-legend {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto; /* push legend to the right */
-  font-size: 14px;
-  flex-wrap: wrap; /* wrap legend items if needed */
-}
-
-.legend-item {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  color: #fff;
+.fc .fc-col-header-cell-cushion {
+  padding: 8px;
+  color: #70757a;
   font-weight: 500;
-  cursor: default;
+  text-decoration: none;
 }
 
-/* match event colors */
-.legend-item.pending {
-  background-color: #fdd835; /* yellow */
-  color: #000;
+.fc .fc-daygrid-day-number {
+  color: #3c4043;
+  padding: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
 }
 
-.legend-item.in-progress {
-  background-color: #42a5f5; /* blue */
-}
-
-.legend-item.completed {
-  background-color: #66bb6a; /* green */
-}
-
-/* Small screen adjustments */
-@media (max-width: 768px) {
-  .top-toolbar {
-    gap: 6px;
-    padding: 8px 10px;
-  }
-
-  .top-toolbar .btn,
-  .top-toolbar .date-input,
-  .top-toolbar select {
-    min-width: 80px;
-    max-width: 140px;
-    font-size: 13px;
-  }
-
-  .status-legend {
-    font-size: 12px;
-    gap: 4px;
-  }
-
-  .legend-item {
-    padding: 2px 4px;
-    font-size: 12px;
-  }
-}
-
-@media (max-width: 480px) {
-  .top-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .top-toolbar .btn,
-  .top-toolbar .date-input,
-  .top-toolbar select {
-    width: 100%;
-    max-width: 100%;
-  }
-
-  .status-legend {
-    justify-content: flex-start;
-    margin-left: 0;
-  }
+/* Ensure grid lines are visible */
+.fc td,
+.fc th {
+  border-color: #e5e5e5 !important;
 }

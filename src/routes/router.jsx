@@ -9,7 +9,7 @@ import { MainLayout } from "../components/Layout/MainLayout.jsx";
 // Pages
 // import login from '@/auth/login';
 import Dashboard from '../pages/Dashboard.jsx';
-import SupervisorReview from '../pages/SupervisorReview.jsx';
+import SupervisorReview from '../pages/supervisorReview.jsx';
 import InspectionCalendar from '../pages/InspectionCalendar.jsx';
 import DocumentUploadManagement from '../pages/DocUpload.jsx';
 // import GeneratorPage from '@/pages/GeneratorPage';
