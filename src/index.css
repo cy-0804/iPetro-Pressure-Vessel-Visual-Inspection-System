@@ -69,23 +69,3 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
-
-/* Ensure AppShell.Main fills viewport height and creates a flex context */
-.mantine-AppShell-main {
-  height: calc(100vh - 60px) !important;
-  /* Fixed height */
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
-  /* Prevent scroll on main container */
-}
-
-/* Make Outlet content fill the main area */
-.mantine-AppShell-main>* {
-  padding: 0 16px !important;
-  /* Horizontal padding only */
-  flex: 1 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  height: 100% !important;
-}
