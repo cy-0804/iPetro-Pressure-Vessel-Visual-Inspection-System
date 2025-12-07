@@ -18,7 +18,7 @@ export function MainLayout() {
         // UPDATE HERE: Control desktop state too
         collapsed: { mobile: !opened, desktop: !opened },
       }}
-      padding={0}
+      padding={30}
     >
       <AppShell.Header>
         <Header opened={opened} toggle={toggle} />
@@ -28,7 +28,7 @@ export function MainLayout() {
         <SideBar toggle={toggle} />
       </AppShell.Navbar>
 
-      <AppShell.Main>
+      <AppShell.Main >
         <Outlet />
       </AppShell.Main>
     </AppShell>

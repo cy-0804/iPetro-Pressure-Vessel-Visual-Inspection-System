@@ -78,6 +78,7 @@ export function Header({ opened, toggle }) {
             </Menu>
           </Group>
 
+          <Button variant="default">Log out</Button>
         </Group>
       </Container>
     </Box>
