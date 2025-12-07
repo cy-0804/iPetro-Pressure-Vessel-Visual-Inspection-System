@@ -26,7 +26,7 @@ export const router = createBrowserRouter([
     // element: <ProtectedRoute />, // 🔒 The Bouncer checks ID here
     // children: [
     //   {
-    // ☝☝ uncomment these lines if you want to enable ProtectedRoute
+    // ☝☝ uncomment these lines if you want to enable ProtectedRoute, untuk login page nanti
 
         
         // 3. APP LAYOUT (Dashboard, History, Settings)

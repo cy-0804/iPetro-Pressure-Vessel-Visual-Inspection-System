@@ -1,13 +1,13 @@
-import { Group, Burger, Box, Image, Container } from "@mantine/core";
+import { Group, Burger,Button, Box, Image, Container } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
 
 export function Header({ opened, toggle }) {
   const navigate = useNavigate();
 
   return (
-    <Box h={60} p={0} bg="white">
+    <Box h={60} p={0} >
       <Container fluid px={20} h="100%">
-        <Group justify="flex-start" align="center" h="100%" gap={20}>
+        <Group justify="space-between" align="center" h="100%" gap={20}>
 
           {/* Burger (always on left for ALL breakpoints) */}
           <Burger
@@ -34,6 +34,7 @@ export function Header({ opened, toggle }) {
             />
           </Box>
 
+          <Button variant="default">Log out</Button>
         </Group>
       </Container>
     </Box>
