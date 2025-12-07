@@ -1,4 +1,4 @@
-import { Group, Burger, Box, Image, Container, Menu, ActionIcon, Indicator, Text, rem } from "@mantine/core";
+import { Group, Burger, Box, Image, Container, Menu, ActionIcon, Indicator, Text, rem, Button } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
 import { IconBell } from "@tabler/icons-react";
 
@@ -76,9 +76,8 @@ export function Header({ opened, toggle }) {
                 </Menu.Item>
               </Menu.Dropdown>
             </Menu>
+            <Button variant="default">Log out</Button>
           </Group>
-
-          <Button variant="default">Log out</Button>
         </Group>
       </Container>
     </Box>
