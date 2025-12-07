@@ -109,12 +109,14 @@ export default function NotificationsPage() {
                         All
                     </Tabs.Tab>
                     <Tabs.Tab value="unread" leftSection={<IconClock size={16} />}>
-                        Unread
-                        {notifications.filter(n => !n.read).length > 0 && (
-                            <Badge size="xs" circle ml={6} color="red">
-                                {notifications.filter(n => !n.read).length}
-                            </Badge>
-                        )}
+                        <Group gap={6} align="center">
+                            Unread
+                            {notifications.filter(n => !n.read).length > 0 && (
+                                <Badge size="xs" circle color="red">
+                                    {notifications.filter(n => !n.read).length}
+                                </Badge>
+                            )}
+                        </Group>
                     </Tabs.Tab>
                     <Tabs.Tab value="read" leftSection={<IconCheck size={16} />}>
                         Read

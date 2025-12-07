@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   TextInput, Select, Checkbox, Textarea, Group, Button,
-  ActionIcon, Stack, Text, Box, ColorSwatch
+  ActionIcon, Stack, Text, Box, ColorSwatch, Badge
 } from "@mantine/core";
 import { IconCheck, IconX } from "@tabler/icons-react";
 
@@ -132,46 +132,55 @@ export default function AddInspectionForm({
   };
 
   return (
-    <Box w={400} p="md"> {/* Increased width slightly */}
+    <Box w={600} p="md"> {/* Match width with InspectorEventDetails */}
       <Stack gap="sm">
         {!initialEvent && (
-          <Group justify="space-between">
-            <Text fw={600} size="lg">Add Inspection</Text>
+          <Group justify="space-between" mb="xs">
+            <Text fw={600} size="lg">Create Inspection Plan</Text>
             <ActionIcon variant="subtle" color="gray" onClick={onCancel}>
               <IconX size={18} />
             </ActionIcon>
           </Group>
         )}
 
-        <TextInput
-          label="Title"
-          placeholder="Inspection Title"
-          data-autofocus={!initialEvent}
-          size="sm"
-          value={title}
-          onChange={(e) => setTitle(e.currentTarget.value)}
-          readOnly={readOnly}
-        />
+        <Group justify="space-between" align="center">
+          <TextInput
+            label="Title"
+            placeholder="Inspection Title"
+            data-autofocus={!initialEvent}
+            size="sm"
+            style={{ flex: 1 }}
+            value={title}
+            onChange={(e) => setTitle(e.currentTarget.value)}
+            readOnly={readOnly}
+          />
+          <Stack gap={0}>
+            <Text size="xs" fw={500} mb={3}>Status</Text>
+            <Badge color={status === 'completed' ? 'green' : 'blue'}>{status}</Badge>
+          </Stack>
+        </Group>
 
-        <TextInput
-          label="Equipment ID"
-          placeholder="e.g. EQ-12345"
-          size="sm"
-          value={equipmentId}
-          onChange={(e) => setEquipmentId(e.currentTarget.value)}
-          readOnly={readOnly}
-        />
+        <Group grow>
+          <TextInput
+            label="Equipment ID"
+            placeholder="e.g. EQ-12345"
+            size="sm"
+            value={equipmentId}
+            onChange={(e) => setEquipmentId(e.currentTarget.value)}
+            readOnly={readOnly}
+          />
 
-        <Select
-          label="Assigned Inspector"
-          data={inspectors}
-          value={inspector}
-          onChange={setInspector}
-          placeholder="Select Inspector"
-          searchable
-          size="sm"
-          disabled={readOnly}
-        />
+          <Select
+            label="Assigned Inspector"
+            data={inspectors}
+            value={inspector}
+            onChange={setInspector}
+            placeholder="Select Inspector"
+            searchable
+            size="sm"
+            disabled={readOnly}
+          />
+        </Group>
 
         <Group grow>
           <TextInput label="Start Date" type="date" value={startDate} onChange={(e) => setStartDate(e.currentTarget.value)} size="sm" readOnly={readOnly} />
@@ -184,22 +193,22 @@ export default function AddInspectionForm({
         </Group>
 
         <Checkbox
-          label="All day"
+          label="All day event"
           checked={allDay}
           onChange={(e) => setAllDay(e.currentTarget.checked)}
-          size="xs"
+          size="sm"
           disabled={readOnly}
         />
 
         <Group gap="xs">
-          <Text size="sm" fw={500}>Color:</Text>
+          <Text size="sm" fw={500}>Color Tag:</Text>
           {swatches.map((c) => (
             <ColorSwatch
               key={c}
               component="button"
               color={c}
               onClick={() => !readOnly && setColor(c)}
-              size={26}
+              size={22}
               radius="xl"
               style={{
                 color: '#fff',
@@ -209,14 +218,14 @@ export default function AddInspectionForm({
                 opacity: readOnly && color !== c ? 0.3 : 1
               }}
             >
-              {color === c && <IconCheck size={14} />}
+              {color === c && <IconCheck size={12} />}
             </ColorSwatch>
           ))}
         </Group>
 
         <Textarea
-          label="Description"
-          placeholder="Add description..."
+          label="Description / Plan Instructions"
+          placeholder="Add details about the inspection plan..."
           minRows={3}
           value={description}
           onChange={(e) => setDescription(e.currentTarget.value)}
@@ -225,9 +234,9 @@ export default function AddInspectionForm({
         />
 
         {!readOnly && (
-          <Group gap="xs" style={{ marginLeft: 'auto' }}>
-            {onCancel && <Button variant="default" size="xs" onClick={onCancel}>Cancel</Button>}
-            <Button onClick={handleSave} size="xs">Save</Button>
+          <Group gap="xs" justify="flex-end" mt="md">
+            {onCancel && <Button variant="default" onClick={onCancel}>Cancel</Button>}
+            <Button onClick={handleSave}>Save Inspection Plan</Button>
           </Group>
         )}
       </Stack>
