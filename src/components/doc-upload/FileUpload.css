@@ -1,0 +1,167 @@
+/* Styling for the drag and drop area */
+.p-fileupload .p-fileupload-dropzone {
+  border: 2px dashed #007bff;
+  background-color: #f1f1f1;
+  padding: 30px;
+  border-radius: 15px;
+  text-align: center;
+  font-size: 16px;
+  color: #007bff;
+  cursor: pointer;
+}
+
+.p-fileupload .p-fileupload-dropzone p {
+  font-size: 14px;
+  color: #888;
+}
+
+.p-fileupload .p-fileupload-dropzone .p-fileupload-dragover {
+  background-color: #e0e0e0;
+}
+
+.p-fileupload .p-fileupload-dropzone .p-fileupload-btn {
+  margin-top: 10px;
+}
+
+/* Styling for the file list (if you use your own list) */
+.file-list {
+  list-style: none;
+  padding: 0;
+}
+
+/* Styling each file item */
+.file-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background-color: #f9f9f9;
+}
+
+.file-list-item .file-name {
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.file-list-item .file-size {
+  font-size: 12px;
+  color: gray;
+}
+
+.file-list-item .file-status {
+  background-color: #ff9800;
+  color: white;
+  padding: 5px 10px;
+  border-radius: 50px;
+  font-size: 12px;
+}
+
+/* If you still use your own cancel button in a custom list */
+.file-list-item .cancel-button {
+  background-color: transparent;
+  color: black;
+  border: none;
+  border-radius: 0;
+  font-size: 1.2rem;
+  padding: 0;
+  cursor: pointer;
+}
+
+.file-list-item .cancel-button:hover {
+  color: red;
+}
+
+/* Top "Cancel" button in the toolbar */
+.p-fileupload .p-button-cancel {
+  background-color: #f44336;
+  color: white;
+  border-radius: 50px;
+  padding: 8px 16px;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: center;
+  display: inline-block;
+}
+
+.p-fileupload .p-button-cancel:hover {
+  background-color: #d32f2f;
+}
+
+/* Full-page loading spinner */
+.full-page-loading {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(255, 255, 255, 0.7);
+  z-index: 9999;
+}
+
+/* Uploaded files management section */
+.uploaded-files-section h3 {
+  margin-bottom: 10px;
+}
+
+.no-files-text {
+  font-size: 14px;
+  color: #777;
+}
+
+/* Actions (view + delete) on the right side of your custom list */
+.file-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* View/Download button */
+.view-button {
+  background-color: #007bff;
+  color: white;
+  border-radius: 50px;
+  padding: 8px 16px;
+  font-size: 12px;
+  text-decoration: none;
+  border: none;
+}
+
+.view-button:hover {
+  background-color: #0056b3;
+}
+
+/* ===== PRIME REACT ROW DELETE BUTTON: make it just an "X" ===== */
+
+/* Remove big black rounded style */
+.p-fileupload .p-fileupload-file-remove {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  padding: 0 !important;
+}
+
+/* Hide the default icon span */
+.p-fileupload .p-fileupload-file-remove .p-button-icon {
+  display: none;
+}
+
+/* Show a plain "X" instead */
+.p-fileupload .p-fileupload-file-remove::before {
+  content: "✕";
+  font-size: 1.2rem;
+  color: #000;
+}
+
+/* Hover state for the X */
+.p-fileupload .p-fileupload-file-remove:hover::before {
+  color: #f44336;
+}
