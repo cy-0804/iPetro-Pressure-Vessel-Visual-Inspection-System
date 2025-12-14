@@ -11,6 +11,7 @@ import InspectionCalendar from '../pages/InspectionCalendar.jsx';
 import InspectionReportHistory from "../pages/InspectionHistory";
 import NotificationsPage from "../pages/Notifications";
 import DocumentUploadManagement from '../pages/DocUpload.jsx';
+import EquipmentRegistration from '../pages/EquipmentRegistration.jsx';
 
 export const router = createBrowserRouter([
   {
@@ -26,8 +27,8 @@ export const router = createBrowserRouter([
         element: <NotificationsPage />,
       },
       {
-        path: '/equipment-registration',
-        element: <div>Equipment Registration</div>,
+        path: '/equipment',
+        element: <EquipmentRegistration />,
       },
       {
         path: '/report-generation',

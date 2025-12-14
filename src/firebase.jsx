@@ -1,18 +1,19 @@
-// src/firebase.js
+// firebase.js
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
-// When ready to use Firebase, uncomment everything below:
+const firebaseConfig = {
+    apiKey: "AIzaSyB1fkkfdS_nyqGW02v5zvxEbzfIXQh0RCs",
+    authDomain: "workshop2-516a1.firebaseapp.com",
+    projectId: "workshop2-516a1",
+    storageBucket: "workshop2-516a1.firebasestorage.app",
+    messagingSenderId: "996928787873",
+    appId: "1:996928787873:web:36246420715c716aefa7e0",
+    measurementId: "G-G8NZ22LY22"
+};
 
-// import { initializeApp } from "firebase/app";
-// import { getAuth } from "firebase/auth";
-
-// const firebaseConfig = {
-//   apiKey: "YOUR_API_KEY",
-//   authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-//   projectId: "YOUR_PROJECT_ID",
-//   storageBucket: "YOUR_PROJECT_ID.appspot.com",
-//   messagingSenderId: "YOUR_SENDER_ID",
-//   appId: "YOUR_APP_ID",
-// };
-
-// const app = initializeApp(firebaseConfig);
-// export const auth = getAuth(app);
+// Initialize Firebase (Standard Singleton Pattern)
+export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+export const db = getFirestore(app);
+export const storage = getStorage(app);

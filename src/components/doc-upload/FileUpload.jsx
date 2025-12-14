@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { FileUpload } from "primereact/fileupload";
 import { Toast } from "primereact/toast";
 import { ProgressSpinner } from "primereact/progressspinner";
-import { storage } from "../../firebase/upload";
+import { storage } from "../../firebase";
 import { ref, uploadBytes, getDownloadURL, listAll, deleteObject } from "firebase/storage";
 import { Group, Text, Badge, CloseButton, Image, Paper } from "@mantine/core";
 import "primereact/resources/themes/saga-blue/theme.css";
@@ -113,58 +113,58 @@ const FileUploadComponent = () => {
   };
 
   const formatFileSize = (bytes) => {
-  if (bytes === 0 || !bytes) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
-};
+    if (bytes === 0 || !bytes) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
+  };
 
 
-const fileItemTemplate = (file, options) => {
-  const isImage = file.type?.startsWith("image/");
+  const fileItemTemplate = (file, options) => {
+    const isImage = file.type?.startsWith("image/");
 
-  // use our own formatter instead of options.formatSize
-  const sizeText = formatFileSize(file.size);
+    // use our own formatter instead of options.formatSize
+    const sizeText = formatFileSize(file.size);
 
-  return (
-    <Paper withBorder radius="md" p="sm" className="prime-file-row">
-      <Group justify="space-between" wrap="nowrap">
-        <Group wrap="nowrap">
-          {isImage && file.objectURL && (
-            <Image
-              src={file.objectURL}
-              w={40}
-              h={40}
-              radius="md"
-              alt={file.name}
-            />
-          )}
+    return (
+      <Paper withBorder radius="md" p="sm" className="prime-file-row">
+        <Group justify="space-between" wrap="nowrap">
+          <Group wrap="nowrap">
+            {isImage && file.objectURL && (
+              <Image
+                src={file.objectURL}
+                w={40}
+                h={40}
+                radius="md"
+                alt={file.name}
+              />
+            )}
 
-          <div>
-            <Text size="sm" fw={500}>
-              {file.name}
-            </Text>
-
-            <Group gap="xs">
-              <Text size="xs" c="dimmed">
-                {sizeText}
+            <div>
+              <Text size="sm" fw={500}>
+                {file.name}
               </Text>
-              <Badge color="yellow" size="xs">
-                Pending
-              </Badge>
-            </Group>
-          </div>
-        </Group>
 
-        <CloseButton
-          aria-label="Remove file"
-          onClick={options?.onRemove}
-        />
-      </Group>
-    </Paper>
-  );
-};
+              <Group gap="xs">
+                <Text size="xs" c="dimmed">
+                  {sizeText}
+                </Text>
+                <Badge color="yellow" size="xs">
+                  Pending
+                </Badge>
+              </Group>
+            </div>
+          </Group>
+
+          <CloseButton
+            aria-label="Remove file"
+            onClick={options?.onRemove}
+          />
+        </Group>
+      </Paper>
+    );
+  };
 
 
   return (

@@ -18,7 +18,7 @@ import { NavLink } from "react-router-dom";
 const pages = [
   { link: "/dashboard", label: "Dashboard & Analytics", icon: IconDashboard },
 
-  { link: "/equipment-registration", label: "Equipment Registration", icon: IconSettingsPlus },
+  { link: "/equipment", label: "Equipment Management", icon: IconSettingsPlus },
   { link: "/report-generation", label: "Report Generation", icon: IconReportMedical },
   { link: "/inspection-plan", label: "Inspection Plan", icon: IconKey },
   { link: "/inspection-history", label: "Inspection History", icon: IconHistory },
