@@ -4,6 +4,8 @@ import { Outlet } from "react-router-dom";
 import { SideBar } from "../Layout/sideBar.jsx"; // Adjust path as needed
 import { Header } from "../Layout/header.jsx";   // Adjust path as needed
 
+// Debug code removed
+
 export function MainLayout() {
   // defaulting to false means it starts CLOSED. 
   // Change to useDisclosure(true) if you want it open by default.
