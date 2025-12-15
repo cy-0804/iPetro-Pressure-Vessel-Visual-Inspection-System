@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { db } from "../firebase/firebase";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import "./customerFeedback.css";
 
 const initialState = {
@@ -21,33 +23,34 @@ const CustomerFeedback = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setMessage("");
+  e.preventDefault();
+  setMessage("");
 
-    if (!formData.rating || !formData.comments) {
-      setMessage("Please provide at least a rating and your comments.");
-      return;
-    }
+  if (!formData.rating || !formData.comments) {
+    setMessage("Please provide at least a rating and your comments.");
+    return;
+  }
 
-    setSubmitting(true);
-    try {
-      const feedbackToSave = {
-        ...formData,
-        submittedAt: new Date().toISOString(),
-      };
+  setSubmitting(true);
 
-      // For now just log it – later we'll save this to Firestore.
-      console.log("Customer feedback submitted:", feedbackToSave);
+  try {
+    const feedbackToSave = {
+      ...formData,
+      rating: Number(formData.rating),
+      createdAt: serverTimestamp(),
+    };
 
-      setMessage("✅ Thank you! Your feedback has been recorded.");
-      setFormData(initialState);
-    } catch (err) {
-      console.error(err);
-      setMessage("❌ Something went wrong. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    await addDoc(collection(db, "customerFeedback"), feedbackToSave);
+
+    setMessage("✅ Thank you! Your feedback has been recorded.");
+    setFormData(initialState);
+  } catch (err) {
+    console.error("FEEDBACK SUBMIT FAILED:", err);
+    setMessage("❌ Something went wrong. Please try again.");
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   return (
     <div className="feedback-page">

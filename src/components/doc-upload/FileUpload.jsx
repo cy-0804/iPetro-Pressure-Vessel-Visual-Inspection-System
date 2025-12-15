@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { FileUpload } from "primereact/fileupload";
 import { Toast } from "primereact/toast";
 import { ProgressSpinner } from "primereact/progressspinner";
-import { storage } from "../../firebase";
+import { storage } from "../../firebase/firebase";
 import { ref, uploadBytes, getDownloadURL, listAll, deleteObject } from "firebase/storage";
 import { Group, Text, Badge, CloseButton, Image, Paper } from "@mantine/core";
 import "primereact/resources/themes/saga-blue/theme.css";

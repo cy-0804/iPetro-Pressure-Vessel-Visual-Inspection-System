@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { storage } from "../firebase/upload"; // Firebase Storage config
+import { db, storage } from "../firebase/firebase"; // Firebase Storage config
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import "./inspectionForm.css"; // (we'll create this file in a moment)
 
@@ -59,40 +60,35 @@ const InspectionForm = () => {
     setIsSubmitting(true);
 
     try {
-      // 1. Upload photos to Firebase Storage
-      const urls = [];
-      for (const file of photoFiles) {
-        const storageRef = ref(
-          storage,
-          `inspection-photos/${Date.now()}-${file.name}`
-        );
-        await uploadBytes(storageRef, file);
-        const url = await getDownloadURL(storageRef);
-        urls.push(url);
-      }
+  // 1) Upload photos to Firebase Storage
+  const urls = [];
+  for (const file of photoFiles) {
+    const storageRef = ref(storage, `inspection-photos/${Date.now()}-${file.name}`);
+    await uploadBytes(storageRef, file);
+    const url = await getDownloadURL(storageRef);
+    urls.push(url);
+  }
 
-      setUploadedUrls(urls);
+  // 2) Save inspection data to Firestore
+  const dataToSave = {
+    ...formData,
+    photoUrls: urls,
+    createdAt: serverTimestamp(),
+  };
 
-      // 2. Combine form data + photo URLs
-      const dataToSave = {
-        ...formData,
-        photoUrls: urls,
-        createdAt: new Date().toISOString(),
-      };
+  const docRef = await addDoc(collection(db, "inspections"), dataToSave);
 
-      // For now we just log it.
-      // Later you can send this to Firestore or backend.
-      console.log("Inspection form submitted:", dataToSave);
+  console.log("Saved inspection with ID:", docRef.id);
+  setMessage("✅ Inspection saved to Firestore!");
 
-      setMessage("✅ Inspection form submitted! Check console for data.");
-      setFormData(initialFormState);
-      setPhotoFiles([]);
-    } catch (err) {
-      console.error(err);
-      setMessage("❌ Error submitting form. Please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
+  setFormData(initialFormState);
+  setPhotoFiles([]);
+  setUploadedUrls(urls);
+} catch (err) {
+  console.error("SUBMIT FAILED:", err);
+  setMessage(`❌ Submit failed: ${err?.message || "Unknown error"}`);
+}
+
   };
 
   return (
