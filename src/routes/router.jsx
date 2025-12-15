@@ -1,104 +1,48 @@
+import { createBrowserRouter, Navigate } from "react-router-dom";
 
-import { createBrowserRouter, Navigate } from 'react-router-dom';
-
-// Layouts & Guards
-// import ProtectedRoute from './ProtectedRoute';
+// Layout
 import { MainLayout } from "../components/Layout/MainLayout.jsx";
 
+// Existing pages (from main)
+import Dashboard from "../pages/dashboard.jsx";
+import SupervisorReview from "../pages/supervisorReview.jsx";
+import InspectionCalendar from "../pages/InspectionCalendar.jsx";
+import InspectionReportHistory from "../pages/InspectionHistory";
+import NotificationsPage from "../pages/Notifications";
+import DocumentUploadManagement from "../pages/DocUpload.jsx";
+import EquipmentRegistration from "../pages/EquipmentRegistration.jsx";
 
-// Pages
-// import login from '@/auth/login';
-import Dashboard from '../pages/Dashboard.jsx';
-import SupervisorReview from '../pages/supervisorReview.jsx';
-import InspectionCalendar from '../pages/InspectionCalendar.jsx';
-import DocumentUploadManagement from '../pages/DocUpload.jsx';
-import InspectionForm from '../pages/InspectionForm.jsx';
+// Your new pages (from isaac-work)
+import InspectionForm from "../pages/InspectionForm.jsx";
 import CustomerFeedback from "../pages/CustomerFeedback.jsx";
-// import GeneratorPage from '@/pages/GeneratorPage';
 
 export const router = createBrowserRouter([
-  // 1. PUBLIC ROUTES (Accessible by anyone)
-  // {
-  //   path: '/login',
-  //   element: <LoginPage />,
-  // },
-
-  // 2. PROTECTED ROUTES (Must be logged in)
   {
-    // element: <ProtectedRoute />, // 🔒 The Bouncer checks ID here
-    // children: [
-    //   {
-    // ☝☝ uncomment these lines if you want to enable ProtectedRoute
+    element: <MainLayout />,
+    children: [
+      { path: "/dashboard", element: <Dashboard /> },
+      { path: "/notification", element: <NotificationsPage /> },
 
-        
-        // 3. APP LAYOUT (Dashboard, History, Settings)
-        // This applies the Sidebar/Navbar to everything inside
-        element: <MainLayout />, 
-        children: [
-          {
-            path: '/dashboard',
-            element: <Dashboard />,
-          },
-          {
-            path: '/:pageName',
-            element: <div>History Page</div>,
-          },
-          {
-            path: '/notification',
-            element: <div>Notification and Reminder</div>,
-          },
-          {
-            path: '/equipment-registration',
-            element: <div>Equipment Registration</div>,
-          },
-          {
-            path: '/report-generation',
-            element: <div>Report Generation</div>,
-          },
-          {
-            path: '/inspection-plan',
-            element: <InspectionCalendar />,
-          },
-          {
-            path: '/inspection-history',
-            element: <div>Inspection History & Data Storage</div>,
-          },
-          {
-            path: '/supervisor-review',
-            element: <SupervisorReview />,
-          },
-          {
-            path: '/document-upload',
-            element: <DocumentUploadManagement />,
-          },
-          {
-            path: '/inspection-form',
-            element: <InspectionForm />,
-          },
-          {
-            path: "/customer-feedback",
-            element: <CustomerFeedback />,
-          },
-          {
-            path: '/other-settings',
-            element: <div>Other Settings</div>,
-          },
-          // Default redirect: If they go to /, send them to dashboard
-          {
-            path: '/',
-            element: <Navigate to="/dashboard" replace />,
-          },
-        ],
+      // IMPORTANT: keep this path as /equipment (same as main)
+      { path: "/equipment", element: <EquipmentRegistration /> },
 
-    //   },
-    // ],
-    // ☝☝ uncomment these lines if you want to enable ProtectedRoute
+      { path: "/report-generation", element: <div>Report Generation</div> },
+      { path: "/inspection-plan", element: <InspectionCalendar /> },
 
+      // IMPORTANT: keep this as InspectionReportHistory (same as main)
+      { path: "/inspection-history", element: <InspectionReportHistory /> },
+
+      { path: "/supervisor-review", element: <SupervisorReview /> },
+      { path: "/document-upload", element: <DocumentUploadManagement /> },
+
+      // Your new modules
+      { path: "/inspection-form", element: <InspectionForm /> },
+      { path: "/customer-feedback", element: <CustomerFeedback /> },
+
+      { path: "/other-settings", element: <div>Other Settings</div> },
+
+      { path: "/", element: <Navigate to="/dashboard" replace /> },
+    ],
   },
-
-  // 5. 404 Page (Catch all)
-  {
-    path: '*',
-    element: <div>404 - Page Not Found</div>,
-  },
+  { path: "*", element: <div>404 - Page Not Found</div> },
 ]);

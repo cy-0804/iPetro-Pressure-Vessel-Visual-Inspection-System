@@ -19,18 +19,14 @@ import { NavLink } from "react-router-dom";
 const pages = [
   { link: "/dashboard", label: "Dashboard & Analytics", icon: IconDashboard },
   { link: "/notification", label: "Notification and Reminder", icon: IconBellRinging },
-  { link: "/equipment-registration", label: "Equipment Registration", icon: IconSettingsPlus },
+  { link: "/equipment", label: "Equipment Registration", icon: IconSettingsPlus },
   { link: "/report-generation", label: "Report Generation", icon: IconReportMedical },
   { link: "/inspection-plan", label: "Inspection Plan", icon: IconKey },
   { link: "/inspection-history", label: "Inspection History", icon: IconHistory },
   { link: "/supervisor-review", label: "Supervisor Review", icon: IconCopyCheck },
   { link: "/document-upload", label: "Document Upload", icon: IconUpload },
   { link: "/inspection-form", label: "Inspection Form", icon: IconClipboardText },
-  {
-    link: "/customer-feedback",
-    label: "Customer Feedback & QA",
-    icon: IconMessage2,
-  },
+  { link: "/customer-feedback", label: "Customer Feedback & QA", icon: IconMessage2,},
   { link: "/other-settings", label: "Other Settings", icon: IconSettings },
 ];
 
