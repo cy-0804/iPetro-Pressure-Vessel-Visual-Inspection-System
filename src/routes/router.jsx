@@ -1,5 +1,9 @@
 
 import { createBrowserRouter, Navigate } from 'react-router-dom';
+// Auth
+import PrivateRoute from "../auth/PrivateRoute";
+import Login from '../auth/login.jsx';
+import Register from '../auth/register.jsx';
 
 // Layouts
 import { MainLayout } from "../components/Layout/MainLayout.jsx";
@@ -13,7 +17,13 @@ import NotificationsPage from "../pages/Notifications";
 import DocumentUploadManagement from '../pages/DocUpload.jsx';
 
 export const router = createBrowserRouter([
+  { path: "/login", element: <Login /> },
+  { path: "/register", element: <Register /> },
+
   {
+    element: <PrivateRoute />, // <-- check if logged in
+    children: [
+      {
     // APP LAYOUT (Dashboard, History, Settings)
     element: <MainLayout />,
     children: [
@@ -60,9 +70,11 @@ export const router = createBrowserRouter([
       // Default redirect
       {
         path: '/',
-        element: <Navigate to="/dashboard" replace />,
+        element: <Navigate to="/login" replace />,
       },
     ],
+  },
+  ],
   },
   // 404 Page
   {
