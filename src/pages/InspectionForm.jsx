@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { db, storage } from "../firebase/firebase"; // Firebase Storage config
+import { db, storage } from "../firebase"; // Firebase Storage config
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import "./inspectionForm.css"; // (we'll create this file in a moment)
