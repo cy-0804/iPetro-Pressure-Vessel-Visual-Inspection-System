@@ -12,6 +12,7 @@ import {
 	Badge,
 	Modal,
 	Stack,
+	Paper,
 } from '@mantine/core';
 import { IconTrash, IconEye, IconCheck } from '@tabler/icons-react';
 
@@ -87,20 +88,20 @@ export default function SupervisorReview() {
 	}
 
 	return (
-		<Container mx={0}  >
+		<Container mx={0} fluid w="100%">
 			<Title order={2} mb="sm">
 				Supervisor — Inspector Reports
 			</Title>
 
-			<Text color="dimmed" mb="md">
+			<Text c="dimmed" mb="md">
 				Placeholder list of reports received from inspectors. Click "View" to preview a report, then "Approve" when review is complete.
 			</Text>
 
-			<SimpleGrid cols={1} spacing="lg">
-				<Card withBorder padding="lg">
+			<SimpleGrid cols={1} spacing="lg" w="100%">
+				<Paper withBorder p="lg" w="100%">
 					<Group position="apart" mb="sm">
 						<Title order={4}>Incoming reports</Title>
-						<Text size="sm" color="dimmed">
+						<Text size="sm" c="dimmed">
 							{reports.length} total
 						</Text>
 					</Group>
@@ -108,37 +109,37 @@ export default function SupervisorReview() {
 					<Divider mb="sm" />
 
 					{reports.length === 0 ? (
-						<Text color="dimmed">No reports available.</Text>
+						<Text c="dimmed">No reports available.</Text>
 					) : (
-						<Table verticalSpacing="sm">
-							<thead>
-								<tr>
-									<th>Report ID</th>
-									<th>Inspector</th>
-									<th>Inspection date</th>
-									<th>Status</th>
-									<th>Decision</th>
-									<th></th>
-								</tr>
-							</thead>
-							<tbody>
+						<Table highlightOnHover verticalSpacing="sm">
+							<Table.Thead>
+								<Table.Tr>
+									<Table.Th>Report ID</Table.Th>
+									<Table.Th>Inspector</Table.Th>
+									<Table.Th>Inspection date</Table.Th>
+									<Table.Th>Status</Table.Th>
+									<Table.Th>Decision</Table.Th>
+									<Table.Th></Table.Th>
+								</Table.Tr>
+							</Table.Thead>
+							<Table.Tbody>
 								{reports.map((r) => (
-									<tr key={r.id}>
-										<td>
+									<Table.Tr key={r.id}>
+										<Table.Td>
 											<Text fw={600}>{r.reportId}</Text>
 											<Text size="xs" color="dimmed">
 												Received: {r.receivedAt}
 											</Text>
-										</td>
-										<td>{r.inspector}</td>
-										<td>{r.inspectionDate}</td>
-										<td>
+										</Table.Td>
+										<Table.Td>{r.inspector}</Table.Td>
+										<Table.Td>{r.inspectionDate}</Table.Td>
+										<Table.Td>
 											<Badge color={r.status === 'Received' ? 'blue' : r.status === 'Requires Action' ? 'yellow' : 'red'}>
 												{r.status}
 											</Badge>
-										</td>
-										<td>{r.decision}</td>
-										<td>
+										</Table.Td>
+										<Table.Td>{r.decision}</Table.Td>
+										<Table.Td>
 											<Group spacing={6} position="right">
 												<Button variant="subtle" size="xs" leftIcon={<IconEye size={14} />} onClick={() => openPreview(r)}>
 													View
@@ -150,13 +151,13 @@ export default function SupervisorReview() {
 													Delete
 												</Button>
 											</Group>
-										</td>
-									</tr>
+										</Table.Td>
+									</Table.Tr>
 								))}
-							</tbody>
+							</Table.Tbody>
 						</Table>
 					)}
-				</Card>
+				</Paper>
 			</SimpleGrid>
 
 <Modal
