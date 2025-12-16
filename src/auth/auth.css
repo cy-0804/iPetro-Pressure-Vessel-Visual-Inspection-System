@@ -1,153 +1,57 @@
-/* ===================================
-   iPetro Auth Pages (Login & Register)
-   Responsive Design – Mobile, Tablet, Desktop
-=================================== */
-html, body, #root {
-  height: 100%;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-}
-
-:root {
-  --primary-color: #2563eb;
-  --primary-hover: #1d4ed8;
-  --background-light: #f8fafc;
-  --text-dark: #1e293b;
-  --border-color: #cbd5e1;
-}
-
-body {
-  margin: 0;
-  font-family: poppins;
-  background-color: var(--background-light);
-}
-
-/* ========== MAIN CONTAINER ========== */
-.auth-container {
+/* auth.css */
+.auth-page {
   min-height: 100vh;
+  background-color: #ffffff;
   display: flex;
-  align-items: center;
   justify-content: center;
-  background: linear-gradient(180deg, #e2e8f0, #f8fafc);
-  padding: 2rem;
+  align-items: center;
 }
 
-/* ========== AUTH BOX ========== */
-.auth-form {
-  background: #fff;
-  padding: 2rem 2.5rem;
-  border-radius: 1.5rem;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+.auth-card {
   width: 100%;
-  max-width: 400px;
-  transition: all 0.3s ease;
+  max-width: 420px;
+  padding: 32px;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+}
+
+.auth-logo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.auth-logo img {
+  height: 48px;
 }
 
 .auth-title {
-  font-size: 1.8rem;
+  text-align: center;
   font-weight: 700;
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.auth-subtitle {
   text-align: center;
-  color: var(--text-dark);
-  margin-bottom: 1rem;
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 24px;
 }
 
-.auth-desc {
-  font-size: 1rem;
-  font-weight: 500;
-  text-align: center;
-  color: var(--text-dark);
-  margin-bottom: 1rem;
-  margin-top: 1rem;
-}
-/* ========== INPUT FIELDS ========== */
-.auth-input,
-.auth-select {
-  width: 90%;
-  padding: 0.8rem;
-  margin-bottom: 1rem;
-  color: black;
-  border: 1px solid var(--border-color);
-  border-radius: 0.6rem;
-  font-size: 1rem;
-  background-color: #f9fafb;
-  transition: 0.2s;
-}
-
-.auth-input:focus,
-.auth-select:focus {
-  outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
-  background-color: #fff;
-}
-
-/* ========== BUTTON ========== */
-.auth-button {
-  width: 100%;
-  padding: 0.8rem;
-  background-color: var(--primary-color);
-  color: #fff;
-  font-weight: 600;
-  border: none;
-  border-radius: 0.6rem;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: 0.2s;
-}
-
-.auth-button:hover {
-  background-color: var(--primary-hover);
-  transform: translateY(-2px);
-}
-
-/* ========== LINK TEXT ========== */
 .auth-link {
-  color: var(--text-dark);
-  margin-top: 1.2rem;
-  text-align: center;
-  font-size: 0.95rem;
+  color: #c92a2a;
   font-weight: 500;
-}
-
-.auth-link span {
-  color: var(--primary-color);
   cursor: pointer;
-  font-weight: 600;
 }
 
-.auth-link span:hover {
+.auth-link:hover {
   text-decoration: underline;
 }
 
-/* ========== RESPONSIVE DESIGN ========== */
-
-
-/* Tablet */
-@media (min-width: 768px) {
-  .auth-form {
-    max-width: 450px;
-    padding: 2.5rem 3rem;
-  }
-  .auth-title {
-    font-size: 2rem;
-  }
-}
-
-/* Desktop and Large Screens */
-@media (min-width: 1024px) {
-  .auth-container {
-    flex-direction: row;
-    justify-content: center; /* center form */
-    align-items: center;      /* center vertically */
-  }
-
-  .auth-input{
-    width: 93%;
-  }
-
-  .auth-form {
-    max-width: 400px; 
-    padding: 3rem;
-  }
+.auth-error {
+  color: #c92a2a;
+  font-size: 13px;
+  margin-top: 6px;
 }

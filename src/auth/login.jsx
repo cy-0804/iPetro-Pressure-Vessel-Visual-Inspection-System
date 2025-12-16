@@ -1,66 +1,166 @@
-// src/pages/Login.js
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "./AuthContext"; // Corrected path
 import "./auth.css";
+import {
+  TextInput,
+  PasswordInput,
+  Button,
+  Text,
+  Title,
+  Image,
+} from "@mantine/core";
+import { useNavigate } from "react-router-dom";
+import {
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+} from "firebase/auth";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { auth, db } from "../firebase";
 
 export default function Login() {
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [dob, setDob] = useState("");
-  const [role, setRole] = useState("Inspector");
-
   const navigate = useNavigate();
-  const { login } = useAuth();
 
-  const handleLogin = (e) => {
-    e.preventDefault();
+  const [loginInput, setLoginInput] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
-    // Log entered data (simulated login)
-    console.log("Simulated Login Data:", {
-      username,
-      email,
-      password,
-      dob,
-      role,
-    });
+  /* =========================
+     LOGIN HANDLER
+  ========================== */
+  const handleLogin = async () => {
+    setError("");
+    setMessage("");
 
-    login(email, role);
-    alert("Simulated login successful (no database connected).");
-    navigate("/dashboard");
+    try {
+      setLoading(true);
+      let email = loginInput;
+
+      // 🔍 Username → Email lookup
+      if (!loginInput.includes("@")) {
+        const q = query(
+          collection(db, "users"),
+          where("username", "==", loginInput)
+        );
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+          setError("Username not found");
+          return;
+        }
+
+        email = snapshot.docs[0].data().email;
+      }
+
+      await signInWithEmailAndPassword(auth, email, password);
+      navigate("/dashboard");
+    } catch (err) {
+      setError("Invalid email/username or password");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* =========================
+     FORGOT PASSWORD
+  ========================== */
+  const handleForgotPassword = async () => {
+    setError("");
+    setMessage("");
+
+    try {
+      if (!loginInput) {
+        setError("Please enter your email or username first");
+        return;
+      }
+
+      let email = loginInput;
+
+      // 🔍 Username → Email
+      if (!loginInput.includes("@")) {
+        const q = query(
+          collection(db, "users"),
+          where("username", "==", loginInput)
+        );
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+          setError("Username not found");
+          return;
+        }
+
+        email = snapshot.docs[0].data().email;
+      }
+
+      await sendPasswordResetEmail(auth, email);
+      setMessage("Password reset email sent. Check your inbox.");
+    } catch {
+      setError("Failed to send reset email");
+    }
   };
 
   return (
-    <div className="auth-container">
-      <form onSubmit={handleLogin} className="auth-form">
-        <h2 className="auth-title">Login</h2>
-        <h3 className="auth-desc">Sign in to continue</h3>
-        <input
-          type="email"
-          placeholder="Email"
-          className="auth-input"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
+    <div className="auth-page">
+      <div className="auth-card">
+        {/* LOGO */}
+        <div className="auth-logo">
+          <Image
+            src="/src/assets/ipetro-logo.png"
+            alt="iPetro"
+            height={48}
+          />
+        </div>
 
-        {/* Password */}
-        <input
-          type="password"
-          placeholder="Password"
-          className="auth-input"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        <button className="auth-button">Login</button>
+        <Title className="auth-title">Welcome Back</Title>
 
-        <p className="auth-link">
+        <Text className="auth-subtitle">
           Don’t have an account?{" "}
-          <span onClick={() => navigate("/register")}>Register here</span>
-        </p>
-      </form>
+          <span className="auth-link" onClick={() => navigate("/register")}>
+            Register
+          </span>
+        </Text>
+
+        <TextInput
+          label="Email or Username"
+          required
+          value={loginInput}
+          onChange={(e) => setLoginInput(e.currentTarget.value)}
+        />
+
+        <PasswordInput
+          label="Password"
+          required
+          mt="md"
+          value={password}
+          onChange={(e) => setPassword(e.currentTarget.value)}
+        />
+
+        <Text
+          size="sm"
+          className="auth-link"
+          style={{ textAlign: "right", marginTop: 8 }}
+          onClick={handleForgotPassword}
+        >
+          Forgot password?
+        </Text>
+
+        {error && <Text className="auth-error">{error}</Text>}
+        {message && (
+          <Text size="sm" c="green" mt="sm">
+            {message}
+          </Text>
+        )}
+
+        <Button
+          fullWidth
+          mt="xl"
+          color="red"
+          loading={loading}
+          onClick={handleLogin}
+        >
+          Login
+        </Button>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import { Group, Burger, Box, Image, Container, Menu, ActionIcon, Indicator, Text, rem, Button } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
 import { IconBell } from "@tabler/icons-react";
+import { signOut } from "firebase/auth";
+import { auth } from "../../firebase";
 
 export function Header({ opened, toggle }) {
   const navigate = useNavigate();
@@ -76,7 +78,10 @@ export function Header({ opened, toggle }) {
                 </Menu.Item>
               </Menu.Dropdown>
             </Menu>
-            <Button variant="default">Log out</Button>
+            <Button variant="default" onClick={async () => {
+              await signOut(auth);
+              navigate("/login");
+            }}>Log out</Button>
           </Group>
         </Group>
       </Container>
