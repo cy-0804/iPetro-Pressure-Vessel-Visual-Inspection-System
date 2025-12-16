@@ -27,6 +27,7 @@ export const router = createBrowserRouter([
     // APP LAYOUT (Dashboard, History, Settings)
     element: <MainLayout />,
     children: [
+      
       {
         path: '/dashboard',
         element: <Dashboard />,
