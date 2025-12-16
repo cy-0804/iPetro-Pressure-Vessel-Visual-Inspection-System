@@ -1,73 +1,48 @@
+import { createBrowserRouter, Navigate } from "react-router-dom";
 
-import { createBrowserRouter, Navigate } from 'react-router-dom';
-
-// Layouts
+// Layout
 import { MainLayout } from "../components/Layout/MainLayout.jsx";
 
-// Pages
-import Dashboard from '../pages/dashboard.jsx';
-import SupervisorReview from '../pages/supervisorReview.jsx';
-import InspectionCalendar from '../pages/InspectionCalendar.jsx';
+// Existing pages (from main)
+import Dashboard from "../pages/dashboard.jsx";
+import SupervisorReview from "../pages/supervisorReview.jsx";
+import InspectionCalendar from "../pages/InspectionCalendar.jsx";
 import InspectionReportHistory from "../pages/InspectionHistory";
 import NotificationsPage from "../pages/Notifications";
-import DocumentUploadManagement from '../pages/DocUpload.jsx';
-import EquipmentRegistration from '../pages/EquipmentRegistration.jsx';
+import DocumentUploadManagement from "../pages/DocUpload.jsx";
+import EquipmentRegistration from "../pages/EquipmentRegistration.jsx";
+
+// Your new pages (from isaac-work)
+import InspectionForm from "../pages/InspectionForm.jsx";
+import CustomerFeedback from "../pages/CustomerFeedback.jsx";
 
 export const router = createBrowserRouter([
   {
-    // APP LAYOUT (Dashboard, History, Settings)
     element: <MainLayout />,
     children: [
-      {
-        path: '/dashboard',
-        element: <Dashboard />,
-      },
-      {
-        path: '/notification',
-        element: <NotificationsPage />,
-      },
-      {
-        path: '/equipment',
-        element: <EquipmentRegistration />,
-      },
-      {
-        path: '/report-generation',
-        element: <div>Report Generation</div>,
-      },
-      {
-        path: '/inspection-plan',
-        element: <InspectionCalendar />,
-      },
-      {
-        path: '/inspection-history',
-        element: <InspectionReportHistory />,
-      },
-      {
-        path: '/supervisor-review',
-        element: <SupervisorReview />,
-      },
-      {
-        path: '/document-upload',
-        element: <DocumentUploadManagement />,
-      },
-      {
-        path: '/inspection-form',
-        element: <div>Inspection Form Module</div>,
-      },
-      {
-        path: '/other-settings',
-        element: <div>Other Settings</div>,
-      },
-      // Default redirect
-      {
-        path: '/',
-        element: <Navigate to="/dashboard" replace />,
-      },
+      { path: "/dashboard", element: <Dashboard /> },
+      { path: "/notification", element: <NotificationsPage /> },
+
+      // IMPORTANT: keep this path as /equipment (same as main)
+      { path: "/equipment", element: <EquipmentRegistration /> },
+
+      { path: "/report-generation", element: <div>Report Generation</div> },
+      { path: "/inspection-plan", element: <InspectionCalendar /> },
+
+      // IMPORTANT: keep this as InspectionReportHistory (same as main)
+      { path: "/inspection-history", element: <InspectionReportHistory /> },
+
+      { path: "/supervisor-review", element: <SupervisorReview /> },
+      { path: "/document-upload", element: <DocumentUploadManagement /> },
+
+      // Your new modules
+      { path: "/inspection-form", element: <InspectionForm /> },
+      { path: "/customer-feedback", element: <CustomerFeedback /> },
+
+      { path: "/other-settings", element: <div>Other Settings</div> },
+
+      { path: "/", element: <Navigate to="/dashboard" replace /> },
     ],
   },
-  // 404 Page
-  {
-    path: '*',
-    element: <div>404 - Page Not Found</div>,
-  },
+  { path: "*", element: <div>404 - Page Not Found</div> },
 ]);
