@@ -7,7 +7,7 @@ const initialState = {
   name: "",
   email: "",
   inspectionId: "",
-  rating: "",
+  rating: 0,
   comments: "",
   recommend: "",
 };
@@ -26,17 +26,17 @@ const CustomerFeedback = () => {
   e.preventDefault();
   setMessage("");
 
-  if (!formData.rating || !formData.comments) {
+  if (formData.rating === 0 || !formData.comments) {
     setMessage("Please provide at least a rating and your comments.");
     return;
   }
+
 
   setSubmitting(true);
 
   try {
     const feedbackToSave = {
       ...formData,
-      rating: Number(formData.rating),
       createdAt: serverTimestamp(),
     };
 
@@ -96,20 +96,24 @@ const CustomerFeedback = () => {
 
         <div className="form-row">
           <label>Overall Satisfaction Rating</label>
-          <div className="rating-row">
-            {[1, 2, 3, 4, 5].map((score) => (
-              <label key={score} className="rating-option">
-                <input
-                  type="radio"
-                  name="rating"
-                  value={score}
-                  checked={formData.rating === String(score)}
-                  onChange={handleChange}
-                />
-                <span>{score}</span>
-              </label>
+
+          <div className="stars">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                className={n <= formData.rating ? "star star-on" : "star"}
+                onClick={() => setFormData((prev) => ({ ...prev, rating: n }))}
+                aria-label={`${n} star`}
+              >
+                ★
+              </button>
             ))}
+            <span className="rating-text">
+              {formData.rating ? `${formData.rating}/5` : "Select"}
+            </span>
           </div>
+
           <small>1 = Very poor, 5 = Excellent</small>
         </div>
 

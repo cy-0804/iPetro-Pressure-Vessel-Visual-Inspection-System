@@ -1,8 +1,8 @@
 import { AppShell } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { Outlet } from "react-router-dom";
-import { SideBar } from "../Layout/sideBar.jsx"; // Adjust path as needed
-import { Header } from "../Layout/header.jsx";   // Adjust path as needed
+import { SideBar } from "./sideBar.jsx"; // Adjust path as needed
+import { Header } from "./header.jsx";   // Adjust path as needed
 
 // Debug code removed
 
