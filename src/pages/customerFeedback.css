@@ -90,3 +90,28 @@
 .rating-option span {
   font-weight: 600;
 }
+
+.stars {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.star {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 22px;
+  opacity: 0.35;
+  padding: 0;
+}
+
+.star-on {
+  opacity: 1;
+}
+
+.rating-text {
+  margin-left: 8px;
+  font-size: 13px;
+  color: #666;
+}
