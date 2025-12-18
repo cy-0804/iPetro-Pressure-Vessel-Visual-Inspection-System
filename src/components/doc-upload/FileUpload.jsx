@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from "react";
 import { FileUpload } from "primereact/fileupload";
-import { Toast } from "primereact/toast";
 import { ProgressSpinner } from "primereact/progressspinner";
 import { storage } from "../../firebase";
 import { ref, uploadBytes, getDownloadURL, listAll, deleteObject } from "firebase/storage";
 import { Group, Text, Badge, CloseButton, Image, Paper } from "@mantine/core";
+import { notifications } from '@mantine/notifications';
+import { modals } from '@mantine/modals';
 import "primereact/resources/themes/saga-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
@@ -13,7 +14,6 @@ import "./FileUpload.css";
 const FileUploadComponent = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
-  const toast = useRef(null);
   const fileUploadRef = useRef(null);
 
   // Load already uploaded documents from Firebase
@@ -36,10 +36,11 @@ const FileUploadComponent = () => {
       setUploadedFiles(items);
     } catch (error) {
       console.error("Error fetching uploaded files:", error);
-      toast.current?.show({
-        severity: "error",
-        summary: "Error",
-        detail: "Could not load uploaded documents.",
+      notifications.show({
+        title: 'Error',
+        message: 'Could not load uploaded documents.',
+        color: 'red',
+        autoClose: 5000,
       });
     }
   };
@@ -66,20 +67,25 @@ const FileUploadComponent = () => {
         });
       }
 
-      fileUploadRef.current?.clear();
+      if (fileUploadRef.current) {
+        fileUploadRef.current.clear();
+      }
+      
       setUploadedFiles((prev) => [...prev, ...newlyUploaded]);
 
-      toast.current?.show({
-        severity: "success",
-        summary: "Upload Success",
-        detail: "Files uploaded successfully.",
+      notifications.show({
+        title: 'Success',
+        message: 'Files uploaded successfully',
+        color: 'green',
+        autoClose: 4000,
       });
     } catch (err) {
       console.error(err);
-      toast.current?.show({
-        severity: "error",
-        summary: "Upload Failed",
-        detail: "There was an error uploading the files.",
+      notifications.show({
+        title: 'Upload Failed',
+        message: 'There was an error uploading the files.',
+        color: 'red',
+        autoClose: 5000,
       });
     } finally {
       setIsUploading(false);
@@ -87,29 +93,41 @@ const FileUploadComponent = () => {
   };
 
   const handleDelete = async (file) => {
-    if (!window.confirm(`Delete "${file.name}"?`)) return;
+    modals.openConfirmModal({
+      title: 'Delete File',
+      children: (
+        <Text size="sm">
+          Are you sure you want to delete <strong>{file.name}</strong>?
+        </Text>
+      ),
+      labels: { confirm: 'Delete', cancel: 'Cancel' },
+      confirmProps: { color: 'red' },
+      onConfirm: async () => {
+        try {
+          const fileRef = ref(storage, file.fullPath);
+          await deleteObject(fileRef);
 
-    try {
-      const fileRef = ref(storage, file.fullPath);
-      await deleteObject(fileRef);
+          setUploadedFiles((prev) =>
+            prev.filter((item) => item.fullPath !== file.fullPath)
+          );
 
-      setUploadedFiles((prev) =>
-        prev.filter((item) => item.fullPath !== file.fullPath)
-      );
-
-      toast.current?.show({
-        severity: "success",
-        summary: "Deleted",
-        detail: "File deleted successfully.",
-      });
-    } catch (error) {
-      console.error("Error deleting file:", error);
-      toast.current?.show({
-        severity: "error",
-        summary: "Delete Failed",
-        detail: "Unable to delete file.",
-      });
-    }
+          notifications.show({
+            title: 'Success',
+            message: 'File deleted successfully',
+            color: 'green',
+            autoClose: 3000,
+          });
+        } catch (error) {
+          console.error("Error deleting file:", error);
+          notifications.show({
+            title: 'Delete Failed',
+            message: 'Unable to delete file.',
+            color: 'red',
+            autoClose: 5000,
+          });
+        }
+      },
+    });
   };
 
   const formatFileSize = (bytes) => {
@@ -120,11 +138,8 @@ const FileUploadComponent = () => {
     return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
   };
 
-
   const fileItemTemplate = (file, options) => {
     const isImage = file.type?.startsWith("image/");
-
-    // use our own formatter instead of options.formatSize
     const sizeText = formatFileSize(file.size);
 
     return (
@@ -166,11 +181,8 @@ const FileUploadComponent = () => {
     );
   };
 
-
   return (
     <div className="upload-container">
-      <Toast ref={toast} />
-
       {/* Upload area (PrimeReact, but row UI is Mantine) */}
       <FileUpload
         ref={fileUploadRef}
@@ -180,7 +192,7 @@ const FileUploadComponent = () => {
         chooseLabel="Choose Files"
         uploadLabel="Upload"
         cancelLabel="Cancel"
-        dragDrop
+        auto={false}
         itemTemplate={fileItemTemplate}
         emptyTemplate={
           <p className="m-0">Drag and drop files here to upload.</p>

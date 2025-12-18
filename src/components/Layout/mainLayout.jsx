@@ -3,6 +3,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { Outlet } from "react-router-dom";
 import { SideBar } from "./sideBar.jsx"; // Adjust path as needed
 import { Header } from "./header.jsx";   // Adjust path as needed
+import { FooterLinks } from '../FooterLinks.jsx';
 
 // Debug code removed
 
@@ -32,6 +33,7 @@ export function MainLayout() {
 
       <AppShell.Main >
         <Outlet />
+        <FooterLinks />
       </AppShell.Main>
     </AppShell>
   );
