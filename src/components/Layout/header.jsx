@@ -1,23 +1,97 @@
-import { Group, Burger, Box, Image, Container, Menu, ActionIcon, Indicator, Text, rem, Button } from "@mantine/core";
+import { Group, Burger, Box, Image, Container, Menu, ActionIcon, Indicator, Text, rem, Avatar } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
-import { IconBell } from "@tabler/icons-react";
+import { IconBell, IconLogout, IconUser, IconSettings, IconChevronDown } from "@tabler/icons-react";
 import { signOut } from "firebase/auth";
-import { auth } from "../../firebase";
+import { auth, db } from "../../firebase";
+import { useEffect, useState } from "react";
+import { doc, getDoc } from "firebase/firestore";
 
 export function Header({ opened, toggle }) {
   const navigate = useNavigate();
+  const [userData, setUserData] = useState(null);
+
+  // Fetch user data from Firestore
+  const fetchUserData = async () => {
+    const user = auth.currentUser;
+    if (user) {
+      try {
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+          setUserData({
+            name: userDoc.data().username || "User",
+            email: userDoc.data().email || user.email,
+            role: userDoc.data().role || "Inspector",
+            avatar: user.photoURL || null // ✅ This will update from Firebase Auth
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetchUserData();
+
+    // Listen for auth state changes
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        fetchUserData();
+      }
+    });
+
+    // ✅ Listen for profile update event
+    const handleProfileUpdate = () => {
+      fetchUserData();
+    };
+
+    window.addEventListener('profileUpdated', handleProfileUpdate);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('profileUpdated', handleProfileUpdate);
+    };
+  }, []);
+
+  // Default user data while loading
+  const currentUser = userData || {
+    name: "User",
+    email: "user@ipetro.com",
+    role: "Inspector",
+    avatar: null
+  };
+
+  // Get initials for avatar
+  const getInitials = (name) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate("/login");
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  };
 
   return (
-    <Box h={60} p={0} bg="white" style={{ borderBottom: '1px solid #e5e7eb' }}>
-      <Container fluid px={20} h="100%">
+    <Box h={64} p={0} bg="white" style={{ borderBottom: '1px solid #e9ecef', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+      <Container fluid px={24} h="100%">
         <Group justify="space-between" align="center" h="100%">
 
           {/* Left Side: Burger & Logo */}
-          <Group gap={20}>
+          <Group gap={16}>
             <Burger
               opened={opened}
               onClick={toggle}
               size="sm"
+              color="#495057"
               aria-label="Toggle navigation"
             />
 
@@ -31,41 +105,83 @@ export function Header({ opened, toggle }) {
             >
               <Image
                 src="/src/assets/ipetro-logo.png"
-                w={140}
+                w={130}
                 fit="contain"
                 alt="IPETRO Logo"
               />
             </Box>
           </Group>
 
-          {/* Right Side: Notification & User */}
-          <Group gap="md">
-            <Menu shadow="md" width={300} position="bottom-end" withArrow>
+          {/* Right Side: Notification & User Profile */}
+          <Group gap={12}>
+            {/* Notification Menu */}
+            <Menu shadow="md" width={320} position="bottom-end" withArrow offset={8}>
               <Menu.Target>
-                <Indicator inline label="3" size={16} offset={4} color="red" withBorder>
-                  <ActionIcon variant="transparent" size="lg" color="gray" aria-label="Notifications">
+                <ActionIcon 
+                  variant="subtle" 
+                  size="lg" 
+                  color="gray" 
+                  aria-label="Notifications"
+                  style={{ position: 'relative' }}
+                >
+                  <Indicator inline label="3" size={16} offset={7} color="red" withBorder>
                     <IconBell style={{ width: rem(22), height: rem(22) }} stroke={1.5} />
-                  </ActionIcon>
-                </Indicator>
+                  </Indicator>
+                </ActionIcon>
               </Menu.Target>
 
               <Menu.Dropdown>
-                <Menu.Label>Notifications</Menu.Label>
+                <Box p="xs">
+                  <Text size="sm" fw={700} mb="xs">Notifications</Text>
+                </Box>
+                <Menu.Divider />
+                
                 <Menu.Item
-                  leftSection={<Indicator color="blue" position="middle-start" size={8} offset={-4} processing />}
+                  py="sm"
+                  leftSection={
+                    <Box
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        backgroundColor: '#228be6'
+                      }}
+                    />
+                  }
                 >
-                  <Text size="sm" fw={500}>New Inspection Assigned</Text>
-                  <Text size="xs" c="dimmed">PV-101 needs visual check</Text>
+                  <Box>
+                    <Text size="sm" fw={600}>New Inspection Assigned</Text>
+                    <Text size="xs" c="dimmed" mt={2}>PV-101 needs visual check</Text>
+                    <Text size="xs" c="dimmed" mt={2}>2 hours ago</Text>
+                  </Box>
                 </Menu.Item>
+
                 <Menu.Item
-                  leftSection={<Indicator color="red" position="middle-start" size={8} offset={-4} />}
+                  py="sm"
+                  leftSection={
+                    <Box
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        backgroundColor: '#fa5252'
+                      }}
+                    />
+                  }
                 >
-                  <Text size="sm" fw={500}>Report Overdue</Text>
-                  <Text size="xs" c="dimmed">HX-220 report was due yesterday</Text>
+                  <Box>
+                    <Text size="sm" fw={600}>Report Overdue</Text>
+                    <Text size="xs" c="dimmed" mt={2}>HX-220 report was due yesterday</Text>
+                    <Text size="xs" c="dimmed" mt={2}>1 day ago</Text>
+                  </Box>
                 </Menu.Item>
-                <Menu.Item>
-                  <Text size="sm" fw={500}>System Update</Text>
-                  <Text size="xs" c="dimmed">Maintenance scheduled for 12 AM</Text>
+
+                <Menu.Item py="sm">
+                  <Box>
+                    <Text size="sm" fw={600}>System Update</Text>
+                    <Text size="xs" c="dimmed" mt={2}>Maintenance scheduled for 12 AM</Text>
+                    <Text size="xs" c="dimmed" mt={2}>3 days ago</Text>
+                  </Box>
                 </Menu.Item>
 
                 <Menu.Divider />
@@ -74,14 +190,98 @@ export function Header({ opened, toggle }) {
                   style={{ textAlign: 'center' }}
                   onClick={() => navigate('/notification')}
                 >
-                  View all notifications
+                  <Text size="sm" fw={600}>View all notifications</Text>
                 </Menu.Item>
               </Menu.Dropdown>
             </Menu>
-            <Button variant="default" onClick={async () => {
-              await signOut(auth);
-              navigate("/login");
-            }}>Log out</Button>
+
+            {/* User Profile Menu */}
+            <Menu shadow="md" width={240} position="bottom-end" withArrow offset={8}>
+              <Menu.Target>
+                <Group
+                  gap={8}
+                  style={{
+                    cursor: 'pointer',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    transition: 'background-color 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <Avatar 
+                    src={currentUser.avatar} 
+                    radius="xl" 
+                    size="md"
+                    color="blue"
+                  >
+                    {getInitials(currentUser.name)}
+                  </Avatar>
+                  
+                  <Box style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <Text size="sm" fw={600} style={{ lineHeight: 1.2 }}>
+                      {currentUser.name}
+                    </Text>
+                    <Text size="xs" c="dimmed" style={{ lineHeight: 1.2, textTransform: 'capitalize' }}>
+                      {currentUser.role}
+                    </Text>
+                  </Box>
+                  
+                  <IconChevronDown size={16} style={{ color: '#868e96' }} />
+                </Group>
+              </Menu.Target>
+
+              <Menu.Dropdown>
+                {/* User Info Header */}
+                <Box p="md" style={{ backgroundColor: '#f8f9fa' }}>
+                  <Group gap="sm">
+                    <Avatar 
+                      src={currentUser.avatar} 
+                      radius="xl" 
+                      size="lg"
+                      color="blue"
+                    >
+                      {getInitials(currentUser.name)}
+                    </Avatar>
+                    <Box>
+                      <Text size="sm" fw={700}>
+                        {currentUser.name}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {currentUser.email}
+                      </Text>
+                    </Box>
+                  </Group>
+                </Box>
+
+                <Menu.Divider />
+
+                {/* Menu Items */}
+                <Menu.Item
+                  leftSection={<IconUser size={16} stroke={1.5} />}
+                  onClick={() => navigate('/user-profile')}
+                >
+                  My Profile
+                </Menu.Item>
+
+                <Menu.Item
+                  leftSection={<IconSettings size={16} stroke={1.5} />}
+                  onClick={() => navigate('/other-settings')}
+                >
+                  Settings
+                </Menu.Item>
+
+                <Menu.Divider />
+
+                <Menu.Item
+                  color="red"
+                  leftSection={<IconLogout size={16} stroke={1.5} />}
+                  onClick={handleLogout}
+                >
+                  Log out
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
           </Group>
         </Group>
       </Container>

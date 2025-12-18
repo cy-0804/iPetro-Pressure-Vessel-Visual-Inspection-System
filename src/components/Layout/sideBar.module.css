@@ -1,48 +1,127 @@
 /* sideBar.module.css */
 
-/* Removed .navbar class since AppShell.Navbar handles the container */
+.sidebarContainer {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-right: 1px solid #e9ecef;
+}
+
+.logoSection {
+  padding: 24px 20px;
+  border-bottom: 1px solid #f1f3f5;
+}
 
 .navbarMain {
   flex: 1;
-  /* Optional: Add padding if you want spacing inside the scroll area */
-  padding-top: var(--mantine-spacing-xs); 
+  padding: 24px 12px;
 }
 
 .link {
   display: flex;
   align-items: center;
   text-decoration: none;
-  font-size: var(--mantine-font-size-sm);
-  color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1));
-  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
-  border-radius: var(--mantine-radius-sm);
+  font-size: 14px;
+  color: #495057;
+  padding: 11px 16px;
+  border-radius: 8px;
   font-weight: 500;
-  margin-bottom: 4px; /* Add slight spacing between items */
-  transition: background-color 150ms ease, color 150ms ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  margin: 0 4px;
 }
 
-/* Hover state */
+.link::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 0;
+  background: #228be6;
+  border-radius: 0 3px 3px 0;
+  transition: height 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 .link:hover {
-  background-color: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6));
-  color: light-dark(var(--mantine-color-black), var(--mantine-color-white));
+  background-color: #f8f9fa;
+  color: #212529;
+}
+
+.link:hover::before {
+  height: 60%;
 }
 
 .link .linkIcon {
-  color: var(--mantine-color-gray-6);
-  margin-right: var(--mantine-spacing-sm);
-  width: 25px;
-  height: 25px;
+  color: #868e96;
+  margin-right: 12px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
+  transition: all 0.2s ease;
 }
 
-/* Active link class */
-.linkActive,
-.linkActive:hover {
-  /* Using your primary theme color */
-  background-color: var(--mantine-color-primary-1);
-  color: var(--mantine-color-primary-9);
+.link:hover .linkIcon {
+  color: #228be6;
+  transform: scale(1.05);
+}
+
+/* Active link - Clean blue accent */
+.linkActive {
+  background-color: #e7f5ff;
+  color: #228be6;
+  font-weight: 600;
+}
+
+.linkActive::before {
+  height: 70%;
 }
 
 .linkActive .linkIcon {
-  color: var(--mantine-color-primary-9);
+  color: #228be6;
+}
+
+.linkActive:hover {
+  background-color: #d0ebff;
+}
+
+/* Mobile optimization */
+@media (max-width: 768px) {
+  .logoSection {
+    padding: 20px 16px;
+  }
+
+  .navbarMain {
+    padding: 20px 8px;
+  }
+
+  .link {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  .link .linkIcon {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/* Scrollbar styling */
+.navbarMain::-webkit-scrollbar {
+  width: 4px;
+}
+
+.navbarMain::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.navbarMain::-webkit-scrollbar-thumb {
+  background: #dee2e6;
+  border-radius: 2px;
+}
+
+.navbarMain::-webkit-scrollbar-thumb:hover {
+  background: #ced4da;
 }

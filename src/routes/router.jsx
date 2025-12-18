@@ -5,7 +5,7 @@ import Login from "../auth/login.jsx";
 import Register from "../auth/register.jsx";
 
 // Layouts
-import { MainLayout } from "../components/Layout/MainLayout.jsx";
+import { MainLayout } from "../components/Layout/mainLayout.jsx";
 
 // Pages
 import Dashboard from "../pages/dashboard.jsx";
@@ -15,6 +15,7 @@ import InspectionReportHistory from "../pages/InspectionHistory";
 import NotificationsPage from "../pages/Notifications";
 import DocumentUploadManagement from "../pages/DocUpload.jsx";
 import EquipmentRegistration from "../pages/EquipmentRegistration.jsx";
+import UserProfile from "../pages/UserProfile.jsx";
 
 // Your new pages (from isaac-work)
 import InspectionForm from "../pages/InspectionForm.jsx";
@@ -51,6 +52,8 @@ export const router = createBrowserRouter([
           { path: "/customer-feedback", element: <CustomerFeedback /> },
 
           { path: "/other-settings", element: <div>Other Settings</div> },
+          
+          {path: "/user-profile", element: <UserProfile />},
           // Default redirect
           {
             path: "/",
