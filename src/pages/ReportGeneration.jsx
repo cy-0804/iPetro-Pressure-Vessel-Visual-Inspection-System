@@ -219,8 +219,8 @@ const ReportEditor = ({ report, onBack }) => {
                                 {/* Condition Header Row */}
                                 <tr>
                                     <td style={{ padding: '5px', borderBottom: '2px solid black', borderTop: 'none' }}>
-                                        <Text size="xs" c="dimmed" fs="italic">
-                                            {data.condition || "Condition: With respect to the internal surface, describe and state location of any scales, pits or other deposits..."}
+                                        <Text style={{ fontSize: '8px', lineHeight: 1.1, whiteSpace: 'pre-wrap' }}>
+                                            {data.condition ? `Condition: ${data.condition}` : "Condition: With respect to the internal surface, describe and state location of any scales, oils or other deposits. Give location and extent of any corrosion and state whether active or inactive. State location and extent of any erosion, grooving, bulging, warping, cracking or similar condition. Report on any defective rivets bowed, loose or broken stays. State condition of all tubes, tube end, coils nipples, etc. Report condition of setting, linings, baffles, support, etc. Describe major changes or repairs made since last inspection"}
                                         </Text>
                                     </td>
                                 </tr>
@@ -326,22 +326,64 @@ const ReportEditor = ({ report, onBack }) => {
                                 </tr>
                             </tbody>
                         </table>
+
+                        {/* Equipment Info */}
+                        <table style={{ width: '100%', borderCollapse: 'collapse', border: '2px solid black', borderTop: 'none', marginBottom: 0 }}>
+                             <tbody>
+                                <tr>
+                                     <td style={{ width: '65%', borderRight: '2px solid black', padding: '5px', verticalAlign: 'top' }}>
+                                         <Group gap="xs">
+                                             <Text size="xs" fw={700}>Equipment tag no:</Text>
+                                             <Text size="xs" fw={700}>{data.equipmentId}</Text>
+                                         </Group>
+                                         <Group gap="xs" mt={2}>
+                                             <Text size="xs" fw={700}>Equipment description:</Text>
+                                             <Text size="xs" fw={700}>{data.equipmentDescription}</Text>
+                                         </Group>
+                                     </td>
+                                     <td style={{ padding: '5px', verticalAlign: 'top' }}>
+                                         <Group gap="xs">
+                                             <Text size="xs" fw={700}>Plant/Unit/Area:</Text>
+                                             <Text size="xs" fw={700}>{data.plantUnitArea || "Plant 1"}</Text>
+                                         </Group>
+                                         <Group gap="xs" mt={2}>
+                                             <Text size="xs" fw={700}>DOSH registration no.:</Text>
+                                             <Text size="xs" fw={700}>{data.doshNumber || "MK PMT 1002"}</Text>
+                                         </Group>
+                                     </td>
+                                </tr>
+                             </tbody>
+                        </table>
+
                         <div style={{ backgroundColor: '#999', border: '2px solid black', borderBottom: 'none', borderTop: 'none', padding: '2px', marginTop: 0 }}>
                             <Text ta="center" size="sm" fw={700} tt="uppercase">PHOTOS REPORT</Text>
                         </div>
 
                         {/* Photo Rows - Table Version */}
-                        <table style={{ width: '100%', borderCollapse: 'collapse', border: '2px solid black', borderTop: '2px solid black', borderBottom: '2px solid black' }}>
+                        {/* Photo Rows - Table Version */}
+                        <table style={{ width: '100%', borderCollapse: 'collapse', border: '2px solid black', borderTop: '2px solid black', borderBottom: 'none', flexGrow: 1 }}>
                             <tbody>
                                 {chunk.length === 0 ? (
                                     <tr>
                                         <td colSpan={2} style={{ padding: '10px' }}><Text>No photos available.</Text></td>
                                     </tr>
                                 ) : (
-                                    chunk.map((row, rowIndex) => {
+                                    Array.from({ length: 3 }).map((_, rowIndex) => {
+                                        const row = chunk[rowIndex];
+                                        
+                                        if (!row) {
+                                            // Render Empty Row to maintain layout
+                                             return (
+                                                <tr key={`empty-${rowIndex}`} style={{ height: '33.33%' }}>
+                                                    <td style={{ width: '50%', borderRight: '2px solid black', borderBottom: '2px solid black', padding: '10px' }}>&nbsp;</td>
+                                                    <td style={{ width: '50%', borderBottom: '2px solid black', padding: '10px' }}>&nbsp;</td>
+                                                </tr>
+                                             );
+                                        }
+
                                         const globalIndex = (pageIndex * 3) + rowIndex;
                                         return (
-                                            <tr key={rowIndex}>
+                                            <tr key={rowIndex} style={{ height: '33.33%' }}>
                                                 {/* Left: Images */}
                                                 <td style={{ 
                                                     width: '50%', 
@@ -396,10 +438,8 @@ const ReportEditor = ({ report, onBack }) => {
                             </tbody>
                         </table>
 
-                        <div style={{ flexGrow: 1, borderLeft: '2px solid black', borderRight: '2px solid black' }}></div>
-
                         {/* Footer */}
-                        <table style={{ width: '100%', borderCollapse: 'collapse', border: '2px solid black', borderTop: '2px solid black', padding: 0, marginTop: 0, pageBreakInside: 'avoid' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', border: '2px solid black',padding: 0, marginTop: 0, pageBreakInside: 'avoid' }}>
                             <tbody>
                                 <tr>
                                     <td style={{ width: '50%', borderRight: '2px solid black', padding: '5px', height: '40px', verticalAlign: 'center' }}>
