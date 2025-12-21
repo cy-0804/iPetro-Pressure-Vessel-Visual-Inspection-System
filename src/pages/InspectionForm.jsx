@@ -1,394 +1,532 @@
 import React, { useEffect, useState } from "react";
-import { db, storage } from "../firebase"; // Firebase Storage config
-import { collection, addDoc, serverTimestamp, getDocs } from "firebase/firestore";
+import { db, auth, storage } from "../firebase";
+import { collection, addDoc, updateDoc, doc, setDoc, serverTimestamp, getDocs } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import "./inspectionForm.css"; // (we'll create this file in a moment)
+import {
+  Container,
+  Paper,
+  Title,
+  Text,
+  TextInput,
+  Textarea,
+  Button,
+  Group,
+  Stack,
+  SimpleGrid,
+  Modal,
+  Image,
+  ActionIcon,
+  Badge,
+  Box,
+  Divider,
+  Stepper,
+  FileInput,
+  CloseButton,
+  Loader,
+  Checkbox,
+} from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
+import { notifications } from "@mantine/notifications";
+import { Dropzone, IMAGE_MIME_TYPE } from '@mantine/dropzone';
+import { IconSearch, IconDeviceFloppy, IconPhoto, IconPlus, IconTrash, IconCheck, IconUpload, IconX } from "@tabler/icons-react";
 
+// Standard report fields
 const initialFormState = {
   equipmentId: "",
+  equipmentDescription: "",
+  doshNumber: "",
+  plantUnitArea: "",
+  fabricator: "",
+  type: "",
   inspectionDate: "",
   inspectorName: "",
   location: "",
-  defectType: "",
-  severity: "",
-  description: "",
+  condition: "",
+  preInspectionFinding: "",
+  finalInspectionFinding: "",
+  externalCondition: "",
+  internalCondition: "",
+  nonDestructiveTesting: "",
+  recommendation: "",
 };
-
-const defectTypes = [
-  "Corrosion",
-  "Crack",
-  "Leak",
-  "Deformation",
-  "Weld Defect",
-  "Other",
-];
-
-const severityLevels = ["Low", "Medium", "High", "Critical"];
-
 const InspectionForm = () => {
+  const [activeStep, setActiveStep] = useState(0);
   const [formData, setFormData] = useState(initialFormState);
-  const [photoFiles, setPhotoFiles] = useState([]);
   const [equipmentList, setEquipmentList] = useState([]);
-  const [equipmentSearchOpen, setEquipmentSearchOpen] = useState(false);
-  const [photoPreviews, setPhotoPreviews] = useState([]); // NEW
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [message, setMessage] = useState("");
-  const [uploadedUrls, setUploadedUrls] = useState([]);
+  
+  // Step 2 State
+  const [photoRows, setPhotoRows] = useState([]); // { id, file, preview, finding, recommendation }
 
-  // Handle text/select input changes
-  const handleChange = (e) => {
-    const { name, value } = e.target;
+  // Modal for Equipment Search
+  const [opened, { open, close }] = useDisclosure(false);
+
+  // ... (skipping initial effects)
+
+  // --- Initial Data Loading ---
+  useEffect(() => {
+    // Equipment List
+    const fetchEquipment = async () => {
+      try {
+        const snap = await getDocs(collection(db, "equipments"));
+        const list = snap.docs.map((d) => ({ docId: d.id, ...d.data() }));
+        setEquipmentList(list);
+      } catch (err) {
+        console.error("Failed to load equipment list:", err);
+        notifications.show({ title: "Error", message: "Failed to load equipment list", color: "red" });
+      }
+    };
+    fetchEquipment();
+
+    // Auto-fill Date and Inspector
+    const today = new Date().toISOString().split("T")[0];
+    const currentUser = auth.currentUser;
+    const inspector = currentUser?.displayName || currentUser?.email || "Unknown Inspector";
+
+    setFormData(prev => ({
+      ...prev,
+      inspectionDate: prev.inspectionDate || today,
+      inspectorName: prev.inspectorName || inspector
+    }));
+  }, []);
+
+  // --- Handlers: Step 1 (General Form) ---
+  const handleChange = (name, value) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Handle photo selection
-  const handlePhotoChange = (e) => {
-  const files = Array.from(e.target.files || []);
-  setPhotoFiles(files);
-
-  // create previews
-  const previews = files.map((file) => URL.createObjectURL(file));
-  setPhotoPreviews((prev) => {
-    // cleanup old previews
-    prev.forEach((url) => URL.revokeObjectURL(url));
-    return previews;
-  });
-};
-
-// remove selected photo preview
-const removeSelectedPhoto = (index) => {
-  setPhotoFiles((prev) => prev.filter((_, i) => i !== index));
-
-  setPhotoPreviews((prev) => {
-    const next = [...prev];
-    URL.revokeObjectURL(next[index]);
-    next.splice(index, 1);
-    return next;
-  });
-};
-
-  useEffect(() => {
-  const fetchEquipment = async () => {
-    try {
-      const snap = await getDocs(collection(db, "equipments"));
-      const list = snap.docs.map((d) => ({ docId: d.id, ...d.data() }));
-      setEquipmentList(list);
-      console.log("Loaded equipments:", list);
-    } catch (err) {
-      console.error("Failed to load equipment list:", err);
-    }
+  const handleEquipmentPick = (eq) => {
+    setFormData((prev) => ({
+      ...prev,
+      equipmentId: eq.tagNumber || "",
+      equipmentDescription: eq.equipmentDescription || "",
+      doshNumber: eq.doshNumber || "",
+      plantUnitArea: eq.plantUnitArea || "",
+      fabricator: eq.fabricator || "",
+      type: eq.type || "",
+    }));
+    close();
+    notifications.show({ title: "Equipment Loaded", message: `Loaded details for ${eq.tagNumber}`, color: "blue" });
   };
 
-  fetchEquipment();
-}, []);
-
-
-  const handleSubmit = async (e) => {
+  const handleStep1Submit = (e) => {
     e.preventDefault();
-    setMessage("");
 
-    // Simple validation
-    if (
-      !formData.equipmentId ||
-      !formData.inspectionDate ||
-      !formData.inspectorName
-    ) {
-      setMessage("Please fill in at least Equipment ID, Date and Inspector Name.");
+    if (!formData.equipmentId || !formData.inspectionDate || !formData.inspectorName) {
+      notifications.show({ title: "Validation Error", message: "Please fill in Equipment ID, Date and Inspector Name.", color: "red" });
       return;
     }
 
-    setIsSubmitting(true);
-
-    try {
-  // 1) Upload photos to Firebase Storage
-  const urls = [];
-  for (const file of photoFiles) {
-    const storageRef = ref(storage, `inspection-photos/${Date.now()}-${file.name}`);
-    await uploadBytes(storageRef, file);
-    const url = await getDownloadURL(storageRef);
-    urls.push(url);
-  }
-
-  // 2) Save inspection data to Firestore
-  const dataToSave = {
-    ...formData,
-    photoUrls: urls,
-    createdAt: serverTimestamp(),
+    // Auto-add first row if empty
+    if (photoRows.length === 0) {
+      setPhotoRows([{ id: Date.now(), files: [], previews: [], finding: "", recommendation: "" }]);
+    }
+    setActiveStep(1); // Move to Step 2
+    notifications.show({ title: "Step 1 Validated", message: "Proceeding to Photo Report...", color: "blue" });
   };
 
-  const docRef = await addDoc(collection(db, "inspections"), dataToSave);
+  // --- Handlers: Step 2 (Photo Report) ---
+  const addPhotoRow = () => {
+    setPhotoRows(prev => [
+      ...prev, 
+      { id: Date.now(), files: [], previews: [], finding: "", recommendation: "" }
+    ]);
+  };
 
-  console.log("Saved inspection with ID:", docRef.id);
-  setMessage("✅ Inspection saved to Firestore!");
+  const updatePhotoRow = (id, field, value) => {
+    setPhotoRows(prev => prev.map(row => {
+      if (row.id === id) {
+        return { ...row, [field]: value };
+      }
+      return row;
+    }));
+  };
 
-  setFormData(initialFormState);
-  setPhotoFiles([]);
-  setPhotoPreviews((prev) => {
-  prev.forEach((url) => URL.revokeObjectURL(url));
-  return [];
-  });
-setUploadedUrls(urls);
-} catch (err) {
-  console.error("SUBMIT FAILED:", err);
-  setMessage(`❌ Submit failed: ${err?.message || "Unknown error"}`);
-}
+  const removePhotoRow = (id) => {
+    setPhotoRows(prev => prev.filter(row => row.id !== id));
+  };
 
+  const removeImageFromRow = (rowId, index) => {
+    setPhotoRows(prev => prev.map(row => {
+      if (row.id === rowId) {
+         const newFiles = [...row.files];
+         const newPreviews = [...row.previews];
+         newFiles.splice(index, 1);
+         newPreviews.splice(index, 1);
+         return { ...row, files: newFiles, previews: newPreviews };
+      }
+      return row;
+    }));
+  };
+
+  const handleStep2Submit = async () => {
+    if (photoRows.length === 0) {
+        if(!confirm("Submit report without specific photos?")) return;
+    }
+
+    setIsSubmitting(true);
+    try {
+        // Generate new Document ID first
+        const newDocRef = doc(collection(db, "inspections"));
+        const newDocId = newDocRef.id;
+
+        const uploadedPhotos = [];
+
+        for (const row of photoRows) {
+            const photoUrls = [];
+            
+            // Upload all files in this row
+            if (row.files && row.files.length > 0) {
+                for (const file of row.files) {
+                    const storageRef = ref(storage, `inspection-photos/${newDocId}/${Date.now()}-${file.name}`);
+                    await uploadBytes(storageRef, file);
+                    const url = await getDownloadURL(storageRef);
+                    photoUrls.push(url);
+                }
+            }
+
+            // Only add to report if there's content or photos
+            if (photoUrls.length > 0 || row.finding || row.recommendation) {
+                 uploadedPhotos.push({
+                    finding: row.finding,
+                    recommendation: row.recommendation,
+                    photoUrls: photoUrls, 
+                    timestamp: new Date().toISOString()
+                });
+            }
+        }
+
+        // Save everything to Firestore
+        const finalData = {
+            ...formData,
+            photoReport: uploadedPhotos,
+            status: "Completed",
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        };
+
+        await setDoc(newDocRef, finalData);
+
+        notifications.show({ title: "Success", message: "Inspection Report Completed!", color: "green" });
+        
+        // Reset Everything
+        setFormData(initialFormState);
+        setPhotoRows([]);
+        setActiveStep(0);
+        
+        // Re-init date/inspector
+        const today = new Date().toISOString().split("T")[0];
+        const currentUser = auth.currentUser;
+        const inspector = currentUser?.displayName || currentUser?.email || "Unknown Inspector";
+        setFormData(prev => ({ ...prev, inspectionDate: today, inspectorName: inspector }));
+
+    } catch (error) {
+        console.error("Step 2 Error:", error);
+        notifications.show({ title: "Error", message: "Failed to save photo report.", color: "red" });
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="inspection-form-page">
-      <h1>Inspection Form</h1>
-      <p className="subtitle">
-        Fill in the inspection details and attach supporting photos.
-      </p>
-
-      <form className="inspection-form" onSubmit={handleSubmit}>
+    <Container size="lg" maxW={1200} py="xl">
+      <Title order={2} mb="md">Inspection Report</Title>
+      
+      <Stepper active={activeStep} onStepClick={setActiveStep} mb="xl" allowNextStepsSelect={false}>
+        <Stepper.Step label="Inspection Details" description="General findings & condition" allowStepSelect={activeStep > 0}>
+             {/* Step 1 Content: The General Form */}
+             <Paper withBorder shadow="sm" p="xl" radius="md">
+                <form onSubmit={handleStep1Submit}>
+                  <Stack gap="xl">
+                    {/* Section 1: Equipment Details */}
+                    <Box>
+                      <Divider label="Equipment Details" labelPosition="left" mb="md" fw={700} />
+                      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
+                        <Box>
+                          <TextInput
+                            label="Tag Number"
+                            placeholder="Search..."
+                            value={formData.equipmentId}
+                            onChange={(e) => handleChange("equipmentId", e.currentTarget.value)}
+                            rightSection={
+                              <ActionIcon onClick={open} variant="filled" color="blue" size="sm">
+                                <IconSearch size={14} />
+                              </ActionIcon>
+                            }
+                            readOnly 
+                          />
+                           <Text size="xs" mt={4} c="blue" style={{ cursor: "pointer" }} onClick={open}>
+                            Click to Search Equipment 
+                          </Text>
+                        </Box>
+                        <TextInput label="DOSH No." value={formData.doshNumber} onChange={(e) => handleChange("doshNumber", e.currentTarget.value)} />
+                        <TextInput label="Plant / Unit" value={formData.plantUnitArea} onChange={(e) => handleChange("plantUnitArea", e.currentTarget.value)} />
+                        <TextInput label="Equipment Type" value={formData.type} onChange={(e) => handleChange("type", e.currentTarget.value)} />
+                        <TextInput label="Fabricator" value={formData.fabricator} onChange={(e) => handleChange("fabricator", e.currentTarget.value)} />
+                      </SimpleGrid>
+                      <Textarea 
+                        mt="md" 
+                        label="Equipment Description" 
+                        value={formData.equipmentDescription} 
+                        onChange={(e) => handleChange("equipmentDescription", e.currentTarget.value)} 
+                        minRows={2}
+                      />
+                    </Box>
         
-        {/* TOP ROW: Equipment (left) + Date (right) */}
-        <div className="top-grid">
-          {/* LEFT: Equipment */}
-          <div className="form-row equip-block">
-            <label>Equipment ID / Tag Number</label>
+                    {/* Section 2: Inspection Metadata */}
+                    <Box>
+                      <Divider label="Inspection Data" labelPosition="left" mb="md" fw={700} />
+                      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
+                        <TextInput type="date" label="Inspection Date" value={formData.inspectionDate} onChange={(e) => handleChange("inspectionDate", e.currentTarget.value)} withAsterisk />
+                        <TextInput label="Inspector Name" value={formData.inspectorName} onChange={(e) => handleChange("inspectorName", e.currentTarget.value)} withAsterisk />
+                        <TextInput label="Location" value={formData.location} onChange={(e) => handleChange("location", e.currentTarget.value)} />
+                      </SimpleGrid>
+                    </Box>
+        
+                    {/* Section 3: Findings & Conditions */}
+                    <Box>
+                      <Divider label="Condition" labelPosition="left" mb="md" fw={700} />
+                      
+                      <Textarea 
+                        label="Condition" 
+                        minRows={2} 
+                        mb="md" 
+                        value={formData.condition} 
+                        onChange={(e) => handleChange("condition", e.currentTarget.value)} 
+                      />
 
-            <EquipmentSmartSearch
-              value={formData.equipmentId}
-              onChange={(val) =>
-                setFormData((prev) => ({ ...prev, equipmentId: val }))
-              }
-              equipmentList={equipmentList}
-              onPick={(eq) => {
-                setFormData((prev) => ({ ...prev, equipmentId: eq.tagNumber || "" }));
-              }}
-            />
+                      <Divider label="Findings" labelPosition="left" mt="lg" mb="sm" fw={700} />
+        
+                      {/* Initial/Pre-Inspection */}
+                      <Stack mb="md" gap="xs">
+                        <Checkbox 
+                            label={<Text fw={600}>Initial/Pre-Inspection</Text>}
+                            checked={formData.preInspectionFinding !== "Not applicable"}
+                            onChange={(e) => handleChange("preInspectionFinding", e.currentTarget.checked ? "" : "Not applicable")}
+                        />
+                        {formData.preInspectionFinding !== "Not applicable" && (
+                            <Textarea 
+                                placeholder="Enter findings..."
+                                minRows={3} 
+                                value={formData.preInspectionFinding} 
+                                onChange={(e) => handleChange("preInspectionFinding", e.currentTarget.value)} 
+                            />
+                        )}
+                      </Stack>
 
-            <div className="hint-row">
-              <button
-                type="button"
-                className="link-btn"
-                onClick={() => setEquipmentSearchOpen(true)}
-              >
-                Don’t know tag? Search equipment
-              </button>
-            </div>
-          </div>
+                      {/* Post/Final Inspection */}
+                      <Stack mb="md" gap="xs">
+                         <Checkbox 
+                            label={<Text fw={600}>Post/Final Inspection</Text>}
+                            checked={formData.externalCondition !== "Not applicable"}
+                            onChange={(e) => {
+                                const val = e.currentTarget.checked ? "" : "Not applicable";
+                                handleChange("externalCondition", val);
+                                handleChange("internalCondition", val);
+                            }}
+                        />
+                        {formData.externalCondition !== "Not applicable" && (
+                             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                                <Textarea 
+                                   label="External" 
+                                   minRows={3} 
+                                   value={formData.externalCondition} 
+                                   onChange={(e) => handleChange("externalCondition", e.currentTarget.value)} 
+                               />
+                                <Textarea 
+                                   label="Internal" 
+                                   minRows={3} 
+                                   value={formData.internalCondition} 
+                                   onChange={(e) => handleChange("internalCondition", e.currentTarget.value)} 
+                               />
+                             </SimpleGrid>
+                        )}
+                      </Stack>
 
-          {/* RIGHT: Date */}
-          <div className="form-row">
-            <label>Inspection Date</label>
-            <input
-              type="date"
-              name="inspectionDate"
-              value={formData.inspectionDate}
-              onChange={handleChange}
-            />
-          </div>
-        </div>
+                      <Textarea 
+                        label="NON-DESTRUCTIVE TESTINGS" 
+                        minRows={4} 
+                        mb="md"
+                        value={formData.nonDestructiveTesting} 
+                        onChange={(e) => handleChange("nonDestructiveTesting", e.currentTarget.value)} 
+                      />
+                      
+                      <Textarea 
+                        label="RECOMMENDATIONS" 
+                        minRows={4} 
+                        mb="md"
+                        value={formData.recommendation} 
+                        onChange={(e) => handleChange("recommendation", e.currentTarget.value)} 
+                      />
+                    </Box>
 
-        {/* Modal (Option A) */}
-        {equipmentSearchOpen && (
-          <EquipmentSearchModal
-            equipmentList={equipmentList}
-            onClose={() => setEquipmentSearchOpen(false)}
-            onPick={(eq) => {
-              setFormData((prev) => ({ ...prev, equipmentId: eq.tagNumber || "" }));
-              setEquipmentSearchOpen(false);
-            }}
-          />
-        )}
+                    <Button type="submit" size="md" rightSection={<IconDeviceFloppy size={18} />} loading={isSubmitting}>
+                      Save and Proceed to Photos
+                    </Button>
+                  </Stack>
+                </form>
+             </Paper>
+        </Stepper.Step>
 
-        <div className="form-row">
-          <label>Inspector Name</label>
-          <input
-            type="text"
-            name="inspectorName"
-            value={formData.inspectorName}
-            onChange={handleChange}
-            placeholder="e.g. Isaac"
-          />
-        </div>
+        <Stepper.Step label="Photo Report" description="Upload photos with findings">
+            {/* Step 2 Content: Photo Report */}
+            <Paper withBorder shadow="sm" p="xl" radius="md">
+                <Stack>
+                    <Title order={4}>Photo Evidence & Specific Recommendations</Title>
+                    <Text c="dimmed" size="sm">Add photos of specific defects/observations along with dedicated findings.</Text>
+                    
+                    {photoRows.length === 0 && (
+                         <Box p="xl" bg="gray.1" style={{ textAlign: 'center', borderRadius: 8 }}>
+                            <Text c="dimmed">No photos added yet. Click "Add Photo Row" to begin.</Text>
+                         </Box>
+                    )}
 
-        <div className="form-row">
-          <label>Location</label>
-          <input
-            type="text"
-            name="location"
-            value={formData.location}
-            onChange={handleChange}
-            placeholder="e.g. Shell Plate, Nozzle N3, Dish Head"
-          />
-        </div>
+                    {photoRows.map((row, index) => (
+                        <Paper key={row.id} withBorder p="md" bg="gray.0">
+                            <Group align="flex-start" justify="space-between" mb="xs">
+                                <Badge variant="filled" color="gray">Photo #{index + 1}</Badge>
+                                <ActionIcon color="red" variant="subtle" onClick={() => removePhotoRow(row.id)}><IconTrash size={16}/></ActionIcon>
+                            </Group>
+                            <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
+                                 {/* Column 1: Image */}
+                                 <Box>
+                                     <Dropzone
+                                        onDrop={(files) => {
+                                            if (files.length === 0) return;
+                                            
+                                            setPhotoRows(prev => {
+                                                const newRows = [...prev];
+                                                const targetIndex = newRows.findIndex(r => r.id === row.id);
+                                                
+                                                if (targetIndex !== -1) {
+                                                    const existingFiles = newRows[targetIndex].files || [];
+                                                    const currentCount = existingFiles.length;
 
-        <div className="form-row two-col">
-          <div>
-            <label>Defect Type</label>
-            <select
-              name="defectType"
-              value={formData.defectType}
-              onChange={handleChange}
-            >
-              <option value="">Select defect type</option>
-              {defectTypes.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
-          </div>
+                                                    if (currentCount >= 5) {
+                                                        notifications.show({ title: 'Limit Reached', message: 'Maximum 5 photos allowed per row.', color: 'red' });
+                                                        return prev;
+                                                    }
 
-          <div>
-            <label>Severity</label>
-            <select
-              name="severity"
-              value={formData.severity}
-              onChange={handleChange}
-            >
-              <option value="">Select severity</option>
-              {severityLevels.map((level) => (
-                <option key={level} value={level}>
-                  {level}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+                                                    let filesToAdd = files;
+                                                    if (currentCount + files.length > 5) {
+                                                        const allowed = 5 - currentCount;
+                                                        filesToAdd = files.slice(0, allowed);
+                                                        notifications.show({ 
+                                                            title: 'Limit Reached', 
+                                                            message: `Only ${allowed} photo(s) added to meet the limit of 5.`, 
+                                                            color: 'orange' 
+                                                        });
+                                                    }
 
-        <div className="form-row">
-          <label>Findings / Description</label>
-          <textarea
-            name="description"
-            rows={4}
-            value={formData.description}
-            onChange={handleChange}
-            placeholder="Describe the observed condition, pitting depth, corrosion area, etc."
-          />
-        </div>
+                                                    const existingPreviews = newRows[targetIndex].previews || [];
+                                                    
+                                                    const newFiles = [...existingFiles, ...filesToAdd];
+                                                    const newPreviews = [...existingPreviews, ...filesToAdd.map(f => URL.createObjectURL(f))];
+                                                    
+                                                    newRows[targetIndex] = {
+                                                        ...newRows[targetIndex],
+                                                        files: newFiles,
+                                                        previews: newPreviews
+                                                    };
+                                                }
+                                                return newRows;
+                                            });
+                                        }}
+                                        onReject={(files) => notifications.show({ title: 'Image Rejected ', message: 'Image size too large, please select a image under 10 mb', color: 'red' })}
+                                        maxSize={10 * 1024 ** 2}
+                                        accept={IMAGE_MIME_TYPE}
+                                        multiple={true}
+                                        style={{ 
+                                            minHeight: 160, 
+                                            display: 'flex', 
+                                            alignItems: 'center', 
+                                            justifyContent: 'center', 
+                                            border: '1px dashed #ced4da', 
+                                            borderRadius: 8,
+                                            cursor: 'pointer',
+                                            overflow: 'hidden',
+                                            backgroundColor: (row.previews && row.previews.length > 0) ? 'white' : 'transparent',
+                                            padding: 10
+                                        }}
+                                     >
+                                        {(row.previews && row.previews.length > 0) ? (
+                                            <SimpleGrid cols={row.previews.length > 4 ? 3 : (row.previews.length > 1 ? 2 : 1)} spacing="xs" w="100%">
+                                                {row.previews.map((preview, i) => (
+                                                    <ImagePreviewItem 
+                                                        key={i} 
+                                                        src={preview} 
+                                                        onDelete={() => removeImageFromRow(row.id, i)}
+                                                        height={row.previews.length > 2 ? 80 : 140}
+                                                    />
+                                                ))}
+                                            </SimpleGrid>
+                                        ) : (
+                                            <Stack align="center" gap={4} style={{ pointerEvents: 'none' }}>
+                                              <Dropzone.Idle>
+                                                <IconPhoto size={32} color="gray" />
+                                              </Dropzone.Idle>
+                                              <Dropzone.Accept>
+                                                <IconUpload size={32} color="blue" />
+                                              </Dropzone.Accept>
+                                              <Dropzone.Reject>
+                                                <IconX size={32} color="red" />
+                                              </Dropzone.Reject>
+                                              <Text size="xs" c="dimmed" ta="center">Drag images here<br/>Max file size 5MB<br/>5 images only</Text>
+                                            </Stack>
+                                        )}
+                                     </Dropzone>
+                                 </Box>
 
-        <div className="form-row">
-          <label>Inspection Photos</label>
-          <input type="file" accept="image/*" multiple onChange={handlePhotoChange} />
-          <small>You can select multiple images.</small>
+                                 {/* Column 2: Finding */}
+                                 <Textarea 
+                                    label="Specific Finding / Observation" 
+                                    placeholder="Describe what is seen in the photo..." 
+                                    minRows={6}
+                                    value={row.finding}
+                                    onChange={(e) => updatePhotoRow(row.id, 'finding', e.currentTarget.value)}
+                                 />
 
-          {photoPreviews.length > 0 && (
-            <div className="selected-preview">
-              <div className="photo-grid">
-                {photoPreviews.map((src, i) => (
-                  <div className="photo-item" key={src}>
-                    <img src={src} alt={`Selected ${i + 1}`} />
-                    <button
-                      type="button"
-                      className="remove-photo"
-                      onClick={() => removeSelectedPhoto(i)}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+                                 {/* Column 3: Recommendation */}
+                                 <Textarea 
+                                    label="Specific Recommendation" 
+                                    placeholder="Action required for this specific item..." 
+                                    minRows={6}
+                                    value={row.recommendation}
+                                    onChange={(e) => updatePhotoRow(row.id, 'recommendation', e.currentTarget.value)}
+                                 />
+                            </SimpleGrid>
+                        </Paper>
+                    ))}
 
-        <button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Submitting..." : "Submit Inspection"}
-        </button>
+                    <Group justify="center" mt="md">
+                        <Button leftSection={<IconPlus size={16} />} variant="outline" onClick={addPhotoRow}>Add Photo Row</Button>
+                    </Group>
 
-        {message && <p className="message">{message}</p>}
-      </form>
+                    <Divider my="lg" />
 
-      {uploadedUrls.length > 0 && (
-        <div className="uploaded-preview">
-          <h2>Uploaded Photo Preview</h2>
-          <div className="photo-grid">
-            {uploadedUrls.map((url) => (
-              <img key={url} src={url} alt="Uploaded inspection" />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+                    <Group justify="flex-end">
+                        <Button variant="default" onClick={() => setActiveStep(0)}>Back to Details</Button>
+                        <Button color="green" leftSection={<IconCheck size={16} />} onClick={handleStep2Submit} loading={isSubmitting}>Complete Report</Button>
+                    </Group>
+                </Stack>
+            </Paper>
+        </Stepper.Step>
+      </Stepper>
+
+      {/* Search Modal */}
+      <EquipmentSearchModal
+        opened={opened}
+        onClose={close}
+        equipmentList={equipmentList}
+        onPick={handleEquipmentPick}
+      />
+    </Container>
   );
 };
 
-function EquipmentSmartSearch({ value, onChange, equipmentList, onPick }) {
-  const [open, setOpen] = useState(false);
+// --- Helper Components ---
 
-  const q = (value || "").toLowerCase().trim();
-
-  const results = equipmentList
-    .filter((eq) => {
-      const fields = [
-        eq.tagNumber,
-        eq.type,
-        eq.plantUnitArea,
-        eq.doshNumber,
-        eq.service,
-        eq.status,
-        eq.function,
-        eq.geometry,
-        eq.fabricator,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      if (q.length < 2) return false;  // don’t show anything until user types 2+ chars
-      return fields.includes(q);
-    })
-    .slice(0, 8);
-
-  return (
-    <div className="equip-search">
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => {
-          onChange(e.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 120)}
-        placeholder="Type tag, type, plant, DOSH no..."
-      />
-
-      {/* 🔎 Hint when input too short */}  
-      {open && q.length > 0 && q.length < 2 && (
-        <div className="equip-hint">Type at least 2 characters to search…</div>
-      )}
-      
-      {/* 🔽 Dropdown results */}
-      {open && q.length >= 2 && results.length > 0 && (
-        <div className="equip-dropdown">
-          {results.map((eq) => (
-            <button
-              type="button"
-              key={eq.docId}
-              className="equip-item"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => onPick(eq)}
-            >
-              <img
-                className="equip-thumb"
-                src={eq.imageUrl || "https://via.placeholder.com/40"}
-                alt={eq.tagNumber || "equipment"}
-              />
-              <div className="equip-meta">
-                <div className="equip-title">
-                  <b>{eq.tagNumber || "(No Tag)"}</b>{" "}
-                  <span className="equip-status">{eq.status || ""}</span>
-                </div>
-                <div className="equip-sub">
-                  {(eq.type || "-")} • {(eq.plantUnitArea || "-")} • {(eq.doshNumber || "-")}
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function EquipmentSearchModal({ equipmentList, onClose, onPick }) {
+function EquipmentSearchModal({ opened, onClose, equipmentList, onPick }) {
   const [query, setQuery] = useState("");
 
   const q = query.toLowerCase().trim();
@@ -402,64 +540,91 @@ function EquipmentSearchModal({ equipmentList, onClose, onPick }) {
         eq.service,
         eq.status,
         eq.function,
-        eq.geometry,
-        eq.fabricator,
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
-
       return q === "" ? true : fields.includes(q);
     })
-    .slice(0, 20);
+    .slice(0, 15);
 
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
-      <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>Select Equipment</h3>
-          <button type="button" className="modal-close" onClick={onClose}>
-            ✕
-          </button>
-        </div>
-
-        <input
-          className="modal-search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by tag, type, plant, DOSH no..."
-          autoFocus
-        />
-
-        <div className="modal-list">
-          {results.map((eq) => (
-            <button
-              type="button"
-              key={eq.docId}
-              className="modal-item"
-              onClick={() => onPick(eq)}
-            >
-              <img
-                className="equip-thumb"
-                src={eq.imageUrl || "https://via.placeholder.com/48"}
-                alt={eq.tagNumber || "equipment"}
+    <Modal opened={opened} onClose={onClose} title="Select Equipment Database" size="lg" centered>
+      <TextInput
+        placeholder="Type Tag No, DOSH, or Plant..."
+        leftSection={<IconSearch size={16} />}
+        value={query}
+        onChange={(e) => setQuery(e.currentTarget.value)}
+        mb="md"
+        data-autofocus
+      />
+      
+      <Stack gap="xs" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+        {results.length === 0 && <Text c="dimmed" align="center" py="xl">No matching equipment found.</Text>}
+        {results.map((eq) => (
+          <Paper
+            key={eq.docId}
+            withBorder
+            p="sm"
+            onClick={() => onPick(eq)}
+            style={{ cursor: 'pointer', transition: 'background-color 0.2s' }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f3f5'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          >
+            <Group wrap="nowrap">
+              <Image
+                src={eq.imageUrl || "https://placehold.co/48?text=Eq"}
+                w={48}
+                h={48}
+                radius="md"
               />
-              <div className="equip-meta">
-                <div className="equip-title">
-                  <b>{eq.tagNumber || "(No Tag)"}</b>{" "}
-                  <span className="equip-status">{eq.status || ""}</span>
-                </div>
-                <div className="equip-sub">
-                  {(eq.type || "-")} • {(eq.plantUnitArea || "-")} • {(eq.doshNumber || "-")}
-                </div>
-              </div>
-            </button>
-          ))}
-          {results.length === 0 && <div className="empty">No results found.</div>}
-        </div>
-      </div>
-    </div>
+              <Box style={{ flex: 1 }}>
+                <Group justify="space-between" mb={2}>
+                  <Text fw={600} size="sm">{eq.tagNumber || "(No Tag)"}</Text>
+                  <Badge size="sm" variant="outline" color={eq.status === 'Active' ? 'green' : 'yellow'}>{eq.status}</Badge>
+                </Group>
+                <Text size="xs" c="dimmed">
+                  {[eq.type, eq.plantUnitArea, eq.doshNumber].filter(Boolean).join(" • ")}
+                </Text>
+                <Text size="xs" lineClamp={1}>
+                    {eq.equipmentDescription}
+                </Text>
+              </Box>
+            </Group>
+          </Paper>
+        ))}
+      </Stack>
+    </Modal>
   );
 }
+
+const ImagePreviewItem = ({ src, onDelete, height }) => {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <Box 
+      pos="relative" 
+      onMouseEnter={() => setHovered(true)} 
+      onMouseLeave={() => setHovered(false)}
+      h={height}
+    >
+      <Image src={src} radius="sm" h="100%" w="auto" fit="cover" />
+      {hovered && (
+         <Box 
+            pos="absolute" 
+            top={0} 
+            left={0} 
+            w="100%" 
+            h="100%" 
+            bg="rgba(0,0,0,0.5)" 
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, zIndex: 10 }}
+         >
+             <ActionIcon color="red" variant="filled" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
+                <IconTrash size={16} />
+             </ActionIcon>
+         </Box>
+      )}
+    </Box>
+  );
+};
 
 export default InspectionForm;

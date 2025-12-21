@@ -1,7 +1,21 @@
 import React, { useState } from "react";
 import { db } from "../firebase";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
-import "./customerFeedback.css";
+import {
+  Container,
+  Paper,
+  Title,
+  Text,
+  TextInput,
+  Textarea,
+  Select,
+  Button,
+  Rating,
+  Group,
+  Stack,
+  SimpleGrid
+} from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 
 const initialState = {
   name: "",
@@ -15,140 +29,114 @@ const initialState = {
 const CustomerFeedback = () => {
   const [formData, setFormData] = useState(initialState);
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState("");
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
+  const handleChange = (name, value) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  setMessage("");
+    e.preventDefault();
 
-  if (formData.rating === 0 || !formData.comments) {
-    setMessage("Please provide at least a rating and your comments.");
-    return;
-  }
+    if (formData.rating === 0 || !formData.comments) {
+      notifications.show({title: "Incomplete", message: "Please provide at least a rating and your comments.", color: "yellow"});
+      return;
+    }
 
+    setSubmitting(true);
 
-  setSubmitting(true);
+    try {
+      const feedbackToSave = {
+        ...formData,
+        createdAt: serverTimestamp(),
+      };
 
-  try {
-    const feedbackToSave = {
-      ...formData,
-      createdAt: serverTimestamp(),
-    };
+      await addDoc(collection(db, "customerFeedback"), feedbackToSave);
 
-    await addDoc(collection(db, "customerFeedback"), feedbackToSave);
-
-    setMessage("✅ Thank you! Your feedback has been recorded.");
-    setFormData(initialState);
-  } catch (err) {
-    console.error("FEEDBACK SUBMIT FAILED:", err);
-    setMessage("❌ Something went wrong. Please try again.");
-  } finally {
-    setSubmitting(false);
-  }
-};
+      notifications.show({title: "Success", message: "Thank you! Your feedback has been recorded.", color: "green"});
+      setFormData(initialState);
+    } catch (err) {
+      console.error("FEEDBACK SUBMIT FAILED:", err);
+      notifications.show({title: "Error", message: "Something went wrong. Please try again.", color: "red"});
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
-    <div className="feedback-page">
-      <h1>Customer Feedback & Quality Assurance</h1>
-      <p className="subtitle">
+    <Container size="sm" py="xl">
+      <Title order={2} mb={4}>Customer Feedback & Quality Assurance</Title>
+      <Text c="dimmed" mb="lg">
         Help us improve our inspection quality by sharing your feedback.
-      </p>
+      </Text>
 
-      <form className="feedback-form" onSubmit={handleSubmit}>
-        <div className="form-row two-col">
-          <div>
-            <label>Your Name</label>
-            <input
-              type="text"
-              name="name"
-              placeholder="Mr. Ali"
-              value={formData.name}
-              onChange={handleChange}
+      <Paper withBorder shadow="sm" p="lg" radius="md">
+        <form onSubmit={handleSubmit}>
+          <Stack gap="md">
+            <SimpleGrid cols={{ base: 1, sm: 2 }}>
+              <TextInput
+                label="Your Name"
+                placeholder="Mr. Ali"
+                value={formData.name}
+                onChange={(e) => handleChange("name", e.currentTarget.value)}
+              />
+              <TextInput
+                label="Email (optional)"
+                placeholder="ali@example.com"
+                type="email"
+                value={formData.email}
+                onChange={(e) => handleChange("email", e.currentTarget.value)}
+              />
+            </SimpleGrid>
+
+            <TextInput
+              label="Inspection / Report ID (if known)"
+              placeholder="V-1070-2025-01"
+              value={formData.inspectionId}
+              onChange={(e) => handleChange("inspectionId", e.currentTarget.value)}
             />
-          </div>
-          <div>
-            <label>Email (optional)</label>
-            <input
-              type="email"
-              name="email"
-              placeholder="ali@example.com"
-              value={formData.email}
-              onChange={handleChange}
+
+            <Stack gap={4}>
+              <Text fw={500} size="sm">Overall Satisfaction Rating</Text>
+              <Group align="center">
+                <Rating
+                  value={formData.rating}
+                  onChange={(val) => handleChange("rating", val)}
+                  size="lg"
+                />
+                <Text size="sm" c="dimmed" fw={500}>
+                  {formData.rating ? `${formData.rating}/5` : "Select"}
+                </Text>
+              </Group>
+              <Text size="xs" c="dimmed">1 = Very poor, 5 = Excellent</Text>
+            </Stack>
+
+            <Textarea
+              label="Comments on Inspection Quality"
+              placeholder="Comment on clarity of report, completeness, accuracy, timeliness, etc."
+              minRows={4}
+              value={formData.comments}
+              onChange={(e) => handleChange("comments", e.currentTarget.value)}
             />
-          </div>
-        </div>
 
-        <div className="form-row">
-          <label>Inspection / Report ID (if known)</label>
-          <input
-            type="text"
-            name="inspectionId"
-            placeholder="V-1070-2025-01"
-            value={formData.inspectionId}
-            onChange={handleChange}
-          />
-        </div>
+            <Select
+              label="Would you recommend our inspection service?"
+              placeholder="Select one"
+              data={[
+                { value: "yes", label: "Yes, definitely" },
+                { value: "maybe", label: "Maybe / Not sure" },
+                { value: "no", label: "No" },
+              ]}
+              value={formData.recommend}
+              onChange={(val) => handleChange("recommend", val)}
+            />
 
-        <div className="form-row">
-          <label>Overall Satisfaction Rating</label>
-
-          <div className="stars">
-            {[1, 2, 3, 4, 5].map((n) => (
-              <button
-                key={n}
-                type="button"
-                className={n <= formData.rating ? "star star-on" : "star"}
-                onClick={() => setFormData((prev) => ({ ...prev, rating: n }))}
-                aria-label={`${n} star`}
-              >
-                ★
-              </button>
-            ))}
-            <span className="rating-text">
-              {formData.rating ? `${formData.rating}/5` : "Select"}
-            </span>
-          </div>
-
-          <small>1 = Very poor, 5 = Excellent</small>
-        </div>
-
-        <div className="form-row">
-          <label>Comments on Inspection Quality</label>
-          <textarea
-            name="comments"
-            rows={4}
-            placeholder="Comment on clarity of report, completeness, accuracy, timeliness, etc."
-            value={formData.comments}
-            onChange={handleChange}
-          />
-        </div>
-
-        <div className="form-row">
-          <label>Would you recommend our inspection service?</label>
-          <select
-            name="recommend"
-            value={formData.recommend}
-            onChange={handleChange}
-          >
-            <option value="">Select one</option>
-            <option value="yes">Yes, definitely</option>
-            <option value="maybe">Maybe / Not sure</option>
-            <option value="no">No</option>
-          </select>
-        </div>
-
-        <button type="submit" disabled={submitting}>
-          {submitting ? "Submitting..." : "Submit Feedback"}
-        </button>
-
-        {message && <p className="message">{message}</p>}
-      </form>
-    </div>
+            <Group justify="flex-end" mt="md">
+              <Button type="submit" loading={submitting}>Submit Feedback</Button>
+            </Group>
+          </Stack>
+        </form>
+      </Paper>
+    </Container>
   );
 };
 

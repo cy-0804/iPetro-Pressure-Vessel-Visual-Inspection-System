@@ -30,13 +30,14 @@ const menuSections = [
       { link: "/equipment", label: "Equipment Registry", icon: IconSettingsPlus },
       { link: "/inspection-plan", label: "Inspection Plan", icon: IconKey },
       { link: "/inspection-form", label: "Inspection Form", icon: IconClipboardText },
+      { link: "/report-generation", label: "Generate Reports", icon: IconReportMedical },
       { link: "/inspection-history", label: "History", icon: IconHistory },
     ]
   },
   {
     title: "REPORTS & REVIEW",
     items: [
-      { link: "/report-generation", label: "Generate Reports", icon: IconReportMedical },
+
       { link: "/supervisor-review", label: "Supervisor Review", icon: IconCopyCheck },
     ]
   },

@@ -20,6 +20,7 @@ import UserProfile from "../pages/UserProfile.jsx";
 // Your new pages (from isaac-work)
 import InspectionForm from "../pages/InspectionForm.jsx";
 import CustomerFeedback from "../pages/CustomerFeedback.jsx";
+import ReportGeneration from "../pages/ReportGeneration.jsx";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
@@ -38,7 +39,7 @@ export const router = createBrowserRouter([
           // IMPORTANT: keep this path as /equipment (same as main)
           { path: "/equipment", element: <EquipmentRegistration /> },
 
-          { path: "/report-generation", element: <div>Report Generation</div> },
+          { path: "/report-generation", element: <ReportGeneration /> },
           { path: "/inspection-plan", element: <InspectionCalendar /> },
 
           // IMPORTANT: keep this as InspectionReportHistory (same as main)
