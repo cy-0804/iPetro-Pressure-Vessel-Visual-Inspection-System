@@ -12,23 +12,34 @@ export function Header({ opened, toggle }) {
 
   // Fetch user data from Firestore
   const fetchUserData = async () => {
-    const user = auth.currentUser;
-    if (user) {
-      try {
-        const userDoc = await getDoc(doc(db, "users", user.uid));
-        if (userDoc.exists()) {
-          setUserData({
-            name: userDoc.data().username || "User",
-            email: userDoc.data().email || user.email,
-            role: userDoc.data().role || "Inspector",
-            avatar: user.photoURL || null // ✅ This will update from Firebase Auth
-          });
+  const user = auth.currentUser;
+  if (user) {
+    try {
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        
+        // Build display name: prioritize firstName + lastName, fallback to username
+        let displayName = data.username || "User";
+        if (data.firstName && data.lastName) {
+          displayName = `${data.firstName} ${data.lastName}`;
+        } else if (data.firstName) {
+          displayName = data.firstName;
         }
-      } catch (error) {
-        console.error("Error fetching user data:", error);
+        
+        setUserData({
+          name: displayName,
+          username: data.username || "User",
+          email: data.email || user.email,
+          role: data.role || "Inspector",
+          avatar: user.photoURL || null
+        });
       }
+    } catch (error) {
+      console.error("Error fetching user data:", error);
     }
-  };
+  }
+};
 
   useEffect(() => {
     fetchUserData();

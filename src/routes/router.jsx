@@ -13,9 +13,10 @@ import SupervisorReview from "../pages/supervisorReview.jsx";
 import InspectionCalendar from "../pages/InspectionCalendar.jsx";
 import InspectionReportHistory from "../pages/InspectionHistory";
 import NotificationsPage from "../pages/Notifications";
-import DocumentUploadManagement from "../pages/DocUpload.jsx";
+import DocumentUploadManagement from "../pages/FileUpload.jsx";
 import EquipmentRegistration from "../pages/EquipmentRegistration.jsx";
 import UserProfile from "../pages/UserProfile.jsx";
+import OtherSettings from "../pages/OtherSettings.jsx";
 
 // Your new pages (from isaac-work)
 import InspectionForm from "../pages/InspectionForm.jsx";
@@ -52,7 +53,7 @@ export const router = createBrowserRouter([
           { path: "/inspection-form", element: <InspectionForm /> },
           { path: "/customer-feedback", element: <CustomerFeedback /> },
 
-          { path: "/other-settings", element: <div>Other Settings</div> },
+          { path: "/other-settings", element: <OtherSettings /> },
           
           {path: "/user-profile", element: <UserProfile />},
           // Default redirect

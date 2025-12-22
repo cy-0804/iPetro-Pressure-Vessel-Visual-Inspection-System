@@ -172,3 +172,14 @@
 .p-fileupload .p-fileupload-file-remove:hover::before {
   color: #f44336;
 }
+
+/* Hide PrimeReact default UI - we're using custom Mantine components */
+.p-fileupload {
+  display: none;
+}
+
+/* Keep only essential overrides */
+.p-progressbar {
+  height: 4px;
+  border-radius: 2px;
+}

@@ -17,7 +17,7 @@ import {
   Grid,
   Badge
 } from "@mantine/core";
-import { IconCamera, IconUser, IconMail, IconLock, IconCalendar } from "@tabler/icons-react";
+import { IconCamera, IconUser, IconMail, IconLock, IconCalendar, IconPhone } from "@tabler/icons-react";
 import { auth, db, storage } from "../firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
@@ -29,6 +29,9 @@ export default function UserProfile() {
   
   // Profile fields
   const [username, setUsername] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -49,6 +52,9 @@ export default function UserProfile() {
           if (userDoc.exists()) {
             const data = userDoc.data();
             setUsername(data.username || "");
+            setFirstName(data.firstName || "");
+            setLastName(data.lastName || "");
+            setPhoneNumber(data.phoneNumber || "");
             setEmail(data.email || user.email);
             setRole(data.role || "inspector");
             setAvatarUrl(user.photoURL || "");
@@ -69,75 +75,88 @@ export default function UserProfile() {
   }, []);
 
   // Handle profile picture upload
-const handleAvatarUpload = async (file) => {
-  if (!file) return;
+  const handleAvatarUpload = async (file) => {
+    if (!file) return;
 
-  try {
-    setLoading(true);
-    const user = auth.currentUser;
-    const storageRef = ref(storage, `avatars/${user.uid}`);
-    
-    await uploadBytes(storageRef, file);
-    const downloadURL = await getDownloadURL(storageRef);
-    
-    await updateProfile(user, { photoURL: downloadURL });
-    setAvatarUrl(downloadURL);
-    
-    // ✅ Dispatch custom event to update header
-    window.dispatchEvent(new Event('profileUpdated'));
-    
-    notifications.show({
-      title: "Success",
-      message: "Profile picture updated successfully",
-      color: "green",
-    });
-  } catch (error) {
-    console.error("Error uploading avatar:", error);
-    notifications.show({
-      title: "Error",
-      message: "Failed to upload profile picture",
-      color: "red",
-    });
-  } finally {
-    setLoading(false);
-  }
-};
+    try {
+      setLoading(true);
+      const user = auth.currentUser;
+      const storageRef = ref(storage, `avatars/${user.uid}`);
+      
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+      
+      await updateProfile(user, { photoURL: downloadURL });
+      setAvatarUrl(downloadURL);
+      
+      // Dispatch custom event to update header
+      window.dispatchEvent(new Event('profileUpdated'));
+      
+      notifications.show({
+        title: "Success",
+        message: "Profile picture updated successfully",
+        color: "green",
+      });
+    } catch (error) {
+      console.error("Error uploading avatar:", error);
+      notifications.show({
+        title: "Error",
+        message: "Failed to upload profile picture",
+        color: "red",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Handle profile update
-const handleUpdateProfile = async () => {
-  try {
-    setLoading(true);
-    const user = auth.currentUser;
+  const handleUpdateProfile = async () => {
+    // Validation
+    if (!firstName.trim() || !lastName.trim()) {
+      notifications.show({
+        title: "Validation Error",
+        message: "First name and last name are required",
+        color: "red",
+      });
+      return;
+    }
 
-    // Update Firestore
-    await updateDoc(doc(db, "users", user.uid), {
-      username: username,
-    });
+    try {
+      setLoading(true);
+      const user = auth.currentUser;
 
-    // Update Firebase Auth display name
-    await updateProfile(user, {
-      displayName: username,
-    });
+      // Update Firestore
+      await updateDoc(doc(db, "users", user.uid), {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        phoneNumber: phoneNumber.trim(),
+      });
 
-    // ✅ Dispatch custom event to update header
-    window.dispatchEvent(new Event('profileUpdated'));
+      // Update Firebase Auth display name with full name
+      const fullName = `${firstName.trim()} ${lastName.trim()}`;
+      await updateProfile(user, {
+        displayName: fullName,
+      });
 
-    notifications.show({
-      title: "Success",
-      message: "Profile updated successfully",
-      color: "green",
-    });
-  } catch (error) {
-    console.error("Error updating profile:", error);
-    notifications.show({
-      title: "Error",
-      message: "Failed to update profile",
-      color: "red",
-    });
-  } finally {
-    setLoading(false);
-  }
-};
+      // Dispatch custom event to update header
+      window.dispatchEvent(new Event('profileUpdated'));
+
+      notifications.show({
+        title: "Success",
+        message: "Profile updated successfully",
+        color: "green",
+      });
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      notifications.show({
+        title: "Error",
+        message: "Failed to update profile",
+        color: "red",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Handle password change
   const handleChangePassword = async () => {
@@ -194,12 +213,20 @@ const handleUpdateProfile = async () => {
   };
 
   const getInitials = (name) => {
+    if (!name) return "U";
     return name
       .split(' ')
       .map(n => n[0])
       .join('')
       .toUpperCase()
       .slice(0, 2);
+  };
+
+  const getDisplayName = () => {
+    if (firstName && lastName) {
+      return `${firstName} ${lastName}`;
+    }
+    return username || "User";
   };
 
   return (
@@ -218,7 +245,7 @@ const handleUpdateProfile = async () => {
                   radius="xl"
                   color="blue"
                 >
-                  {getInitials(username || "User")}
+                  {getInitials(getDisplayName())}
                 </Avatar>
                 <FileButton onChange={handleAvatarUpload} accept="image/png,image/jpeg">
                   {(props) => (
@@ -239,7 +266,8 @@ const handleUpdateProfile = async () => {
               </Box>
 
               <Box style={{ textAlign: 'center' }}>
-                <Text size="xl" fw={700}>{username}</Text>
+                <Text size="xl" fw={700}>{getDisplayName()}</Text>
+                <Text size="sm" c="dimmed" mt={2}>@{username}</Text>
                 <Badge color="blue" variant="light" size="lg" mt="xs">
                   {role}
                 </Badge>
@@ -252,6 +280,12 @@ const handleUpdateProfile = async () => {
                   <IconMail size={16} style={{ color: '#868e96' }} />
                   <Text size="sm" c="dimmed">{email}</Text>
                 </Group>
+                {phoneNumber && (
+                  <Group gap="xs">
+                    <IconPhone size={16} style={{ color: '#868e96' }} />
+                    <Text size="sm" c="dimmed">{phoneNumber}</Text>
+                  </Group>
+                )}
                 <Group gap="xs">
                   <IconCalendar size={16} style={{ color: '#868e96' }} />
                   <Text size="sm" c="dimmed">Joined {createdAt}</Text>
@@ -271,10 +305,42 @@ const handleUpdateProfile = async () => {
               <Stack gap="md">
                 <TextInput
                   label="Username"
-                  placeholder="Enter username"
                   value={username}
-                  onChange={(e) => setUsername(e.currentTarget.value)}
+                  disabled
                   leftSection={<IconUser size={16} />}
+                  description="Username cannot be changed"
+                />
+
+                <Grid gutter="md">
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
+                    <TextInput
+                      label="First Name"
+                      placeholder="Enter first name"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.currentTarget.value)}
+                      leftSection={<IconUser size={16} />}
+                      required
+                    />
+                  </Grid.Col>
+
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
+                    <TextInput
+                      label="Last Name"
+                      placeholder="Enter last name"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.currentTarget.value)}
+                      leftSection={<IconUser size={16} />}
+                      required
+                    />
+                  </Grid.Col>
+                </Grid>
+
+                <TextInput
+                  label="Phone Number"
+                  placeholder="Enter phone number"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.currentTarget.value)}
+                  leftSection={<IconPhone size={16} />}
                 />
 
                 <TextInput
