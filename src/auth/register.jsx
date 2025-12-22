@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import "./auth.css";
 import {
   TextInput,
@@ -17,12 +17,16 @@ import {
   query,
   setDoc,
   where,
+  serverTimestamp,
 } from "firebase/firestore";
 import { auth, db } from "../firebase";
 
 export default function Register() {
   const navigate = useNavigate();
 
+  /* =======================
+     STATE
+  ======================= */
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,54 +37,70 @@ export default function Register() {
   const [passwordError, setPasswordError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  //LIVE USERNAME CHECK
+  /* =======================
+     VALIDATION HELPERS
+  ======================= */
+  const isValidEmail = (email) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-  useEffect(() => {
-    if (!username) {
-      setUsernameError("");
-      return;
-    }
+  const isValidUsername = (name) =>
+    /^[a-zA-Z0-9_]{3,15}$/.test(name);
 
-    const checkUsername = async () => {
-      const q = query(
-        collection(db, "users"),
-        where("username", "==", username)
-      );
-      const snapshot = await getDocs(q);
-      setUsernameError(snapshot.empty ? "" : "Username already taken");
-    };
-
-    checkUsername();
-  }, [username]);
-
-  // LIVE EMAIL CHECK
-  useEffect(() => {
-    if (!email) {
-      setEmailError("");
-      return;
-    }
-
-    const checkEmail = async () => {
-      const q = query(
-        collection(db, "users"),
-        where("email", "==", email)
-      );
-      const snapshot = await getDocs(q);
-      setEmailError(snapshot.empty ? "" : "Email already registered");
-    };
-
-    checkEmail();
-  }, [email]);
-
-  //PASSWORD VALIDATION
   const isStrongPassword = (pwd) =>
     pwd.length >= 8 &&
     /[A-Z]/.test(pwd) &&
     /[a-z]/.test(pwd) &&
     /[0-9]/.test(pwd);
 
+  /* =======================
+     FIRESTORE CHECKS (onBlur only)
+  ======================= */
+  const checkUsernameAvailability = async () => {
+    if (!username) return;
+
+    if (!isValidUsername(username)) {
+      setUsernameError(
+        "3–15 characters, letters, numbers or underscore only"
+      );
+      return;
+    }
+
+    const q = query(
+      collection(db, "users"),
+      where("username", "==", username)
+    );
+
+    const snapshot = await getDocs(q);
+    setUsernameError(snapshot.empty ? "" : "Username already taken");
+  };
+
+  const checkEmailAvailability = async () => {
+    if (!email) return;
+
+    if (!isValidEmail(email)) {
+      setEmailError("Invalid email format");
+      return;
+    }
+
+    const q = query(
+      collection(db, "users"),
+      where("email", "==", email)
+    );
+
+    const snapshot = await getDocs(q);
+    setEmailError(snapshot.empty ? "" : "Email already registered");
+  };
+
+  /* =======================
+     REGISTER HANDLER
+  ======================= */
   const handleRegister = async () => {
     setPasswordError("");
+
+    if (!username || !email || !password || !confirmPassword) {
+      setPasswordError("All fields are required");
+      return;
+    }
 
     if (usernameError || emailError) return;
 
@@ -111,17 +131,28 @@ export default function Register() {
         username,
         email,
         role: "inspector",
-        createdAt: new Date(),
+        createdAt: serverTimestamp(),
       });
 
       navigate("/login");
     } catch (err) {
-      setPasswordError(err.message);
+      if (err.code === "auth/email-already-in-use") {
+        setEmailError("Email already registered");
+      } else if (err.code === "auth/invalid-email") {
+        setEmailError("Invalid email");
+      } else if (err.code === "auth/weak-password") {
+        setPasswordError("Password is too weak");
+      } else {
+        setPasswordError("Registration failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  /* =======================
+     UI
+  ======================= */
   return (
     <div className="auth-page">
       <div className="auth-card">
@@ -147,7 +178,11 @@ export default function Register() {
           label="Username"
           required
           value={username}
-          onChange={(e) => setUsername(e.currentTarget.value)}
+          onChange={(e) => {
+            setUsername(e.currentTarget.value);
+            setUsernameError("");
+          }}
+          onBlur={checkUsernameAvailability}
           error={usernameError}
         />
 
@@ -156,7 +191,11 @@ export default function Register() {
           required
           mt="md"
           value={email}
-          onChange={(e) => setEmail(e.currentTarget.value)}
+          onChange={(e) => {
+            setEmail(e.currentTarget.value);
+            setEmailError("");
+          }}
+          onBlur={checkEmailAvailability}
           error={emailError}
         />
 
@@ -186,7 +225,7 @@ export default function Register() {
           color="red"
           loading={loading}
           onClick={handleRegister}
-          disabled={!!usernameError || !!emailError}
+          disabled={loading || !!usernameError || !!emailError}
         >
           Register
         </Button>

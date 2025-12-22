@@ -19,29 +19,44 @@ import { auth, db } from "../firebase";
 export default function Login() {
   const navigate = useNavigate();
 
+  /* =======================
+     STATE
+  ======================= */
   const [loginInput, setLoginInput] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  /* =========================
+  /* =======================
+     HELPERS
+  ======================= */
+  const isEmail = (value) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+  /* =======================
      LOGIN HANDLER
-  ========================== */
+  ======================= */
   const handleLogin = async () => {
     setError("");
     setMessage("");
 
+    if (!loginInput || !password) {
+      setError("Please fill in all fields");
+      return;
+    }
+
     try {
       setLoading(true);
-      let email = loginInput;
+      let email = loginInput.trim();
 
-      // 🔍 Username → Email lookup
-      if (!loginInput.includes("@")) {
+      // 🔍 Username → Email lookup (only when needed)
+      if (!isEmail(email)) {
         const q = query(
           collection(db, "users"),
-          where("username", "==", loginInput)
+          where("username", "==", email)
         );
+
         const snapshot = await getDocs(q);
 
         if (snapshot.empty) {
@@ -55,33 +70,43 @@ export default function Login() {
       await signInWithEmailAndPassword(auth, email, password);
       navigate("/dashboard");
     } catch (err) {
-      setError("Invalid email/username or password");
+      if (
+        err.code === "auth/user-not-found" ||
+        err.code === "auth/wrong-password"
+      ) {
+        setError("Invalid email/username or password");
+      } else if (err.code === "auth/too-many-requests") {
+        setError("Too many attempts. Try again later.");
+      } else {
+        setError("Login failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  /* =========================
+  /* =======================
      FORGOT PASSWORD
-  ========================== */
+  ======================= */
   const handleForgotPassword = async () => {
     setError("");
     setMessage("");
 
+    if (!loginInput) {
+      setError("Please enter your email or username first");
+      return;
+    }
+
     try {
-      if (!loginInput) {
-        setError("Please enter your email or username first");
-        return;
-      }
+      let email = loginInput.trim();
 
-      let email = loginInput;
-
-      // 🔍 Username → Email
-      if (!loginInput.includes("@")) {
+      // 🔍 Username → Email lookup
+      if (!isEmail(email)) {
         const q = query(
           collection(db, "users"),
-          where("username", "==", loginInput)
+          where("username", "==", email)
         );
+
         const snapshot = await getDocs(q);
 
         if (snapshot.empty) {
@@ -94,11 +119,14 @@ export default function Login() {
 
       await sendPasswordResetEmail(auth, email);
       setMessage("Password reset email sent. Check your inbox.");
-    } catch {
+    } catch (err) {
       setError("Failed to send reset email");
     }
   };
 
+  /* =======================
+     UI
+  ======================= */
   return (
     <div className="auth-page">
       <div className="auth-card">
@@ -139,10 +167,11 @@ export default function Login() {
           size="sm"
           className="auth-link"
           style={{ textAlign: "right", marginTop: 8 }}
-          onClick={handleForgotPassword}
+          onClick={() => navigate("/forgot-password")}
         >
           Forgot password?
         </Text>
+
 
         {error && <Text className="auth-error">{error}</Text>}
         {message && (
@@ -156,6 +185,7 @@ export default function Login() {
           mt="xl"
           color="red"
           loading={loading}
+          disabled={loading}
           onClick={handleLogin}
         >
           Login

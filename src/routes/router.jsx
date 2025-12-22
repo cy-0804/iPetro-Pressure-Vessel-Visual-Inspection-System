@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import PrivateRoute from "../auth/PrivateRoute";
 import Login from "../auth/login.jsx";
 import Register from "../auth/register.jsx";
+import ForgotPassword from "../auth/forgotpassword.jsx";
 
 // Layouts
 import { MainLayout } from "../components/Layout/mainLayout.jsx";
@@ -26,6 +27,7 @@ import ReportGeneration from "../pages/ReportGeneration.jsx";
 export const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
   { path: "/register", element: <Register /> },
+  { path: "/forgot-password", element: <ForgotPassword /> },
 
   {
     element: <PrivateRoute />, // <-- check if logged in
