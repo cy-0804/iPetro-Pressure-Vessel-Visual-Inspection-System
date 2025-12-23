@@ -14,6 +14,7 @@ import InspectionCalendar from "../pages/InspectionCalendar.jsx";
 import InspectionReportHistory from "../pages/InspectionHistory";
 import NotificationsPage from "../pages/Notifications";
 import DocumentUploadManagement from "../pages/FileUpload.jsx";
+import Storage from "../pages/Storage.jsx";
 import EquipmentRegistration from "../pages/EquipmentRegistration.jsx";
 import UserProfile from "../pages/UserProfile.jsx";
 import OtherSettings from "../pages/OtherSettings.jsx";
@@ -54,6 +55,8 @@ export const router = createBrowserRouter([
           { path: "/customer-feedback", element: <CustomerFeedback /> },
 
           { path: "/other-settings", element: <OtherSettings /> },
+
+          { path: "/storage", element: <Storage /> },
           
           {path: "/user-profile", element: <UserProfile />},
           // Default redirect

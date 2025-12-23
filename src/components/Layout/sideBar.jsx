@@ -11,6 +11,8 @@ import {
   IconSettingsPlus,
   IconSettings,
   IconMessage2,
+  IconUserCircle,
+  IconBrandDropbox,
 } from "@tabler/icons-react";
 import { ScrollArea, Stack, Text, Box, Image } from "@mantine/core";
 import classes from "./sideBar.module.css";
@@ -44,8 +46,10 @@ const menuSections = [
   {
     title: "MANAGEMENT",
     items: [
-      { link: "/document-upload", label: "Documents", icon: IconUpload },
+      { link: "/document-upload", label: "Documents Upload", icon: IconUpload },
+      { link: "/storage", label: "Storage", icon: IconBrandDropbox },
       { link: "/customer-feedback", label: "Feedback & QA", icon: IconMessage2 },
+      { link: "/user-profile", label: "User Profile", icon: IconUserCircle},
       { link: "/other-settings", label: "Settings", icon: IconSettings },
     ]
   }

@@ -185,7 +185,7 @@ const FileUploadComponent = () => {
       <Stack gap="xl">
         {/* Header */}
         <Box>
-          <Title order={1} mb="xs">Document Management</Title>
+          <Title order={1} mb="xs">Documents Upload</Title>
           <Text c="dimmed">Upload and manage your inspection documents</Text>
         </Box>
 
