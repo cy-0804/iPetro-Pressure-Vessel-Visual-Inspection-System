@@ -17,39 +17,21 @@ import {
   Switch,
   Tooltip,
   Avatar,
+  Menu,
+  Paper,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconTrash, IconPencil, IconPlus } from "@tabler/icons-react";
+import {
+  IconTrash,
+  IconPencil,
+  IconPlus,
+  IconDotsVertical,
+  IconKey,
+  IconSearch,
+  IconFilter,
+} from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
-
-// Firebase imports
-import { initializeApp, deleteApp } from "firebase/app";
-import {
-  getAuth,
-  createUserWithEmailAndPassword,
-  signOut as signOutSecondary,
-} from "firebase/auth";
-import {
-  collection,
-  getDocs,
-  doc,
-  setDoc,
-  deleteDoc,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
-import { db } from "../../firebase";
-
-// --- FIREBASE CONFIG (Required for Secondary App) ---
-const firebaseConfig = {
-  apiKey: "AIzaSyB1fkkfdS_nyqGW02v5zvxEbzfIXQh0RCs",
-  authDomain: "workshop2-516a1.firebaseapp.com",
-  projectId: "workshop2-516a1",
-  storageBucket: "workshop2-516a1.firebasestorage.app",
-  messagingSenderId: "996928787873",
-  appId: "1:996928787873:web:36246420715c716aefa7e0",
-  measurementId: "G-G8NZ22LY22",
-};
+import { userService } from "../../services/userService";
 
 export default function UserManagement() {
   // State
@@ -57,47 +39,71 @@ export default function UserManagement() {
   const [loading, setLoading] = useState(true);
   const [submitLoading, setSubmitLoading] = useState(false);
 
+  // Filter & Search State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+
   // Modal State
   const [opened, { open, close }] = useDisclosure(false);
+  const [
+    deleteModalOpened,
+    { open: openDeleteModal, close: closeDeleteModal },
+  ] = useDisclosure(false);
+
+  const [editingUserId, setEditingUserId] = useState(null); // ID of user being edited, null if adding
+  const [userToDelete, setUserToDelete] = useState(null); // User object to delete
 
   // Form State
-  const [formData, setFormData] = useState({
+  const initialFormState = {
     username: "",
     email: "",
-    password: "Welcome123!", // Default password
+    password: "Welcome123!",
     role: "inspector",
     isActive: true,
-  });
-
-  // Fetch Users
-  const fetchUsers = async () => {
-    setLoading(true);
-    try {
-      const querySnapshot = await getDocs(collection(db, "users"));
-      const usersList = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setUsers(usersList);
-    } catch (error) {
-      console.error("Error fetching users:", error);
-      notifications.show({
-        title: "Error",
-        message: "Failed to load users",
-        color: "red",
-      });
-    } finally {
-      setLoading(false);
-    }
   };
+  const [formData, setFormData] = useState(initialFormState);
 
+  const isEditing = !!editingUserId;
+
+  // Real-time Subscription
   useEffect(() => {
-    fetchUsers();
+    setLoading(true);
+    // Subscribe to real-time updates
+    const unsubscribe = userService.subscribeToUsers((updatedUsers) => {
+      setUsers(updatedUsers);
+      setLoading(false);
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
   }, []);
 
-  // Handle Add User (Secondary App Pattern)
-  const handleAddUser = async () => {
-    if (!formData.username || !formData.email || !formData.password) {
+  // Handlers
+  const openAddModal = () => {
+    setEditingUserId(null);
+    setFormData(initialFormState);
+    open();
+  };
+
+  const openEditModal = (user) => {
+    setEditingUserId(user.id);
+    setFormData({
+      username: user.username,
+      email: user.email,
+      password: "", // Not needed for edit
+      role: user.role,
+      isActive: user.isActive,
+    });
+    open();
+  };
+
+  const handleSaveUser = async () => {
+    // Validation
+    if (
+      !formData.username ||
+      (!isEditing && !formData.email) ||
+      (!isEditing && !formData.password)
+    ) {
       notifications.show({
         title: "Error",
         message: "Missing fields",
@@ -107,86 +113,63 @@ export default function UserManagement() {
     }
 
     setSubmitLoading(true);
-    let secondaryApp = null;
-
     try {
-      // 1. Initialize Secondary App
-      secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
-      const secondaryAuth = getAuth(secondaryApp);
-
-      // 2. Create User in Auth
-      const userCredential = await createUserWithEmailAndPassword(
-        secondaryAuth,
-        formData.email,
-        formData.password
-      );
-      const uid = userCredential.user.uid;
-
-      // 3. Create User Doc in Firestore
-      await setDoc(doc(db, "users", uid), {
-        username: formData.username,
-        email: formData.email,
-        role: formData.role,
-        isActive: formData.isActive,
-        isFirstLogin: true, // Flag for force password change
-        createdAt: serverTimestamp(),
-      });
-
-      // 4. Sign out from secondary app to be safe
-      await signOutSecondary(secondaryAuth);
-
-      notifications.show({
-        title: "Success",
-        message: `User ${formData.username} created successfully!`,
-        color: "green",
-      });
+      if (isEditing) {
+        // Update Logic
+        await userService.updateUser(editingUserId, {
+          username: formData.username,
+          role: formData.role,
+          isActive: formData.isActive,
+        });
+        notifications.show({
+          title: "Success",
+          message: "User updated successfully",
+          color: "green",
+        });
+      } else {
+        // Create Logic
+        await userService.createUser(formData);
+        notifications.show({
+          title: "Success",
+          message: `User ${formData.username} created!`,
+          color: "green",
+        });
+      }
 
       close();
-      setFormData({
-        username: "",
-        email: "",
-        password: "Welcome123!",
-        role: "inspector",
-        isActive: true,
-      });
-      fetchUsers(); // Refresh list
+      // No need to manually fetchUsers() - subscription handles it
     } catch (error) {
-      console.error("Error adding user:", error);
       let content = error.message;
       if (error.code === "auth/email-already-in-use")
         content = "Email already in use";
 
-      notifications.show({
-        title: "Error",
-        message: content,
-        color: "red",
-      });
+      notifications.show({ title: "Error", message: content, color: "red" });
     } finally {
-      // 5. Cleanup Secondary App
-      if (secondaryApp) {
-        await deleteApp(secondaryApp);
-      }
       setSubmitLoading(false);
     }
   };
 
-  const handleDeleteUser = async (id, username) => {
-    if (
-      !confirm(
-        `Are you sure you want to delete ${username}? (This only removes the database record)`
-      )
-    )
-      return;
+  // Prepares deletion
+  const handleDeleteUserClick = (user) => {
+    setUserToDelete(user);
+    openDeleteModal();
+  };
+
+  // Executes deletion
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
+
     try {
-      await deleteDoc(doc(db, "users", id));
+      await userService.deleteUser(userToDelete.id);
       notifications.show({
         title: "Deleted",
         message: "User record removed",
         color: "blue",
       });
-      fetchUsers();
+      // No need to manually fetchUsers()
+      closeDeleteModal();
+      setUserToDelete(null);
     } catch (error) {
-      console.error(error);
       notifications.show({
         title: "Error",
         message: "Failed to delete",
@@ -195,19 +178,43 @@ export default function UserManagement() {
     }
   };
 
+  const handleSendResetEmail = async (email) => {
+    try {
+      await userService.sendPasswordReset(email);
+      notifications.show({
+        title: "Sent",
+        message: `Password reset sent to ${email}`,
+        color: "green",
+      });
+    } catch (error) {
+      notifications.show({
+        title: "Error",
+        message: "Failed to send reset email",
+        color: "red",
+      });
+    }
+  };
+
+  // Filter Logic
+  const filteredUsers = users.filter((user) => {
+    const matchesSearch =
+      user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesRole = roleFilter === "all" || user.role === roleFilter;
+
+    return matchesSearch && matchesRole;
+  });
+
   // Render Rows
-  const rows = users.map((user) => {
-    // Calculate if user is online (within last 2 mins)
+  const rows = filteredUsers.map((user) => {
+    // Online status check
     let isUserOnline = false;
     if (user.lastSeen) {
       const lastSeenDate = user.lastSeen.toDate
         ? user.lastSeen.toDate()
         : new Date(user.lastSeen);
-      const diff = new Date() - lastSeenDate;
-      if (diff < 2 * 60 * 1000) {
-        // 2 minutes
-        isUserOnline = true;
-      }
+      if (new Date() - lastSeenDate < 2 * 60 * 1000) isUserOnline = true;
     }
 
     return (
@@ -279,29 +286,40 @@ export default function UserManagement() {
             <ActionIcon
               variant="subtle"
               color="gray"
-              onClick={() => {
-                /* Edit Logic To be added */
-              }}
+              onClick={() => openEditModal(user)}
             >
               <IconPencil size={16} stroke={1.5} />
             </ActionIcon>
 
-            <Tooltip
-              label={isUserOnline ? "Cannot delete online user" : "Delete user"}
-            >
-              <div>
-                {" "}
-                {/* Tooltip needs a wrapping div for disabled elements sometimes, but ActionIcon supports disabled prop */}
-                <ActionIcon
-                  variant="subtle"
-                  color="red"
-                  disabled={isUserOnline}
-                  onClick={() => handleDeleteUser(user.id, user.username)}
-                >
-                  <IconTrash size={16} stroke={1.5} />
+            <Menu shadow="md" width={200}>
+              <Menu.Target>
+                <ActionIcon variant="subtle" color="gray">
+                  <IconDotsVertical size={16} stroke={1.5} />
                 </ActionIcon>
-              </div>
-            </Tooltip>
+              </Menu.Target>
+
+              <Menu.Dropdown>
+                <Menu.Label>Security</Menu.Label>
+                <Menu.Item
+                  leftSection={<IconKey size={14} />}
+                  onClick={() => handleSendResetEmail(user.email)}
+                >
+                  Send Password Reset
+                </Menu.Item>
+
+                <Menu.Divider />
+
+                <Menu.Label>Danger Zone</Menu.Label>
+                <Menu.Item
+                  color="red"
+                  leftSection={<IconTrash size={14} />}
+                  disabled={isUserOnline}
+                  onClick={() => handleDeleteUserClick(user)}
+                >
+                  Delete User
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
           </Group>
         </Table.Td>
       </Table.Tr>
@@ -310,15 +328,40 @@ export default function UserManagement() {
 
   return (
     <Container fluid>
-      <Group justify="space-between" mb="md">
+      <Group justify="space-between" mb="md" align="center">
         <Title order={3}>User Management</Title>
-        <Button leftSection={<IconPlus size={14} />} onClick={open}>
+        <Button leftSection={<IconPlus size={14} />} onClick={openAddModal}>
           Add User
         </Button>
       </Group>
 
+      {/* SEARCH & FILTER BAR */}
+      <Paper p="md" mb="lg" radius="md" withBorder>
+        <Group grow preventGrowOverflow={false}>
+          <TextInput
+            placeholder="Search users..."
+            leftSection={<IconSearch size={16} />}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <Select
+            placeholder="Filter by Role"
+            leftSection={<IconFilter size={16} />}
+            data={[
+              { value: "all", label: "All Roles" },
+              { value: "admin", label: "Admin" },
+              { value: "supervisor", label: "Supervisor" },
+              { value: "inspector", label: "Inspector" },
+            ]}
+            value={roleFilter}
+            onChange={setRoleFilter}
+            allowDeselect={false}
+          />
+        </Group>
+      </Paper>
+
       <Table.ScrollContainer minWidth={500}>
-        <Table verticalSpacing="sm">
+        <Table verticalSpacing="sm" highlightOnHover>
           <Table.Thead>
             <Table.Tr>
               <Table.Th>User</Table.Th>
@@ -332,46 +375,32 @@ export default function UserManagement() {
             {loading ? (
               <Table.Tr>
                 <Table.Td colSpan={5} align="center">
-                  <Loader size="sm" />
+                  <Loader size="sm" my="xl" />
                 </Table.Td>
               </Table.Tr>
-            ) : (
+            ) : rows.length > 0 ? (
               rows
+            ) : (
+              <Table.Tr>
+                <Table.Td colSpan={5} align="center">
+                  <Text c="dimmed" py="xl">
+                    No users found matching your search
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
             )}
           </Table.Tbody>
         </Table>
       </Table.ScrollContainer>
 
-      {/* ADD USER MODAL */}
-      <Modal opened={opened} onClose={close} title="Create New User" centered>
+      {/* REUSABLE USER MODAL */}
+      <Modal
+        opened={opened}
+        onClose={close}
+        title={isEditing ? "Edit User Details" : "Create New User"}
+        centered
+      >
         <Stack>
-          <TextInput
-            label="Username"
-            placeholder="johndoe"
-            required
-            value={formData.username}
-            onChange={(e) =>
-              setFormData({ ...formData, username: e.target.value })
-            }
-          />
-          <TextInput
-            label="Email"
-            placeholder="hello@example.com"
-            required
-            value={formData.email}
-            onChange={(e) =>
-              setFormData({ ...formData, email: e.target.value })
-            }
-          />
-          <PasswordInput
-            label="Initial Password"
-            description="Default: Welcome123!"
-            value={formData.password}
-            onChange={(e) =>
-              setFormData({ ...formData, password: e.target.value })
-            }
-          />
-
           <Select
             label="Role"
             placeholder="Pick role"
@@ -384,6 +413,38 @@ export default function UserManagement() {
             onChange={(val) => setFormData({ ...formData, role: val })}
           />
 
+          <TextInput
+            label="Username"
+            placeholder="johndoe"
+            required
+            value={formData.username}
+            onChange={(e) =>
+              setFormData({ ...formData, username: e.target.value })
+            }
+          />
+
+          <TextInput
+            label="Email"
+            placeholder="hello@example.com"
+            required
+            disabled={isEditing} // Cannot change email in edit mode (without admin sdk)
+            value={formData.email}
+            onChange={(e) =>
+              setFormData({ ...formData, email: e.target.value })
+            }
+          />
+
+          {!isEditing && (
+            <PasswordInput
+              label="Initial Password"
+              description="Default: Welcome123!"
+              value={formData.password}
+              onChange={(e) =>
+                setFormData({ ...formData, password: e.target.value })
+              }
+            />
+          )}
+
           <Switch
             label="Active Account"
             checked={formData.isActive}
@@ -392,10 +453,39 @@ export default function UserManagement() {
             }
           />
 
-          <Button fullWidth onClick={handleAddUser} loading={submitLoading}>
-            Create User
+          <Button fullWidth onClick={handleSaveUser} loading={submitLoading}>
+            {isEditing ? "Save Changes" : "Create User"}
           </Button>
+
+          {isEditing && (
+            <Text size="xs" c="dimmed" ta="center">
+              To change password, use the "Send Password Reset" option in the
+              menu.
+            </Text>
+          )}
         </Stack>
+      </Modal>
+
+      {/* DELETE CONFIRMATION MODAL */}
+      <Modal
+        opened={deleteModalOpened}
+        onClose={closeDeleteModal}
+        title="Confirm Deletion"
+        centered
+      >
+        <Text size="sm">
+          Are you sure you want to delete{" "}
+          <strong>{userToDelete?.username}</strong>? This action cannot be
+          undone.
+        </Text>
+        <Group justify="flex-end" mt="md">
+          <Button variant="default" onClick={closeDeleteModal}>
+            Cancel
+          </Button>
+          <Button color="red" onClick={confirmDeleteUser}>
+            Delete User
+          </Button>
+        </Group>
       </Modal>
     </Container>
   );
