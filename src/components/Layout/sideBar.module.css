@@ -18,6 +18,33 @@
   padding: 24px 12px;
 }
 
+/* Section Header - Clickable dropdown trigger with darker hover */
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  margin: 0 4px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.sectionHeader:hover {
+  background-color: #e9ecef; /* Changed from #f8f9fa to darker */
+}
+
+.sectionHeader:active {
+  background-color: #dee2e6; /* Darker on click */
+}
+
+/* Make text slightly darker on hover */
+.sectionHeader:hover Text {
+  color: #495057;
+}
+
 .link {
   display: flex;
   align-items: center;
@@ -46,7 +73,7 @@
 }
 
 .link:hover {
-  background-color: #f8f9fa;
+  background-color: #e9ecef; /* Changed from #f8f9fa to darker */
   color: #212529;
 }
 
@@ -105,6 +132,10 @@
   .link .linkIcon {
     width: 18px;
     height: 18px;
+  }
+
+  .sectionHeader {
+    padding: 6px 12px;
   }
 }
 

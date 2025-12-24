@@ -51,6 +51,7 @@ export const router = createBrowserRouter([
           { path: "/dashboard", element: <Dashboard /> },
           { path: "/notification", element: <NotificationsPage /> },
           { path: "/other-settings", element: <OtherSettings /> },
+          { path: "/storage", element: <Storage /> },
 
           // --- INSPECTOR (I) ---
           { path: "/equipment", element: <EquipmentRegistration /> },
@@ -75,7 +76,6 @@ export const router = createBrowserRouter([
           { path: "/document-upload", element: <DocumentUploadManagement /> },
           { path: "/customer-feedback", element: <CustomerFeedback /> },
           { path: "/user-profile", element: <UserProfile /> },
-          { path: "/storage", element: <Storage /> },
           // Default redirect
           {
             path: "/",
