@@ -1,83 +1,45 @@
-import { Group, Burger, Box, Image, Container, Menu, ActionIcon, Indicator, Text, rem, Avatar } from "@mantine/core";
+import {
+  Group,
+  Burger,
+  Box,
+  Image,
+  Container,
+  Menu,
+  ActionIcon,
+  Indicator,
+  Text,
+  rem,
+  Avatar,
+} from "@mantine/core";
 import { useNavigate } from "react-router-dom";
-import { IconBell, IconLogout, IconUser, IconSettings, IconChevronDown } from "@tabler/icons-react";
+import {
+  IconBell,
+  IconLogout,
+  IconUser,
+  IconSettings,
+  IconChevronDown,
+} from "@tabler/icons-react";
 import { signOut } from "firebase/auth";
-import { auth, db } from "../../firebase";
+import { auth } from "../../firebase";
 import { useEffect, useState } from "react";
-import { doc, getDoc } from "firebase/firestore";
 
-export function Header({ opened, toggle }) {
+export function Header({ opened, toggle, userInfo }) {
   const navigate = useNavigate();
-  const [userData, setUserData] = useState(null);
 
-  // Fetch user data from Firestore
-  const fetchUserData = async () => {
-  const user = auth.currentUser;
-  if (user) {
-    try {
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-      if (userDoc.exists()) {
-        const data = userDoc.data();
-        
-        // Build display name: prioritize firstName + lastName, fallback to username
-        let displayName = data.username || "User";
-        if (data.firstName && data.lastName) {
-          displayName = `${data.firstName} ${data.lastName}`;
-        } else if (data.firstName) {
-          displayName = data.firstName;
-        }
-        
-        setUserData({
-          name: displayName,
-          username: data.username || "User",
-          email: data.email || user.email,
-          role: data.role || "Inspector",
-          avatar: user.photoURL || null
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching user data:", error);
-    }
-  }
-};
-
-  useEffect(() => {
-    fetchUserData();
-
-    // Listen for auth state changes
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user) {
-        fetchUserData();
-      }
-    });
-
-    // ✅ Listen for profile update event
-    const handleProfileUpdate = () => {
-      fetchUserData();
-    };
-
-    window.addEventListener('profileUpdated', handleProfileUpdate);
-
-    return () => {
-      unsubscribe();
-      window.removeEventListener('profileUpdated', handleProfileUpdate);
-    };
-  }, []);
-
-  // Default user data while loading
-  const currentUser = userData || {
+  // Default user data while loading (or if userInfo is null)
+  const currentUser = userInfo || {
     name: "User",
     email: "user@ipetro.com",
     role: "Inspector",
-    avatar: null
+    avatar: null,
   };
 
   // Get initials for avatar
   const getInitials = (name) => {
     return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
       .toUpperCase()
       .slice(0, 2);
   };
@@ -92,10 +54,17 @@ export function Header({ opened, toggle }) {
   };
 
   return (
-    <Box h={64} p={0} bg="white" style={{ borderBottom: '1px solid #e9ecef', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+    <Box
+      h={64}
+      p={0}
+      bg="white"
+      style={{
+        borderBottom: "1px solid #e9ecef",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+      }}
+    >
       <Container fluid px={24} h="100%">
         <Group justify="space-between" align="center" h="100%">
-
           {/* Left Side: Burger & Logo */}
           <Group gap={16}>
             <Burger
@@ -110,7 +79,7 @@ export function Header({ opened, toggle }) {
               style={{
                 cursor: "pointer",
                 display: "flex",
-                alignItems: "center"
+                alignItems: "center",
               }}
               onClick={() => navigate("/dashboard")}
             >
@@ -126,27 +95,45 @@ export function Header({ opened, toggle }) {
           {/* Right Side: Notification & User Profile */}
           <Group gap={12}>
             {/* Notification Menu */}
-            <Menu shadow="md" width={320} position="bottom-end" withArrow offset={8}>
+            <Menu
+              shadow="md"
+              width={320}
+              position="bottom-end"
+              withArrow
+              offset={8}
+            >
               <Menu.Target>
-                <ActionIcon 
-                  variant="subtle" 
-                  size="lg" 
-                  color="gray" 
+                <ActionIcon
+                  variant="subtle"
+                  size="lg"
+                  color="gray"
                   aria-label="Notifications"
-                  style={{ position: 'relative' }}
+                  style={{ position: "relative" }}
                 >
-                  <Indicator inline label="3" size={16} offset={7} color="red" withBorder>
-                    <IconBell style={{ width: rem(22), height: rem(22) }} stroke={1.5} />
+                  <Indicator
+                    inline
+                    label="3"
+                    size={16}
+                    offset={7}
+                    color="red"
+                    withBorder
+                  >
+                    <IconBell
+                      style={{ width: rem(22), height: rem(22) }}
+                      stroke={1.5}
+                    />
                   </Indicator>
                 </ActionIcon>
               </Menu.Target>
 
               <Menu.Dropdown>
                 <Box p="xs">
-                  <Text size="sm" fw={700} mb="xs">Notifications</Text>
+                  <Text size="sm" fw={700} mb="xs">
+                    Notifications
+                  </Text>
                 </Box>
                 <Menu.Divider />
-                
+
                 <Menu.Item
                   py="sm"
                   leftSection={
@@ -154,16 +141,22 @@ export function Header({ opened, toggle }) {
                       style={{
                         width: 8,
                         height: 8,
-                        borderRadius: '50%',
-                        backgroundColor: '#228be6'
+                        borderRadius: "50%",
+                        backgroundColor: "#228be6",
                       }}
                     />
                   }
                 >
                   <Box>
-                    <Text size="sm" fw={600}>New Inspection Assigned</Text>
-                    <Text size="xs" c="dimmed" mt={2}>PV-101 needs visual check</Text>
-                    <Text size="xs" c="dimmed" mt={2}>2 hours ago</Text>
+                    <Text size="sm" fw={600}>
+                      New Inspection Assigned
+                    </Text>
+                    <Text size="xs" c="dimmed" mt={2}>
+                      PV-101 needs visual check
+                    </Text>
+                    <Text size="xs" c="dimmed" mt={2}>
+                      2 hours ago
+                    </Text>
                   </Box>
                 </Menu.Item>
 
@@ -174,81 +167,111 @@ export function Header({ opened, toggle }) {
                       style={{
                         width: 8,
                         height: 8,
-                        borderRadius: '50%',
-                        backgroundColor: '#fa5252'
+                        borderRadius: "50%",
+                        backgroundColor: "#fa5252",
                       }}
                     />
                   }
                 >
                   <Box>
-                    <Text size="sm" fw={600}>Report Overdue</Text>
-                    <Text size="xs" c="dimmed" mt={2}>HX-220 report was due yesterday</Text>
-                    <Text size="xs" c="dimmed" mt={2}>1 day ago</Text>
+                    <Text size="sm" fw={600}>
+                      Report Overdue
+                    </Text>
+                    <Text size="xs" c="dimmed" mt={2}>
+                      HX-220 report was due yesterday
+                    </Text>
+                    <Text size="xs" c="dimmed" mt={2}>
+                      1 day ago
+                    </Text>
                   </Box>
                 </Menu.Item>
 
                 <Menu.Item py="sm">
                   <Box>
-                    <Text size="sm" fw={600}>System Update</Text>
-                    <Text size="xs" c="dimmed" mt={2}>Maintenance scheduled for 12 AM</Text>
-                    <Text size="xs" c="dimmed" mt={2}>3 days ago</Text>
+                    <Text size="sm" fw={600}>
+                      System Update
+                    </Text>
+                    <Text size="xs" c="dimmed" mt={2}>
+                      Maintenance scheduled for 12 AM
+                    </Text>
+                    <Text size="xs" c="dimmed" mt={2}>
+                      3 days ago
+                    </Text>
                   </Box>
                 </Menu.Item>
 
                 <Menu.Divider />
                 <Menu.Item
                   color="blue"
-                  style={{ textAlign: 'center' }}
-                  onClick={() => navigate('/notification')}
+                  style={{ textAlign: "center" }}
+                  onClick={() => navigate("/notification")}
                 >
-                  <Text size="sm" fw={600}>View all notifications</Text>
+                  <Text size="sm" fw={600}>
+                    View all notifications
+                  </Text>
                 </Menu.Item>
               </Menu.Dropdown>
             </Menu>
 
             {/* User Profile Menu */}
-            <Menu shadow="md" width={240} position="bottom-end" withArrow offset={8}>
+            <Menu
+              shadow="md"
+              width={240}
+              position="bottom-end"
+              withArrow
+              offset={8}
+            >
               <Menu.Target>
                 <Group
                   gap={8}
                   style={{
-                    cursor: 'pointer',
-                    padding: '6px 12px',
-                    borderRadius: '8px',
-                    transition: 'background-color 0.2s ease'
+                    cursor: "pointer",
+                    padding: "6px 12px",
+                    borderRadius: "8px",
+                    transition: "background-color 0.2s ease",
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.backgroundColor = "#f8f9fa")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.backgroundColor = "transparent")
+                  }
                 >
-                  <Avatar 
-                    src={currentUser.avatar} 
-                    radius="xl" 
+                  <Avatar
+                    src={currentUser.avatar}
+                    radius="xl"
                     size="md"
                     color="blue"
                   >
                     {getInitials(currentUser.name)}
                   </Avatar>
-                  
-                  <Box style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+
+                  <Box
+                    style={{ display: "flex", flexDirection: "column", gap: 2 }}
+                  >
                     <Text size="sm" fw={600} style={{ lineHeight: 1.2 }}>
                       {currentUser.name}
                     </Text>
-                    <Text size="xs" c="dimmed" style={{ lineHeight: 1.2, textTransform: 'capitalize' }}>
+                    <Text
+                      size="xs"
+                      c="dimmed"
+                      style={{ lineHeight: 1.2, textTransform: "capitalize" }}
+                    >
                       {currentUser.role}
                     </Text>
                   </Box>
-                  
-                  <IconChevronDown size={16} style={{ color: '#868e96' }} />
+
+                  <IconChevronDown size={16} style={{ color: "#868e96" }} />
                 </Group>
               </Menu.Target>
 
               <Menu.Dropdown>
                 {/* User Info Header */}
-                <Box p="md" style={{ backgroundColor: '#f8f9fa' }}>
+                <Box p="md" style={{ backgroundColor: "#f8f9fa" }}>
                   <Group gap="sm">
-                    <Avatar 
-                      src={currentUser.avatar} 
-                      radius="xl" 
+                    <Avatar
+                      src={currentUser.avatar}
+                      radius="xl"
                       size="lg"
                       color="blue"
                     >
@@ -270,14 +293,14 @@ export function Header({ opened, toggle }) {
                 {/* Menu Items */}
                 <Menu.Item
                   leftSection={<IconUser size={16} stroke={1.5} />}
-                  onClick={() => navigate('/user-profile')}
+                  onClick={() => navigate("/user-profile")}
                 >
                   My Profile
                 </Menu.Item>
 
                 <Menu.Item
                   leftSection={<IconSettings size={16} stroke={1.5} />}
-                  onClick={() => navigate('/other-settings')}
+                  onClick={() => navigate("/other-settings")}
                 >
                   Settings
                 </Menu.Item>
