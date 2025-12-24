@@ -389,7 +389,7 @@ export default function OtherSettings() {
 
                 <Divider my="md" />
 
-                <div>
+                {/* <div>
                   <Title order={4} mb="md">Two-Factor Authentication</Title>
                   <Group justify="space-between">
                     <div>
@@ -402,14 +402,14 @@ export default function OtherSettings() {
                   </Group>
                 </div>
 
-                <Divider my="md" />
+                <Divider my="md" /> */}
 
                 <div>
-                  <Title order={4} mb="md" c="red">Danger Zone</Title>
+                  <Title order={4} mb="md" c="red">Delete Account</Title>
                   <Card withBorder style={{ borderColor: '#fa5252' }}>
                     <Group justify="space-between">
                       <div>
-                        <Text size="sm" fw={500}>Delete Account</Text>
+                        <Text size="sm" fw={500}>Delete This Account</Text>
                         <Text size="xs" c="dimmed">
                           Permanently delete your account and all data
                         </Text>
