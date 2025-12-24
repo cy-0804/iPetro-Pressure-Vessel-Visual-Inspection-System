@@ -418,33 +418,14 @@ export default function OtherSettings() {
                 <Divider my="md" />
 
                 <div>
-                  <Title order={4} mb="md">
-                    Two-Factor Authentication
-                  </Title>
-                  <Group justify="space-between">
-                    <div>
-                      <Text size="sm" fw={500}>
-                        Enable 2FA
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        Add an extra layer of security to your account
-                      </Text>
-                    </div>
-                    <Switch />
-                  </Group>
-                </div>
-
-                <Divider my="md" />
-
-                <div>
                   <Title order={4} mb="md" c="red">
-                    Danger Zone
+                    Delete Account
                   </Title>
                   <Card withBorder style={{ borderColor: "#fa5252" }}>
                     <Group justify="space-between">
                       <div>
                         <Text size="sm" fw={500}>
-                          Delete Account
+                          Delete This Account
                         </Text>
                         <Text size="xs" c="dimmed">
                           Permanently delete your account and all data

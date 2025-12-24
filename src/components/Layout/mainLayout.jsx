@@ -88,27 +88,41 @@ export function MainLayout() {
 
   return (
     <AppShell
-      header={{ height: 60 }}
+      header={{ height: 64 }}
       navbar={{
-        width: 300,
+        width: 260,
         breakpoint: "sm",
         // UPDATE HERE: Control desktop state too
         collapsed: { mobile: !opened, desktop: !opened },
       }}
-      padding={30}
+      padding={0}
     >
       <AppShell.Header>
         <Header opened={opened} toggle={toggle} userInfo={userData} />
       </AppShell.Header>
 
-      <AppShell.Navbar p="md">
+      <AppShell.Navbar p={0}>
         <SideBar toggle={toggle} role={userData?.role} />
       </AppShell.Navbar>
 
-      <AppShell.Main>
-        <Outlet />
-        <FooterLinks />
-      </AppShell.Main>
-    </AppShell>
+    <AppShell.Main style={{ 
+      display: 'flex', 
+      flexDirection: 'column',
+      minHeight: '100vh'
+    }}>
+  {/* Content area with padding and spacing before footer */}
+  <div style={{ 
+    flex: 1,
+    padding: '30px',
+    paddingBottom: '60px', /* ✅ Space before footer */
+    backgroundColor: '#f8f9fa'
+  }}>
+    <Outlet />
+  </div>
+  
+  {/* Footer */}
+  <FooterLinks />
+  </AppShell.Main>
+  </AppShell>
   );
 }

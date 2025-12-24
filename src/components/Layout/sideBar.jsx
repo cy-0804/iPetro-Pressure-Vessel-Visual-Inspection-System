@@ -92,12 +92,12 @@ const menuSections = [
 ];
 
 export function SideBar({ toggle, role }) {
-  // All sections start open by default
+  // All sections start close by default
   const [expandedSections, setExpandedSections] = useState({
-    "MAIN": true,
-    "ADMINISTRATION": true,
-    "EQUIPMENT & INSPECTION": true,
-    "MANAGEMENT": true,
+    "MAIN": false,
+    "ADMINISTRATION": false,
+    "EQUIPMENT & INSPECTION": false,
+    "MANAGEMENT": false,
   });
 
   const toggleSection = (sectionTitle) => {

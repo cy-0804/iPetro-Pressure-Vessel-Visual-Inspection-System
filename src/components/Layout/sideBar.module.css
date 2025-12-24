@@ -5,7 +5,8 @@
   display: flex;
   flex-direction: column;
   background: #ffffff;
-  border-right: 1px solid #e9ecef;
+  border-right: 1px solid #e9ecef; /* Keep border but lighter */
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.02); /* Add subtle shadow */
 }
 
 .logoSection {
@@ -33,14 +34,13 @@
 }
 
 .sectionHeader:hover {
-  background-color: #e9ecef; /* Changed from #f8f9fa to darker */
+  background-color: #e9ecef;
 }
 
 .sectionHeader:active {
-  background-color: #dee2e6; /* Darker on click */
+  background-color: #dee2e6;
 }
 
-/* Make text slightly darker on hover */
 .sectionHeader:hover Text {
   color: #495057;
 }
@@ -73,7 +73,7 @@
 }
 
 .link:hover {
-  background-color: #e9ecef; /* Changed from #f8f9fa to darker */
+  background-color: #e9ecef;
   color: #212529;
 }
 

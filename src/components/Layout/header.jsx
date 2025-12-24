@@ -21,7 +21,6 @@ import {
 } from "@tabler/icons-react";
 import { signOut } from "firebase/auth";
 import { auth } from "../../firebase";
-import { useEffect, useState } from "react";
 
 export function Header({ opened, toggle, userInfo }) {
   const navigate = useNavigate();
