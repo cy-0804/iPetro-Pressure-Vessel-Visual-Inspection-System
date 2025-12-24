@@ -12,6 +12,7 @@ import {
   IconSettings,
   IconMessage2,
   IconUser,
+  IconCloudFog
 } from "@tabler/icons-react";
 import { ScrollArea, Stack, Text, Box, Image } from "@mantine/core";
 import classes from "./sideBar.module.css";
@@ -31,6 +32,7 @@ const menuSections = [
       { link: "/user-profile", label: "My Profile", icon: IconUser },
       { link: "/document-upload", label: "Document Upload", icon: IconUpload },
       { link: "/customer-feedback", label: "Feedback", icon: IconMessage2 },
+      { link: "/storage", label: "Storage", icon: IconCloudFog },
     ],
   },
   {

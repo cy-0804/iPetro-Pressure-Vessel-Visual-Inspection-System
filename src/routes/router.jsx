@@ -33,6 +33,7 @@ import DocumentUploadManagement from "../pages/FileUpload.jsx";
 import CustomerFeedback from "../pages/CustomerFeedback.jsx";
 import OtherSettings from "../pages/OtherSettings.jsx";
 import UserProfile from "../pages/UserProfile.jsx";
+import Storage from "../pages/Storage.jsx";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
@@ -74,6 +75,7 @@ export const router = createBrowserRouter([
           { path: "/document-upload", element: <DocumentUploadManagement /> },
           { path: "/customer-feedback", element: <CustomerFeedback /> },
           { path: "/user-profile", element: <UserProfile /> },
+          { path: "/storage", element: <Storage /> },
           // Default redirect
           {
             path: "/",
