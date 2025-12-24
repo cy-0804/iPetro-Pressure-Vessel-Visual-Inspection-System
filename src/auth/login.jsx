@@ -13,8 +13,16 @@ import {
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
 } from "firebase/auth";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
+  getDoc,
+} from "firebase/firestore";
 import { auth, db } from "../firebase";
+import ChangePasswordModal from "../components/Auth/ChangePasswordModal";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -28,11 +36,14 @@ export default function Login() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Force Password Change State
+  const [currentUser, setCurrentUser] = useState(null);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+
   /* =======================
      HELPERS
   ======================= */
-  const isEmail = (value) =>
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  const isEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
   /* =======================
      LOGIN HANDLER
@@ -67,18 +78,34 @@ export default function Login() {
         email = snapshot.docs[0].data().email;
       }
 
-      await signInWithEmailAndPassword(auth, email, password);
-      navigate("/dashboard");
+      // 1. Sign In
+      const userCred = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCred.user;
+
+      // 2. Check for First Login Flag
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (userSnap.exists() && userSnap.data().isFirstLogin === true) {
+        // Show Modal, DO NOT Navigate
+        setCurrentUser(user);
+        setShowPasswordModal(true);
+      } else {
+        // Normal Login
+        navigate("/dashboard");
+      }
     } catch (err) {
       if (
         err.code === "auth/user-not-found" ||
-        err.code === "auth/wrong-password"
+        err.code === "auth/wrong-password" ||
+        err.code === "auth/invalid-credential"
       ) {
         setError("Invalid email/username or password");
       } else if (err.code === "auth/too-many-requests") {
         setError("Too many attempts. Try again later.");
       } else {
         setError("Login failed. Please try again.");
+        console.error(err);
       }
     } finally {
       setLoading(false);
@@ -124,6 +151,12 @@ export default function Login() {
     }
   };
 
+  // Callback when password change is successful
+  const handlePasswordChanged = () => {
+    setShowPasswordModal(false);
+    navigate("/dashboard");
+  };
+
   /* =======================
      UI
   ======================= */
@@ -132,11 +165,7 @@ export default function Login() {
       <div className="auth-card">
         {/* LOGO */}
         <div className="auth-logo">
-          <Image
-            src="/src/assets/ipetro-logo.png"
-            alt="iPetro"
-            height={48}
-          />
+          <Image src="/src/assets/ipetro-logo.png" alt="iPetro" height={48} />
         </div>
 
         <Title className="auth-title">Welcome Back</Title>
@@ -172,7 +201,6 @@ export default function Login() {
           Forgot password?
         </Text>
 
-
         {error && <Text className="auth-error">{error}</Text>}
         {message && (
           <Text size="sm" c="green" mt="sm">
@@ -191,6 +219,15 @@ export default function Login() {
           Login
         </Button>
       </div>
+
+      {/* Force Password Change Modal */}
+      {currentUser && (
+        <ChangePasswordModal
+          opened={showPasswordModal}
+          user={currentUser}
+          onSuccess={handlePasswordChanged}
+        />
+      )}
     </div>
   );
 }

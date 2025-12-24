@@ -14,19 +14,23 @@ import {
   PasswordInput,
   Card,
   Grid,
-  Box
+  Box,
 } from "@mantine/core";
 import {
   IconSettings,
   IconBell,
   IconLock,
   IconFileText,
-  IconDatabase
+  IconDatabase,
 } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { auth, db } from "../firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
+import {
+  updatePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+} from "firebase/auth";
 
 export default function OtherSettings() {
   const [loading, setLoading] = useState(false);
@@ -36,7 +40,7 @@ export default function OtherSettings() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  
+
   // Notification Settings
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [pushNotifications, setPushNotifications] = useState(true);
@@ -66,10 +70,10 @@ export default function OtherSettings() {
     try {
       setLoadingPrefs(true);
       const prefsDoc = await getDoc(doc(db, "userPreferences", user.uid));
-      
+
       if (prefsDoc.exists()) {
         const prefs = prefsDoc.data();
-        
+
         // Load notification settings
         if (prefs.notifications) {
           setEmailNotifications(prefs.notifications.email ?? true);
@@ -132,11 +136,14 @@ export default function OtherSettings() {
 
     try {
       const user = auth.currentUser;
-      
+
       // Re-authenticate user
-      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      const credential = EmailAuthProvider.credential(
+        user.email,
+        currentPassword
+      );
       await reauthenticateWithCredential(user, credential);
-      
+
       // Update password
       await updatePassword(user, newPassword);
 
@@ -153,9 +160,10 @@ export default function OtherSettings() {
       console.error("Error changing password:", error);
       notifications.show({
         title: "Error",
-        message: error.code === "auth/wrong-password" 
-          ? "Current password is incorrect" 
-          : "Failed to change password",
+        message:
+          error.code === "auth/wrong-password"
+            ? "Current password is incorrect"
+            : "Failed to change password",
         color: "red",
       });
     } finally {
@@ -171,17 +179,21 @@ export default function OtherSettings() {
 
     try {
       const prefsRef = doc(db, "userPreferences", user.uid);
-      
-      await setDoc(prefsRef, {
-        notifications: {
-          email: emailNotifications,
-          push: pushNotifications,
-          inspectionAlerts,
-          reportAlerts,
-          deadlineAlerts,
+
+      await setDoc(
+        prefsRef,
+        {
+          notifications: {
+            email: emailNotifications,
+            push: pushNotifications,
+            inspectionAlerts,
+            reportAlerts,
+            deadlineAlerts,
+          },
+          updatedAt: new Date(),
         },
-        updatedAt: new Date(),
-      }, { merge: true });
+        { merge: true }
+      );
 
       notifications.show({
         title: "Success",
@@ -208,16 +220,20 @@ export default function OtherSettings() {
 
     try {
       const prefsRef = doc(db, "userPreferences", user.uid);
-      
-      await setDoc(prefsRef, {
-        system: {
-          theme,
-          dateFormat,
-          language,
-          timezone,
+
+      await setDoc(
+        prefsRef,
+        {
+          system: {
+            theme,
+            dateFormat,
+            language,
+            timezone,
+          },
+          updatedAt: new Date(),
         },
-        updatedAt: new Date(),
-      }, { merge: true });
+        { merge: true }
+      );
 
       notifications.show({
         title: "Success",
@@ -244,14 +260,18 @@ export default function OtherSettings() {
 
     try {
       const prefsRef = doc(db, "userPreferences", user.uid);
-      
-      await setDoc(prefsRef, {
-        reports: {
-          autoExport,
-          format: reportFormat,
+
+      await setDoc(
+        prefsRef,
+        {
+          reports: {
+            autoExport,
+            format: reportFormat,
+          },
+          updatedAt: new Date(),
         },
-        updatedAt: new Date(),
-      }, { merge: true });
+        { merge: true }
+      );
 
       notifications.show({
         title: "Success",
@@ -322,10 +342,10 @@ export default function OtherSettings() {
       <Stack gap="lg">
         {/* Header */}
         <Box>
-          <Title order={1} mb="xs">Settings</Title>
-          <Text c="dimmed">
-            Manage your account settings and preferences
-          </Text>
+          <Title order={1} mb="xs">
+            Settings
+          </Title>
+          <Text c="dimmed">Manage your account settings and preferences</Text>
         </Box>
 
         {/* Settings Tabs */}
@@ -334,10 +354,16 @@ export default function OtherSettings() {
             <Tabs.Tab value="account" leftSection={<IconLock size={16} />}>
               Account
             </Tabs.Tab>
-            <Tabs.Tab value="notifications" leftSection={<IconBell size={16} />}>
+            <Tabs.Tab
+              value="notifications"
+              leftSection={<IconBell size={16} />}
+            >
               Notifications
             </Tabs.Tab>
-            <Tabs.Tab value="preferences" leftSection={<IconSettings size={16} />}>
+            <Tabs.Tab
+              value="preferences"
+              leftSection={<IconSettings size={16} />}
+            >
               Preferences
             </Tabs.Tab>
             <Tabs.Tab value="reports" leftSection={<IconFileText size={16} />}>
@@ -353,7 +379,9 @@ export default function OtherSettings() {
             <Paper shadow="sm" p="xl" radius="md" withBorder>
               <Stack gap="lg">
                 <div>
-                  <Title order={3} mb="md">Security</Title>
+                  <Title order={3} mb="md">
+                    Security
+                  </Title>
                   <Text size="sm" c="dimmed" mb="lg">
                     Change your password and manage security settings
                   </Text>
@@ -390,10 +418,14 @@ export default function OtherSettings() {
                 <Divider my="md" />
 
                 <div>
-                  <Title order={4} mb="md">Two-Factor Authentication</Title>
+                  <Title order={4} mb="md">
+                    Two-Factor Authentication
+                  </Title>
                   <Group justify="space-between">
                     <div>
-                      <Text size="sm" fw={500}>Enable 2FA</Text>
+                      <Text size="sm" fw={500}>
+                        Enable 2FA
+                      </Text>
                       <Text size="xs" c="dimmed">
                         Add an extra layer of security to your account
                       </Text>
@@ -405,11 +437,15 @@ export default function OtherSettings() {
                 <Divider my="md" />
 
                 <div>
-                  <Title order={4} mb="md" c="red">Danger Zone</Title>
-                  <Card withBorder style={{ borderColor: '#fa5252' }}>
+                  <Title order={4} mb="md" c="red">
+                    Danger Zone
+                  </Title>
+                  <Card withBorder style={{ borderColor: "#fa5252" }}>
                     <Group justify="space-between">
                       <div>
-                        <Text size="sm" fw={500}>Delete Account</Text>
+                        <Text size="sm" fw={500}>
+                          Delete Account
+                        </Text>
                         <Text size="xs" c="dimmed">
                           Permanently delete your account and all data
                         </Text>
@@ -429,7 +465,9 @@ export default function OtherSettings() {
             <Paper shadow="sm" p="xl" radius="md" withBorder>
               <Stack gap="lg">
                 <div>
-                  <Title order={3} mb="md">Notification Preferences</Title>
+                  <Title order={3} mb="md">
+                    Notification Preferences
+                  </Title>
                   <Text size="sm" c="dimmed" mb="lg">
                     Choose what notifications you want to receive
                   </Text>
@@ -439,14 +477,18 @@ export default function OtherSettings() {
                   <Stack gap="md">
                     <Group justify="space-between">
                       <div>
-                        <Text size="sm" fw={500}>Email Notifications</Text>
+                        <Text size="sm" fw={500}>
+                          Email Notifications
+                        </Text>
                         <Text size="xs" c="dimmed">
                           Receive notifications via email
                         </Text>
                       </div>
                       <Switch
                         checked={emailNotifications}
-                        onChange={(e) => setEmailNotifications(e.currentTarget.checked)}
+                        onChange={(e) =>
+                          setEmailNotifications(e.currentTarget.checked)
+                        }
                       />
                     </Group>
 
@@ -454,27 +496,35 @@ export default function OtherSettings() {
 
                     <Group justify="space-between">
                       <div>
-                        <Text size="sm" fw={500}>Push Notifications</Text>
+                        <Text size="sm" fw={500}>
+                          Push Notifications
+                        </Text>
                         <Text size="xs" c="dimmed">
                           Receive push notifications in browser
                         </Text>
                       </div>
                       <Switch
                         checked={pushNotifications}
-                        onChange={(e) => setPushNotifications(e.currentTarget.checked)}
+                        onChange={(e) =>
+                          setPushNotifications(e.currentTarget.checked)
+                        }
                       />
                     </Group>
                   </Stack>
                 </Card>
 
                 <div>
-                  <Title order={4} mb="md">Notification Types</Title>
+                  <Title order={4} mb="md">
+                    Notification Types
+                  </Title>
                   <Stack gap="md">
                     <Group justify="space-between">
                       <Text size="sm">New inspection assignments</Text>
                       <Switch
                         checked={inspectionAlerts}
-                        onChange={(e) => setInspectionAlerts(e.currentTarget.checked)}
+                        onChange={(e) =>
+                          setInspectionAlerts(e.currentTarget.checked)
+                        }
                       />
                     </Group>
 
@@ -482,7 +532,9 @@ export default function OtherSettings() {
                       <Text size="sm">Report status updates</Text>
                       <Switch
                         checked={reportAlerts}
-                        onChange={(e) => setReportAlerts(e.currentTarget.checked)}
+                        onChange={(e) =>
+                          setReportAlerts(e.currentTarget.checked)
+                        }
                       />
                     </Group>
 
@@ -490,7 +542,9 @@ export default function OtherSettings() {
                       <Text size="sm">Deadline reminders</Text>
                       <Switch
                         checked={deadlineAlerts}
-                        onChange={(e) => setDeadlineAlerts(e.currentTarget.checked)}
+                        onChange={(e) =>
+                          setDeadlineAlerts(e.currentTarget.checked)
+                        }
                       />
                     </Group>
                   </Stack>
@@ -510,7 +564,9 @@ export default function OtherSettings() {
             <Paper shadow="sm" p="xl" radius="md" withBorder>
               <Stack gap="lg">
                 <div>
-                  <Title order={3} mb="md">System Preferences</Title>
+                  <Title order={3} mb="md">
+                    System Preferences
+                  </Title>
                   <Text size="sm" c="dimmed" mb="lg">
                     Customize your experience
                   </Text>
@@ -560,7 +616,10 @@ export default function OtherSettings() {
                     <Select
                       label="Timezone"
                       data={[
-                        { value: "Asia/Kuala_Lumpur", label: "Malaysia (GMT+8)" },
+                        {
+                          value: "Asia/Kuala_Lumpur",
+                          label: "Malaysia (GMT+8)",
+                        },
                         { value: "Asia/Singapore", label: "Singapore (GMT+8)" },
                         { value: "Asia/Bangkok", label: "Bangkok (GMT+7)" },
                       ]}
@@ -584,7 +643,9 @@ export default function OtherSettings() {
             <Paper shadow="sm" p="xl" radius="md" withBorder>
               <Stack gap="lg">
                 <div>
-                  <Title order={3} mb="md">Report Settings</Title>
+                  <Title order={3} mb="md">
+                    Report Settings
+                  </Title>
                   <Text size="sm" c="dimmed" mb="lg">
                     Configure default report settings
                   </Text>
@@ -603,7 +664,9 @@ export default function OtherSettings() {
 
                 <Group justify="space-between">
                   <div>
-                    <Text size="sm" fw={500}>Auto-export reports</Text>
+                    <Text size="sm" fw={500}>
+                      Auto-export reports
+                    </Text>
                     <Text size="xs" c="dimmed">
                       Automatically export completed reports
                     </Text>
@@ -628,7 +691,9 @@ export default function OtherSettings() {
             <Paper shadow="sm" p="xl" radius="md" withBorder>
               <Stack gap="lg">
                 <div>
-                  <Title order={3} mb="md">Data & Privacy</Title>
+                  <Title order={3} mb="md">
+                    Data & Privacy
+                  </Title>
                   <Text size="sm" c="dimmed" mb="lg">
                     Manage your data and privacy settings
                   </Text>
@@ -638,7 +703,9 @@ export default function OtherSettings() {
                   <Stack gap="md">
                     <Group justify="space-between">
                       <div>
-                        <Text size="sm" fw={500}>Export Your Data</Text>
+                        <Text size="sm" fw={500}>
+                          Export Your Data
+                        </Text>
                         <Text size="xs" c="dimmed">
                           Download all your inspection data
                         </Text>
@@ -652,7 +719,9 @@ export default function OtherSettings() {
 
                     <Group justify="space-between">
                       <div>
-                        <Text size="sm" fw={500}>Activity Log</Text>
+                        <Text size="sm" fw={500}>
+                          Activity Log
+                        </Text>
                         <Text size="xs" c="dimmed">
                           View your account activity
                         </Text>

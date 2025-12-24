@@ -15,18 +15,30 @@ import {
   Divider,
   Card,
   Grid,
-  Badge
+  Badge,
 } from "@mantine/core";
-import { IconCamera, IconUser, IconMail, IconLock, IconCalendar, IconPhone } from "@tabler/icons-react";
+import {
+  IconCamera,
+  IconUser,
+  IconMail,
+  IconLock,
+  IconCalendar,
+  IconPhone,
+} from "@tabler/icons-react";
 import { auth, db, storage } from "../firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
+import {
+  updateProfile,
+  updatePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+} from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { notifications } from "@mantine/notifications";
 
 export default function UserProfile() {
   const [loading, setLoading] = useState(false);
-  
+
   // Profile fields
   const [username, setUsername] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -58,7 +70,9 @@ export default function UserProfile() {
             setEmail(data.email || user.email);
             setRole(data.role || "inspector");
             setAvatarUrl(user.photoURL || "");
-            setCreatedAt(data.createdAt?.toDate?.().toLocaleDateString() || "N/A");
+            setCreatedAt(
+              data.createdAt?.toDate?.().toLocaleDateString() || "N/A"
+            );
           }
         } catch (error) {
           console.error("Error fetching user data:", error);
@@ -82,16 +96,22 @@ export default function UserProfile() {
       setLoading(true);
       const user = auth.currentUser;
       const storageRef = ref(storage, `avatars/${user.uid}`);
-      
+
       await uploadBytes(storageRef, file);
       const downloadURL = await getDownloadURL(storageRef);
-      
+
       await updateProfile(user, { photoURL: downloadURL });
+
+      // Update Firestore as well so it shows in UserManagement
+      await updateDoc(doc(db, "users", user.uid), {
+        photoURL: downloadURL,
+      });
+
       setAvatarUrl(downloadURL);
-      
+
       // Dispatch custom event to update header
-      window.dispatchEvent(new Event('profileUpdated'));
-      
+      window.dispatchEvent(new Event("profileUpdated"));
+
       notifications.show({
         title: "Success",
         message: "Profile picture updated successfully",
@@ -139,7 +159,7 @@ export default function UserProfile() {
       });
 
       // Dispatch custom event to update header
-      window.dispatchEvent(new Event('profileUpdated'));
+      window.dispatchEvent(new Event("profileUpdated"));
 
       notifications.show({
         title: "Success",
@@ -181,18 +201,21 @@ export default function UserProfile() {
     try {
       setLoading(true);
       const user = auth.currentUser;
-      
+
       // Re-authenticate user
-      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      const credential = EmailAuthProvider.credential(
+        user.email,
+        currentPassword
+      );
       await reauthenticateWithCredential(user, credential);
-      
+
       // Update password
       await updatePassword(user, newPassword);
-      
+
       setCurrentPassword("");
       setNewPassword("");
       setConfirmNewPassword("");
-      
+
       notifications.show({
         title: "Success",
         message: "Password changed successfully",
@@ -202,9 +225,10 @@ export default function UserProfile() {
       console.error("Error changing password:", error);
       notifications.show({
         title: "Error",
-        message: error.code === "auth/wrong-password" 
-          ? "Current password is incorrect" 
-          : "Failed to change password",
+        message:
+          error.code === "auth/wrong-password"
+            ? "Current password is incorrect"
+            : "Failed to change password",
         color: "red",
       });
     } finally {
@@ -215,9 +239,9 @@ export default function UserProfile() {
   const getInitials = (name) => {
     if (!name) return "U";
     return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
       .toUpperCase()
       .slice(0, 2);
   };
@@ -231,30 +255,30 @@ export default function UserProfile() {
 
   return (
     <Container size="lg" py="xl">
-      <Title order={1} mb="xl">My Profile</Title>
+      <Title order={1} mb="xl">
+        My Profile
+      </Title>
 
       <Grid gutter="lg">
         {/* Left Column - Profile Info */}
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Card shadow="sm" padding="lg" radius="md" withBorder>
             <Stack align="center" gap="md">
-              <Box style={{ position: 'relative' }}>
-                <Avatar
-                  src={avatarUrl}
-                  size={120}
-                  radius="xl"
-                  color="blue"
-                >
+              <Box style={{ position: "relative" }}>
+                <Avatar src={avatarUrl} size={120} radius="xl" color="blue">
                   {getInitials(getDisplayName())}
                 </Avatar>
-                <FileButton onChange={handleAvatarUpload} accept="image/png,image/jpeg">
+                <FileButton
+                  onChange={handleAvatarUpload}
+                  accept="image/png,image/jpeg"
+                >
                   {(props) => (
                     <Button
                       {...props}
                       size="xs"
                       radius="xl"
                       style={{
-                        position: 'absolute',
+                        position: "absolute",
                         bottom: 0,
                         right: 0,
                       }}
@@ -265,9 +289,13 @@ export default function UserProfile() {
                 </FileButton>
               </Box>
 
-              <Box style={{ textAlign: 'center' }}>
-                <Text size="xl" fw={700}>{getDisplayName()}</Text>
-                <Text size="sm" c="dimmed" mt={2}>@{username}</Text>
+              <Box style={{ textAlign: "center" }}>
+                <Text size="xl" fw={700}>
+                  {getDisplayName()}
+                </Text>
+                <Text size="sm" c="dimmed" mt={2}>
+                  @{username}
+                </Text>
                 <Badge color="blue" variant="light" size="lg" mt="xs">
                   {role}
                 </Badge>
@@ -277,18 +305,24 @@ export default function UserProfile() {
 
               <Stack gap="xs" w="100%">
                 <Group gap="xs">
-                  <IconMail size={16} style={{ color: '#868e96' }} />
-                  <Text size="sm" c="dimmed">{email}</Text>
+                  <IconMail size={16} style={{ color: "#868e96" }} />
+                  <Text size="sm" c="dimmed">
+                    {email}
+                  </Text>
                 </Group>
                 {phoneNumber && (
                   <Group gap="xs">
-                    <IconPhone size={16} style={{ color: '#868e96' }} />
-                    <Text size="sm" c="dimmed">{phoneNumber}</Text>
+                    <IconPhone size={16} style={{ color: "#868e96" }} />
+                    <Text size="sm" c="dimmed">
+                      {phoneNumber}
+                    </Text>
                   </Group>
                 )}
                 <Group gap="xs">
-                  <IconCalendar size={16} style={{ color: '#868e96' }} />
-                  <Text size="sm" c="dimmed">Joined {createdAt}</Text>
+                  <IconCalendar size={16} style={{ color: "#868e96" }} />
+                  <Text size="sm" c="dimmed">
+                    Joined {createdAt}
+                  </Text>
                 </Group>
               </Stack>
             </Stack>
@@ -300,8 +334,10 @@ export default function UserProfile() {
           <Stack gap="lg">
             {/* Edit Profile */}
             <Paper shadow="sm" p="xl" radius="md" withBorder>
-              <Title order={3} mb="md">Edit Profile</Title>
-              
+              <Title order={3} mb="md">
+                Edit Profile
+              </Title>
+
               <Stack gap="md">
                 <TextInput
                   label="Username"
@@ -356,14 +392,11 @@ export default function UserProfile() {
                   value={role}
                   disabled
                   description="Role is assigned by administrator"
-                  style={{ textTransform: 'capitalize' }}
+                  style={{ textTransform: "capitalize" }}
                 />
 
                 <Group justify="flex-end">
-                  <Button
-                    onClick={handleUpdateProfile}
-                    loading={loading}
-                  >
+                  <Button onClick={handleUpdateProfile} loading={loading}>
                     Save Changes
                   </Button>
                 </Group>
@@ -372,8 +405,10 @@ export default function UserProfile() {
 
             {/* Change Password */}
             <Paper shadow="sm" p="xl" radius="md" withBorder>
-              <Title order={3} mb="md">Change Password</Title>
-              
+              <Title order={3} mb="md">
+                Change Password
+              </Title>
+
               <Stack gap="md">
                 <PasswordInput
                   label="Current Password"
@@ -414,31 +449,61 @@ export default function UserProfile() {
 
             {/* Account Stats */}
             <Paper shadow="sm" p="xl" radius="md" withBorder>
-              <Title order={3} mb="md">Account Statistics</Title>
-              
+              <Title order={3} mb="md">
+                Account Statistics
+              </Title>
+
               <Grid gutter="md">
                 <Grid.Col span={6}>
-                  <Box p="md" style={{ backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
-                    <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Total Inspections</Text>
-                    <Text size="xl" fw={700} mt="xs">24</Text>
+                  <Box
+                    p="md"
+                    style={{ backgroundColor: "#f8f9fa", borderRadius: "8px" }}
+                  >
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                      Total Inspections
+                    </Text>
+                    <Text size="xl" fw={700} mt="xs">
+                      24
+                    </Text>
                   </Box>
                 </Grid.Col>
                 <Grid.Col span={6}>
-                  <Box p="md" style={{ backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
-                    <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Reports Generated</Text>
-                    <Text size="xl" fw={700} mt="xs">18</Text>
+                  <Box
+                    p="md"
+                    style={{ backgroundColor: "#f8f9fa", borderRadius: "8px" }}
+                  >
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                      Reports Generated
+                    </Text>
+                    <Text size="xl" fw={700} mt="xs">
+                      18
+                    </Text>
                   </Box>
                 </Grid.Col>
                 <Grid.Col span={6}>
-                  <Box p="md" style={{ backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
-                    <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Pending Tasks</Text>
-                    <Text size="xl" fw={700} mt="xs">6</Text>
+                  <Box
+                    p="md"
+                    style={{ backgroundColor: "#f8f9fa", borderRadius: "8px" }}
+                  >
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                      Pending Tasks
+                    </Text>
+                    <Text size="xl" fw={700} mt="xs">
+                      6
+                    </Text>
                   </Box>
                 </Grid.Col>
                 <Grid.Col span={6}>
-                  <Box p="md" style={{ backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
-                    <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Completed</Text>
-                    <Text size="xl" fw={700} mt="xs">18</Text>
+                  <Box
+                    p="md"
+                    style={{ backgroundColor: "#f8f9fa", borderRadius: "8px" }}
+                  >
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                      Completed
+                    </Text>
+                    <Text size="xl" fw={700} mt="xs">
+                      18
+                    </Text>
                   </Box>
                 </Grid.Col>
               </Grid>
