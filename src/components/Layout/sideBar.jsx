@@ -5,7 +5,6 @@ import {
   IconBellRinging,
   IconHistory,
   IconReportMedical,
-  IconKey,
   IconUpload,
   IconClipboardText,
   IconSettingsPlus,
@@ -14,7 +13,11 @@ import {
   IconUser,
   IconCloudFog,
   IconChevronDown,
-  IconChevronRight
+  IconChevronRight,
+  IconUserCog,
+  IconDeviceDesktopAnalytics,
+  IconCalendarCheck,
+  IconChecklist
 } from "@tabler/icons-react";
 import { ScrollArea, Stack, Text, Box, Collapse } from "@mantine/core";
 import classes from "./sideBar.module.css";
@@ -25,47 +28,31 @@ const menuSections = [
     title: "MAIN",
     items: [
       { link: "/dashboard", label: "Dashboard", icon: IconDashboard },
+      { link: "/inspection-plan", label: "Inspection Schedule", icon: IconCalendarCheck },
+      { 
+        link: "/task-monitoring", 
+        label: "Task Monitoring", 
+        icon: IconDeviceDesktopAnalytics,
+        roles: ["admin", "supervisor"] // Only for admin and supervisor
+      },
       { link: "/notification", label: "Notifications", icon: IconBellRinging },
-      {
-        link: "/other-settings",
-        label: "Other Settings",
-        icon: IconSettings,
-      },
-      { link: "/user-profile", label: "My Profile", icon: IconUser },
-      { link: "/document-upload", label: "Document Upload", icon: IconUpload },
-      { link: "/customer-feedback", label: "Feedback", icon: IconMessage2 },
-      { link: "/storage", label: "Storage", icon: IconCloudFog },
-    ],
-  },
-  {
-    title: "ADMINISTRATION",
-    items: [
-      {
-        link: "/user-management",
-        label: "User Management",
-        icon: IconSettingsPlus,
-      },
     ],
   },
   {
     title: "EQUIPMENT & INSPECTION",
     items: [
-      { link: "/inspection-plan", label: "Inspection Schedule", icon: IconKey },
-      {
-        link: "/equipment",
-        label: "Equipment Details",
-        icon: IconSettingsPlus,
-      },
       {
         link: "/inspection-form",
         label: "Inspection Form",
         icon: IconClipboardText,
       },
       {
-        link: "/report-generation",
-        label: "Generate Report",
-        icon: IconReportMedical,
+        link: "/equipment",
+        label: "Equipment Details",
+        icon: IconSettingsPlus,
       },
+      { link: "/document-upload", label: "Document Upload", icon: IconUpload },
+      
       {
         link: "/inspection-history",
         label: "Inspection History",
@@ -74,19 +61,47 @@ const menuSections = [
     ],
   },
   {
-    title: "MANAGEMENT",
+    title: "ADMINISTRATION",
     items: [
+      {
+        link: "/user-management",
+        label: "User Management",
+        icon: IconUserCog,
+      },
+    ],
+  },
+  {
+    title: "MANAGEMENT & REPORTING",
+    items: [
+      {
+        link: "/task-planning",
+        label: "Task Planning",
+        icon: IconChecklist,
+      },
       {
         link: "/supervisor-review",
         label: "Review Reports",
         icon: IconCopyCheck,
       },
       {
-        link: "/task-planning",
-        label: "Task Planning",
-        icon: IconClipboardText,
+        link: "/report-generation",
+        label: "Generate Report",
+        icon: IconReportMedical,
       },
-      { link: "/task-monitoring", label: "Task Monitoring", icon: IconHistory },
+    ],
+  },
+
+  {
+    title: "SETTINGS",
+    items: [
+      { link: "/storage", label: "Storage", icon: IconCloudFog, roles: ["admin"] }, // Only for admin
+      { link: "/user-profile", label: "My Profile", icon: IconUser },
+      {
+        link: "/other-settings",
+        label: "Other Settings",
+        icon: IconSettings,
+      },
+      { link: "/customer-feedback", label: "Feedback", icon: IconMessage2 },
     ],
   },
 ];
@@ -97,7 +112,8 @@ export function SideBar({ toggle, role }) {
     "MAIN": false,
     "ADMINISTRATION": false,
     "EQUIPMENT & INSPECTION": false,
-    "MANAGEMENT": false,
+    "MANAGEMENT & REPORTING": false,
+    "SETTINGS": false,
   });
 
   const toggleSection = (sectionTitle) => {
@@ -107,27 +123,47 @@ export function SideBar({ toggle, role }) {
     }));
   };
 
+  const userRole = role?.toLowerCase();
+
   // Filter sections based on role
-  const filteredSections = menuSections.filter((section) => {
-    if (section.title.includes("MAIN")) return true;
+  const filteredSections = menuSections
+    .map((section) => {
+      // Filter items within each section based on role
+      const filteredItems = section.items.filter((item) => {
+        // If item has roles restriction, check if user's role is allowed
+        if (item.roles && item.roles.length > 0) {
+          return item.roles.includes(userRole);
+        }
+        // If no roles restriction, item is visible to all
+        return true;
+      });
 
-    const userRole = role?.toLowerCase();
+      return {
+        ...section,
+        items: filteredItems,
+      };
+    })
+    .filter((section) => {
+      // Remove sections based on role
+      if (section.title.includes("MAIN")) return true;
+      if (section.title.includes("SETTINGS")) return true;
 
-    if (userRole === "admin") return true;
+      if (userRole === "admin") return true;
 
-    if (userRole === "supervisor") {
-      return (
-        section.title.includes("MANAGEMENT") ||
-        section.title.includes("EQUIPMENT & INSPECTION")
-      );
-    }
+      if (userRole === "supervisor") {
+        return (
+          section.title.includes("MANAGEMENT & REPORTING") ||
+          section.title.includes("EQUIPMENT & INSPECTION")
+        );
+      }
 
-    if (userRole === "inspector") {
-      return section.title.includes("EQUIPMENT & INSPECTION");
-    }
+      if (userRole === "inspector") {
+        return section.title.includes("EQUIPMENT & INSPECTION");
+      }
 
-    return false;
-  });
+      return false;
+    })
+    .filter((section) => section.items.length > 0); //  Remove empty sections
 
   return (
     <Box className={classes.sidebarContainer}>
