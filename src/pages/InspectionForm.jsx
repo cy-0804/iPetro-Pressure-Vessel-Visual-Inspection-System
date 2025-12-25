@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { db, auth, storage } from "../firebase";
-import { collection, addDoc, updateDoc, doc, setDoc, serverTimestamp, getDocs } from "firebase/firestore";
+import { collection, doc, setDoc, serverTimestamp, getDocs } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
   Container,
@@ -229,7 +229,7 @@ const InspectionForm = () => {
   };
 
   return (
-    <Container size="lg" maxW={1200} py="xl">
+    <Container size="lg" maw={1200} py="xl">
       <Title order={2} mb="md">Inspection Report</Title>
       
       <Stepper active={activeStep} onStepClick={setActiveStep} mb="xl" allowNextStepsSelect={false}>
@@ -432,7 +432,7 @@ const InspectionForm = () => {
                                                 return newRows;
                                             });
                                         }}
-                                        onReject={(files) => notifications.show({ title: 'Image Rejected ', message: 'Image size too large, please select a image under 10 mb', color: 'red' })}
+                                        onReject={() => notifications.show({ title: 'Image Rejected ', message: 'Image size too large, please select a image under 10 mb', color: 'red' })}
                                         maxSize={10 * 1024 ** 2}
                                         accept={IMAGE_MIME_TYPE}
                                         multiple={true}
