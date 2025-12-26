@@ -68,7 +68,7 @@ export default function ChangePasswordModal({ opened, user, onSuccess }) {
       withCloseButton={false}
       closeOnClickOutside={false}
       closeOnEscape={false}
-      title={<Title order={4}>Change Password Required</Title>}
+      title="Change Password Required"
       centered
     >
       <Stack>

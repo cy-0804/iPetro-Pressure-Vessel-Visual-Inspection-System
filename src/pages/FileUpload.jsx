@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { storage } from "../firebase";
-import { ref, uploadBytes, getDownloadURL, listAll, deleteObject } from "firebase/storage";
+import { storage, db, auth } from "../firebase";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { 
+  collection, 
+  addDoc, 
+  getDocs, 
+  deleteDoc, 
+  doc, 
+  serverTimestamp,
+  query,
+  orderBy 
+} from "firebase/firestore";
 import {
   Container,
   Paper,
@@ -38,23 +48,17 @@ const FileUploadComponent = () => {
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Load already uploaded documents from Firebase
+  // ✅ Load documents from Firestore
   const fetchUploadedFiles = async () => {
     setLoading(true);
     try {
-      const listRef = ref(storage, "documents/");
-      const res = await listAll(listRef);
-
-      const items = await Promise.all(
-        res.items.map(async (itemRef) => {
-          const url = await getDownloadURL(itemRef);
-          return {
-            name: itemRef.name,
-            url,
-            fullPath: itemRef.fullPath,
-          };
-        })
-      );
+      const q = query(collection(db, "documents"), orderBy("uploadedAt", "desc"));
+      const querySnapshot = await getDocs(q);
+      
+      const items = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
 
       setUploadedFiles(items);
     } catch (error) {
@@ -74,27 +78,55 @@ const FileUploadComponent = () => {
     fetchUploadedFiles();
   }, []);
 
+  // ✅ Upload file to Storage AND save metadata to Firestore
   const handleUpload = async (files) => {
     if (!files || files.length === 0) return;
 
     setIsUploading(true);
 
     try {
+      const user = auth.currentUser;
       const newlyUploaded = [];
 
       for (const file of files) {
-        const storageRef = ref(storage, `documents/${Date.now()}-${file.name}`);
+        const timestamp = Date.now();
+        const fileName = `${timestamp}-${file.name}`;
+        const storageRef = ref(storage, `documents/${fileName}`);
+        
+        // Upload to Firebase Storage
         await uploadBytes(storageRef, file);
         const url = await getDownloadURL(storageRef);
 
+        // Save metadata to Firestore
+        const docRef = await addDoc(collection(db, "documents"), {
+          fileName: file.name,
+          storageName: fileName,
+          fileSize: file.size,
+          fileType: file.type,
+          fileExtension: file.name.split('.').pop().toLowerCase(),
+          url: url,
+          storagePath: storageRef.fullPath,
+          uploadedBy: user?.uid || "anonymous",
+          uploadedByName: user?.displayName || user?.email || "Unknown User",
+          uploadedAt: serverTimestamp(),
+        });
+
         newlyUploaded.push({
-          name: storageRef.name,
-          url,
-          fullPath: storageRef.fullPath,
+          id: docRef.id,
+          fileName: file.name,
+          storageName: fileName,
+          fileSize: file.size,
+          fileType: file.type,
+          fileExtension: file.name.split('.').pop().toLowerCase(),
+          url: url,
+          storagePath: storageRef.fullPath,
+          uploadedBy: user?.uid || "anonymous",
+          uploadedByName: user?.displayName || user?.email || "Unknown User",
+          uploadedAt: new Date(),
         });
       }
       
-      setUploadedFiles((prev) => [...prev, ...newlyUploaded]);
+      setUploadedFiles((prev) => [...newlyUploaded, ...prev]);
 
       notifications.show({
         title: 'Success',
@@ -115,24 +147,29 @@ const FileUploadComponent = () => {
     }
   };
 
+  // ✅ Delete from both Storage AND Firestore
   const handleDelete = async (file) => {
     modals.openConfirmModal({
       title: 'Delete Document',
       centered: true,
       children: (
         <Text size="sm">
-          Are you sure you want to delete <Text component="span" fw={600}>{getCleanFileName(file.name)}</Text>? This action cannot be undone.
+          Are you sure you want to delete <Text component="span" fw={600}>{file.fileName}</Text>? This action cannot be undone.
         </Text>
       ),
       labels: { confirm: 'Delete', cancel: 'Cancel' },
       confirmProps: { color: 'red', leftSection: <IconTrash size={16} /> },
       onConfirm: async () => {
         try {
-          const fileRef = ref(storage, file.fullPath);
+          // Delete from Firebase Storage
+          const fileRef = ref(storage, file.storagePath);
           await deleteObject(fileRef);
 
+          // Delete from Firestore
+          await deleteDoc(doc(db, "documents", file.id));
+
           setUploadedFiles((prev) =>
-            prev.filter((item) => item.fullPath !== file.fullPath)
+            prev.filter((item) => item.id !== file.id)
           );
 
           notifications.show({
@@ -175,9 +212,18 @@ const FileUploadComponent = () => {
     }
   };
 
-  const getCleanFileName = (fileName) => {
-    // Remove timestamp prefix (e.g., "1766042255743-")
-    return fileName.replace(/^\d+-/, '');
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
+  const formatDate = (timestamp) => {
+    if (!timestamp) return 'Unknown';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
@@ -202,7 +248,6 @@ const FileUploadComponent = () => {
               </div>
             </Group>
 
-            {/* Custom Upload Area with FileButton */}
             <FileButton onChange={handleUpload} accept="*" multiple>
               {(props) => (
                 <Paper
@@ -285,7 +330,7 @@ const FileUploadComponent = () => {
             ) : (
               <Grid gutter="md">
                 {uploadedFiles.map((file) => (
-                  <Grid.Col span={{ base: 12, sm: 6, lg: 4 }} key={file.fullPath}>
+                  <Grid.Col span={{ base: 12, sm: 6, lg: 4 }} key={file.id}>
                     <Card
                       shadow="sm"
                       padding="lg"
@@ -308,7 +353,7 @@ const FileUploadComponent = () => {
                         {/* File Icon */}
                         <Group justify="space-between" align="flex-start">
                           <ThemeIcon size={50} radius="md" variant="light" color="blue">
-                            {getFileIcon(file.name)}
+                            {getFileIcon(file.fileName)}
                           </ThemeIcon>
                           <ActionIcon
                             variant="subtle"
@@ -328,12 +373,23 @@ const FileUploadComponent = () => {
                             fw={600}
                             size="sm"
                             lineClamp={2}
-                            title={getCleanFileName(file.name)}
+                            title={file.fileName}
                           >
-                            {getCleanFileName(file.name)}
+                            {file.fileName}
                           </Text>
+                          <Group gap="xs" mt={4}>
+                            <Badge size="xs" variant="light">
+                              {file.fileExtension?.toUpperCase() || 'FILE'}
+                            </Badge>
+                            <Text size="xs" c="dimmed">
+                              {formatFileSize(file.fileSize)}
+                            </Text>
+                          </Group>
                           <Text size="xs" c="dimmed" mt={4}>
-                            {getCleanFileName(file.name).split('.').pop().toUpperCase()}
+                            Uploaded by {file.uploadedByName}
+                          </Text>
+                          <Text size="xs" c="dimmed">
+                            {formatDate(file.uploadedAt)}
                           </Text>
                         </div>
 

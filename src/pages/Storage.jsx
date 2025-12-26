@@ -1,6 +1,16 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { storage } from "../firebase";
+import { storage, db, auth } from "../firebase";
 import { ref, listAll, getDownloadURL, deleteObject, getMetadata, uploadBytes } from "firebase/storage";
+import {
+  collection,
+  addDoc,
+  getDocs,
+  deleteDoc,
+  doc,
+  query,
+  where,
+  serverTimestamp
+} from "firebase/firestore";
 import {
   Container,
   Paper,
@@ -52,25 +62,42 @@ const Storage = () => {
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
+  //  Fetch data from BOTH Storage and Firestore
   const fetchStorageData = useCallback(async () => {
     setLoading(true);
     try {
       const storageRef = ref(storage, currentPath);
       const result = await listAll(storageRef);
 
-      // Get folders
+      // Get folders from Storage
       const folderList = result.prefixes.map((folderRef) => ({
         name: folderRef.name,
         fullPath: folderRef.fullPath,
         type: "folder",
       }));
 
-      // Get files with metadata
+      // Get files from Storage AND Firestore metadata
       const fileList = await Promise.all(
         result.items.map(async (itemRef) => {
           try {
+            // Skip .placeholder files
+            if (itemRef.name === '.placeholder') return null;
+
             const url = await getDownloadURL(itemRef);
             const metadata = await getMetadata(itemRef);
+
+            // Try to get additional metadata from Firestore
+            const q = query(
+              collection(db, "storage_files"),
+              where("storagePath", "==", itemRef.fullPath)
+            );
+            const querySnapshot = await getDocs(q);
+            
+            let firestoreData = {};
+            if (!querySnapshot.empty) {
+              firestoreData = { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() };
+            }
+
             return {
               name: itemRef.name,
               fullPath: itemRef.fullPath,
@@ -79,6 +106,7 @@ const Storage = () => {
               contentType: metadata.contentType,
               timeCreated: metadata.timeCreated,
               type: "file",
+              ...firestoreData, // Include Firestore metadata
             };
           } catch (error) {
             console.error(`Error fetching file ${itemRef.name}:`, error);
@@ -105,6 +133,7 @@ const Storage = () => {
     fetchStorageData();
   }, [fetchStorageData]);
 
+  //  Upload files to Storage AND save metadata to Firestore
   const handleFileUpload = async (selectedFiles) => {
     if (!selectedFiles || selectedFiles.length === 0) return;
 
@@ -112,6 +141,7 @@ const Storage = () => {
     setUploadProgress(0);
 
     try {
+      const user = auth.currentUser;
       const totalFiles = selectedFiles.length;
       let uploadedCount = 0;
 
@@ -119,7 +149,23 @@ const Storage = () => {
         const filePath = currentPath ? `${currentPath}/${file.name}` : file.name;
         const fileRef = ref(storage, filePath);
         
+        // Upload to Storage
         await uploadBytes(fileRef, file);
+        const url = await getDownloadURL(fileRef);
+
+        // Save metadata to Firestore
+        await addDoc(collection(db, "storage_files"), {
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+          fileExtension: file.name.split('.').pop().toLowerCase(),
+          storagePath: filePath,
+          url: url,
+          folder: currentPath || 'root',
+          uploadedBy: user?.uid || "anonymous",
+          uploadedByName: user?.displayName || user?.email || "Unknown User",
+          uploadedAt: serverTimestamp(),
+        });
         
         uploadedCount++;
         setUploadProgress(Math.round((uploadedCount / totalFiles) * 100));
@@ -155,6 +201,7 @@ const Storage = () => {
     setCurrentPath(pathParts.join("/"));
   };
 
+  //  Create folder in Storage AND save to Firestore
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) {
       notifications.show({
@@ -165,7 +212,6 @@ const Storage = () => {
       return;
     }
 
-    // Validate folder name (no special characters)
     const validFolderName = /^[a-zA-Z0-9-_]+$/;
     if (!validFolderName.test(newFolderName)) {
       notifications.show({
@@ -179,14 +225,22 @@ const Storage = () => {
     setCreatingFolder(true);
 
     try {
-      // Firebase Storage requires at least one file to create a folder
-      // We create a placeholder file (.placeholder) to initialize the folder
+      const user = auth.currentUser;
       const folderPath = currentPath ? `${currentPath}/${newFolderName}` : newFolderName;
       const placeholderRef = ref(storage, `${folderPath}/.placeholder`);
       
-      // Create empty blob
       const emptyBlob = new Blob([''], { type: 'text/plain' });
       await uploadBytes(placeholderRef, emptyBlob);
+
+      // Save folder metadata to Firestore
+      await addDoc(collection(db, "storage_folders"), {
+        folderName: newFolderName,
+        folderPath: folderPath,
+        parentPath: currentPath || 'root',
+        createdBy: user?.uid || "anonymous",
+        createdByName: user?.displayName || user?.email || "Unknown User",
+        createdAt: serverTimestamp(),
+      });
 
       notifications.show({
         title: "Success",
@@ -209,6 +263,7 @@ const Storage = () => {
     }
   };
 
+  //  Delete file from Storage AND Firestore
   const handleDeleteFile = async (file) => {
     modals.openConfirmModal({
       title: "Delete File",
@@ -222,8 +277,14 @@ const Storage = () => {
       confirmProps: { color: "red", leftSection: <IconTrash size={16} /> },
       onConfirm: async () => {
         try {
+          // Delete from Storage
           const fileRef = ref(storage, file.fullPath);
           await deleteObject(fileRef);
+
+          // Delete from Firestore if exists
+          if (file.id) {
+            await deleteDoc(doc(db, "storage_files", file.id));
+          }
           
           notifications.show({
             title: "Success",
@@ -244,6 +305,7 @@ const Storage = () => {
     });
   };
 
+  //  Delete folder from Storage AND Firestore
   const handleDeleteFolder = async (folder) => {
     modals.openConfirmModal({
       title: "Delete Folder",
@@ -257,23 +319,37 @@ const Storage = () => {
       confirmProps: { color: "red", leftSection: <IconTrash size={16} /> },
       onConfirm: async () => {
         try {
-          // List all files in the folder and delete them
+          // Delete from Storage
           const folderRef = ref(storage, folder.fullPath);
           const result = await listAll(folderRef);
           
-          // Delete all files
+          // Delete all files from Storage
           await Promise.all(
             result.items.map((itemRef) => deleteObject(itemRef))
           );
 
-          // Recursively delete subfolders
+          // Delete all files from Firestore
+          const q = query(
+            collection(db, "storage_files"),
+            where("folder", "==", folder.fullPath)
+          );
+          const querySnapshot = await getDocs(q);
           await Promise.all(
-            result.prefixes.map(async (subfolderRef) => {
-              const subResult = await listAll(subfolderRef);
-              return Promise.all(
-                subResult.items.map((itemRef) => deleteObject(itemRef))
-              );
-            })
+            querySnapshot.docs.map((docSnapshot) => 
+              deleteDoc(doc(db, "storage_files", docSnapshot.id))
+            )
+          );
+
+          // Delete folder from Firestore
+          const folderQuery = query(
+            collection(db, "storage_folders"),
+            where("folderPath", "==", folder.fullPath)
+          );
+          const folderSnapshot = await getDocs(folderQuery);
+          await Promise.all(
+            folderSnapshot.docs.map((docSnapshot) => 
+              deleteDoc(doc(db, "storage_folders", docSnapshot.id))
+            )
           );
 
           notifications.show({
@@ -304,6 +380,7 @@ const Storage = () => {
   };
 
   const formatDate = (dateString) => {
+    if (!dateString) return "Unknown";
     return new Date(dateString).toLocaleString();
   };
 
@@ -487,6 +564,7 @@ const Storage = () => {
                   <Table.Th>Name</Table.Th>
                   <Table.Th>Type</Table.Th>
                   <Table.Th>Size</Table.Th>
+                  <Table.Th>Uploaded By</Table.Th>
                   <Table.Th>Modified</Table.Th>
                   <Table.Th>Actions</Table.Th>
                 </Table.Tr>
@@ -504,6 +582,7 @@ const Storage = () => {
                     <Table.Td>
                       <Badge variant="light" color="gray">Folder</Badge>
                     </Table.Td>
+                    <Table.Td>—</Table.Td>
                     <Table.Td>—</Table.Td>
                     <Table.Td>—</Table.Td>
                     <Table.Td>—</Table.Td>
@@ -525,6 +604,7 @@ const Storage = () => {
                     <Table.Td>
                       <Badge variant="light" color="yellow">Folder</Badge>
                     </Table.Td>
+                    <Table.Td>—</Table.Td>
                     <Table.Td>—</Table.Td>
                     <Table.Td>—</Table.Td>
                     <Table.Td>
@@ -560,6 +640,9 @@ const Storage = () => {
                       <Text size="sm">{formatFileSize(file.size)}</Text>
                     </Table.Td>
                     <Table.Td>
+                      <Text size="sm" c="dimmed">{file.uploadedByName || "Unknown"}</Text>
+                    </Table.Td>
+                    <Table.Td>
                       <Text size="sm" c="dimmed">{formatDate(file.timeCreated)}</Text>
                     </Table.Td>
                     <Table.Td>
@@ -588,7 +671,7 @@ const Storage = () => {
 
                 {filteredFiles.length === 0 && folders.length === 0 && !currentPath && (
                   <Table.Tr>
-                    <Table.Td colSpan={5}>
+                    <Table.Td colSpan={6}>
                       <Center py="xl">
                         <Text c="dimmed">No files or folders found</Text>
                       </Center>
