@@ -112,7 +112,7 @@ export function FooterLinks() {
             />
           </Box>
           <Text size="sm" c="dimmed" className="footer-description">
-            iPetro Pressure Vessel Visual Inspection System
+            <b>iPetro Pressure Vessel Visual Inspection System</b>
           </Text>
           
           {/* Social Media */}

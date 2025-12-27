@@ -77,11 +77,13 @@ const menuSections = [
         link: "/task-planning",
         label: "Task Planning",
         icon: IconChecklist,
+        roles: ["admin", "supervisor"] // Only for admin and supervisor
       },
       {
         link: "/supervisor-review",
         label: "Review Reports",
         icon: IconCopyCheck,
+        roles: ["admin", "supervisor"] // Only for admin and supervisor
       },
       {
         link: "/report-generation",
@@ -158,7 +160,8 @@ export function SideBar({ toggle, role }) {
       }
 
       if (userRole === "inspector") {
-        return section.title.includes("EQUIPMENT & INSPECTION");
+        return section.title.includes("EQUIPMENT & INSPECTION") ||
+        section.title.includes("MANAGEMENT & REPORTING")
       }
 
       return false;

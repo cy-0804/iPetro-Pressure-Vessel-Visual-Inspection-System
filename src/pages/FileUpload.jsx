@@ -47,8 +47,9 @@ const FileUploadComponent = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isDragging, setIsDragging] = useState(false); // Track drag state
 
-  // ✅ Load documents from Firestore
+  // Load documents from Firestore
   const fetchUploadedFiles = async () => {
     setLoading(true);
     try {
@@ -78,7 +79,6 @@ const FileUploadComponent = () => {
     fetchUploadedFiles();
   }, []);
 
-  // ✅ Upload file to Storage AND save metadata to Firestore
   const handleUpload = async (files) => {
     if (!files || files.length === 0) return;
 
@@ -147,7 +147,35 @@ const FileUploadComponent = () => {
     }
   };
 
-  // ✅ Delete from both Storage AND Firestore
+  //  Drag & Drop Handlers
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    if (droppedFiles.length > 0) {
+      handleUpload(droppedFiles);
+    }
+  };
+
   const handleDelete = async (file) => {
     modals.openConfirmModal({
       title: 'Delete Document',
@@ -244,7 +272,7 @@ const FileUploadComponent = () => {
               </ThemeIcon>
               <div>
                 <Text fw={600} size="lg">Upload Documents</Text>
-                <Text size="sm" c="dimmed">Click to browse and select files</Text>
+                <Text size="sm" c="dimmed">Click to browse or drag & drop files here</Text>
               </div>
             </Group>
 
@@ -255,37 +283,57 @@ const FileUploadComponent = () => {
                   withBorder
                   p="xl"
                   radius="md"
+                  onDragEnter={handleDragEnter}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
                   style={{
-                    border: '2px dashed #228be6',
-                    backgroundColor: '#f8f9fa',
+                    border: isDragging ? '3px dashed #1c7ed6' : '2px dashed #228be6',
+                    backgroundColor: isDragging ? '#d0ebff' : '#f8f9fa',
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
+                    transform: isDragging ? 'scale(1.02)' : 'scale(1)',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#e7f5ff';
-                    e.currentTarget.style.borderColor = '#1c7ed6';
+                    if (!isDragging) {
+                      e.currentTarget.style.backgroundColor = '#e7f5ff';
+                      e.currentTarget.style.borderColor = '#1c7ed6';
+                    }
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#f8f9fa';
-                    e.currentTarget.style.borderColor = '#228be6';
+                    if (!isDragging) {
+                      e.currentTarget.style.backgroundColor = '#f8f9fa';
+                      e.currentTarget.style.borderColor = '#228be6';
+                    }
                   }}
                 >
                   <Center>
                     <Stack align="center" gap="md">
-                      <ThemeIcon size={60} radius="xl" variant="light" color="blue">
+                      <ThemeIcon 
+                        size={60} 
+                        radius="xl" 
+                        variant="light" 
+                        color="blue"
+                        style={{
+                          transform: isDragging ? 'scale(1.1)' : 'scale(1)',
+                          transition: 'transform 0.2s ease',
+                        }}
+                      >
                         <IconUpload size={30} />
                       </ThemeIcon>
                       <div style={{ textAlign: 'center' }}>
                         <Text size="lg" fw={600} mb={4}>
-                          Click here to select files
+                          {isDragging ? 'Drop files here!' : 'Click here or drag & drop files'}
                         </Text>
                         <Text size="sm" c="dimmed">
                           Support for PDF, Word, Excel, PowerPoint and more
                         </Text>
                       </div>
-                      <Button variant="light" leftSection={<IconUpload size={16} />}>
-                        Select Files
-                      </Button>
+                      {!isDragging && (
+                        <Button variant="light" leftSection={<IconUpload size={16} />}>
+                          Select Files
+                        </Button>
+                      )}
                     </Stack>
                   </Center>
                 </Paper>
