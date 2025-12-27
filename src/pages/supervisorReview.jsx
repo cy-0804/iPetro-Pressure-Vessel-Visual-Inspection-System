@@ -158,6 +158,7 @@ export default function SupervisorReview() {
           <Table striped highlightOnHover>
             <Table.Thead>
               <Table.Tr>
+                <Table.Th>Report No</Table.Th>
                 <Table.Th>Tag Number</Table.Th>
                 <Table.Th>Date</Table.Th>
                 <Table.Th>Inspector</Table.Th>
@@ -169,7 +170,10 @@ export default function SupervisorReview() {
             <Table.Tbody>
               {reports.map((r) => (
                 <Table.Tr key={r.id}>
-                  <Table.Td fw={500}>{r.equipmentId}</Table.Td>
+                  <Table.Td fw={600} style={{ fontFamily: "monospace" }}>
+                    {r.reportNo || "N/A"}
+                  </Table.Td>
+                  <Table.Td>{r.equipmentId}</Table.Td>
                   <Table.Td>{r.inspectionDate}</Table.Td>
                   <Table.Td>{r.inspectorName}</Table.Td>
                   <Table.Td>{r.plantUnitArea}</Table.Td>

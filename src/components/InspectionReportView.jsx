@@ -1,5 +1,5 @@
 import React from "react";
-import { Box, Text, Group, Image, Textarea } from "@mantine/core";
+import { Box, Text, Group, Image } from "@mantine/core";
 
 export const InspectionReportView = ({
   data,
@@ -237,23 +237,10 @@ export const InspectionReportView = ({
                     <Text td="underline" fw={700} size="sm" mt="md" mb={4}>
                       RECOMMENDATIONS
                     </Text>
-                    {isEditing ? (
-                      <Textarea
-                        value={data.recommendation}
-                        onChange={(e) =>
-                          onRecommendationChange &&
-                          onRecommendationChange(e.target.value)
-                        }
-                        minRows={3}
-                        autosize
-                        placeholder="Enter recommendations..."
-                      />
-                    ) : (
-                      <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
-                        {data.recommendation ||
-                          "To be monitored on next opportunity."}
-                      </Text>
-                    )}
+                    <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                      {data.recommendation ||
+                        "To be monitored on next opportunity."}
+                    </Text>
                   </td>
                 </tr>
               </tbody>
@@ -456,6 +443,65 @@ export const InspectionReportView = ({
                 </tr>
               </tbody>
             </table>
+
+            {/* Equipment Info for Photo Pages */}
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                border: "2px solid black",
+                borderTop: "none",
+                marginBottom: 0,
+              }}
+            >
+              <tbody>
+                <tr>
+                  <td
+                    style={{
+                      width: "65%",
+                      borderRight: "2px solid black",
+                      padding: "5px",
+                      verticalAlign: "top",
+                    }}
+                  >
+                    <Group gap="xs">
+                      <Text size="xs" fw={700}>
+                        Equipment tag no:
+                      </Text>
+                      <Text size="xs" fw={700}>
+                        {data.equipmentId}
+                      </Text>
+                    </Group>
+                    <Group gap="xs" mt={2}>
+                      <Text size="xs" fw={700}>
+                        Equipment description:
+                      </Text>
+                      <Text size="xs" fw={700}>
+                        {data.equipmentDescription}
+                      </Text>
+                    </Group>
+                  </td>
+                  <td style={{ padding: "5px", verticalAlign: "top" }}>
+                    <Group gap="xs">
+                      <Text size="xs" fw={700}>
+                        Plant/Unit/Area:
+                      </Text>
+                      <Text size="xs" fw={700}>
+                        {data.plantUnitArea || "Plant 1"}
+                      </Text>
+                    </Group>
+                    <Group gap="xs" mt={2}>
+                      <Text size="xs" fw={700}>
+                        DOSH registration no.:
+                      </Text>
+                      <Text size="xs" fw={700}>
+                        {data.doshNumber || "MK PMT 1002"}
+                      </Text>
+                    </Group>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
             <div
               style={{
                 backgroundColor: "#999",
@@ -478,133 +524,147 @@ export const InspectionReportView = ({
                 borderCollapse: "collapse",
                 border: "2px solid black",
                 borderTop: "2px solid black",
-                borderBottom: "2px solid black",
+                borderBottom: "none", // Remove bottom border to attach to footer
+                flexGrow: 1, // Fill remaining space
               }}
             >
               <tbody>
-                {chunk.length === 0 ? (
-                  <tr>
-                    <td colSpan={2} style={{ padding: "10px" }}>
-                      <Text>No photos available.</Text>
-                    </td>
-                  </tr>
-                ) : (
-                  chunk.map((row, rowIndex) => {
-                    const globalIndex = pageIndex * 3 + rowIndex;
+                {/* Always render 3 rows */}
+                {[0, 1, 2].map((rowIndex) => {
+                  const row = chunk[rowIndex];
+                  const globalIndex = pageIndex * 3 + rowIndex;
+
+                  if (!row) {
+                    // Empty Placeholder Row
                     return (
-                      <tr key={rowIndex}>
-                        {/* Left: Images */}
+                      <tr
+                        key={`empty-${rowIndex}`}
+                        style={{ height: "33.33%" }}
+                      >
                         <td
                           style={{
                             width: "50%",
                             borderRight: "2px solid black",
                             borderBottom: "2px solid black",
                             padding: "10px",
-                            verticalAlign: "top",
-                            position: "relative",
                           }}
-                        >
-                          <div
-                            style={{
-                              position: "absolute",
-                              top: 0,
-                              left: 0,
-                              backgroundColor: "black",
-                              color: "white",
-                              padding: "2px 8px",
-                              fontSize: "10pt",
-                              fontWeight: "bold",
-                              zIndex: 10,
-                            }}
-                          >
-                            Photo {globalIndex + 1}
-                          </div>
-                          <div
-                            style={{
-                              marginTop: "25px",
-                              display: "flex",
-                              flexWrap: "wrap",
-                              gap: "5px",
-                            }}
-                          >
-                            {row.photoUrls &&
-                              row.photoUrls.map((url, imgIndex) => {
-                                const totalImgs = row.photoUrls.length;
-                                const width = totalImgs === 1 ? "100%" : "48%";
-                                return (
-                                  <div
-                                    key={imgIndex}
-                                    style={{
-                                      width: width,
-                                      position: "relative",
-                                    }}
-                                  >
-                                    <Image
-                                      src={url}
-                                      w="100%"
-                                      fit="contain"
-                                      style={{ border: "1px solid #ccc" }}
-                                    />
-                                    <div
-                                      style={{
-                                        position: "absolute",
-                                        top: "10px",
-                                        left: "10px",
-                                        backgroundColor: "white",
-                                        border: "1px solid red",
-                                        color: "black",
-                                        padding: "2px 5px",
-                                        fontSize: "10pt",
-                                        fontWeight: "bold",
-                                      }}
-                                    >
-                                      {globalIndex + 1}.{imgIndex + 1}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                          </div>
-                        </td>
-                        {/* Right: Text */}
+                        ></td>
                         <td
                           style={{
                             width: "50%",
                             padding: "10px",
-                            verticalAlign: "top",
                             borderBottom: "2px solid black",
                           }}
-                        >
-                          <Text td="underline" fw={700} size="sm">
-                            Finding:
-                          </Text>
-                          <Text
-                            size="sm"
-                            mb="sm"
-                            style={{ whiteSpace: "pre-wrap" }}
-                          >
-                            {row.finding || "No findings recorded."}
-                          </Text>
-                          <Text td="underline" fw={700} size="sm">
-                            Recommendation:
-                          </Text>
-                          <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
-                            {row.recommendation || "Nil."}
-                          </Text>
-                        </td>
+                        ></td>
                       </tr>
                     );
-                  })
-                )}
+                  }
+
+                  return (
+                    <tr key={rowIndex} style={{ height: "33.33%" }}>
+                      {/* Left: Images */}
+                      <td
+                        style={{
+                          width: "50%",
+                          borderRight: "2px solid black",
+                          borderBottom: "2px solid black",
+                          padding: "10px",
+                          verticalAlign: "top",
+                          position: "relative",
+                        }}
+                      >
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            backgroundColor: "black",
+                            color: "white",
+                            padding: "2px 8px",
+                            fontSize: "10pt",
+                            fontWeight: "bold",
+                            zIndex: 10,
+                          }}
+                        >
+                          Photo {globalIndex + 1}
+                        </div>
+                        <div
+                          style={{
+                            marginTop: "25px",
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "5px",
+                          }}
+                        >
+                          {row.photoUrls &&
+                            row.photoUrls.map((url, imgIndex) => {
+                              const totalImgs = row.photoUrls.length;
+                              const width = totalImgs === 1 ? "100%" : "48%";
+                              return (
+                                <div
+                                  key={imgIndex}
+                                  style={{
+                                    width: width,
+                                    position: "relative",
+                                  }}
+                                >
+                                  <Image
+                                    src={url}
+                                    w="100%"
+                                    fit="contain"
+                                    style={{ border: "1px solid #ccc" }}
+                                  />
+                                  <div
+                                    style={{
+                                      position: "absolute",
+                                      top: "10px",
+                                      left: "10px",
+                                      backgroundColor: "white",
+                                      border: "1px solid red",
+                                      color: "black",
+                                      padding: "2px 5px",
+                                      fontSize: "10pt",
+                                      fontWeight: "bold",
+                                    }}
+                                  >
+                                    {globalIndex + 1}.{imgIndex + 1}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </td>
+                      {/* Right: Text */}
+                      <td
+                        style={{
+                          width: "50%",
+                          padding: "10px",
+                          verticalAlign: "top",
+                          borderBottom: "2px solid black",
+                        }}
+                      >
+                        <Text td="underline" fw={700} size="sm">
+                          Finding:
+                        </Text>
+                        <Text
+                          size="sm"
+                          mb="sm"
+                          style={{ whiteSpace: "pre-wrap" }}
+                        >
+                          {row.finding || "No findings recorded."}
+                        </Text>
+                        <Text td="underline" fw={700} size="sm">
+                          Recommendation:
+                        </Text>
+                        <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                          {row.recommendation || "Nil."}
+                        </Text>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-
-            <div
-              style={{
-                flexGrow: 1,
-                borderLeft: "2px solid black",
-                borderRight: "2px solid black",
-              }}
-            ></div>
 
             {/* Footer */}
             <table

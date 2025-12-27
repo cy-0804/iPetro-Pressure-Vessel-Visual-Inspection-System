@@ -17,7 +17,7 @@ import {
   IconUserCog,
   IconDeviceDesktopAnalytics,
   IconCalendarCheck,
-  IconChecklist
+  IconChecklist,
 } from "@tabler/icons-react";
 import { ScrollArea, Stack, Text, Box, Collapse } from "@mantine/core";
 import classes from "./sideBar.module.css";
@@ -28,12 +28,16 @@ const menuSections = [
     title: "MAIN",
     items: [
       { link: "/dashboard", label: "Dashboard", icon: IconDashboard },
-      { link: "/inspection-plan", label: "Inspection Schedule", icon: IconCalendarCheck },
-      { 
-        link: "/task-monitoring", 
-        label: "Task Monitoring", 
+      {
+        link: "/inspection-plan",
+        label: "Inspection Schedule",
+        icon: IconCalendarCheck,
+      },
+      {
+        link: "/task-monitoring",
+        label: "Task Monitoring",
         icon: IconDeviceDesktopAnalytics,
-        roles: ["admin", "supervisor"] // Only for admin and supervisor
+        roles: ["admin", "supervisor"], // Only for admin and supervisor
       },
       { link: "/notification", label: "Notifications", icon: IconBellRinging },
     ],
@@ -52,7 +56,11 @@ const menuSections = [
         icon: IconSettingsPlus,
       },
       { link: "/document-upload", label: "Document Upload", icon: IconUpload },
-      
+      {
+        link: "/report-submission",
+        label: "Report Submission",
+        icon: IconReportMedical,
+      },
       {
         link: "/inspection-history",
         label: "Inspection History",
@@ -77,18 +85,13 @@ const menuSections = [
         link: "/task-planning",
         label: "Task Planning",
         icon: IconChecklist,
-        roles: ["admin", "supervisor"] // Only for admin and supervisor
+        roles: ["admin", "supervisor"], // Only for admin and supervisor
       },
       {
         link: "/supervisor-review",
         label: "Review Reports",
         icon: IconCopyCheck,
-        roles: ["admin", "supervisor"] // Only for admin and supervisor
-      },
-      {
-        link: "/report-generation",
-        label: "Generate Report",
-        icon: IconReportMedical,
+        roles: ["admin", "supervisor"], // Only for admin and supervisor
       },
     ],
   },
@@ -96,7 +99,12 @@ const menuSections = [
   {
     title: "SETTINGS",
     items: [
-      { link: "/storage", label: "Storage", icon: IconCloudFog, roles: ["admin"] }, // Only for admin
+      {
+        link: "/storage",
+        label: "Storage",
+        icon: IconCloudFog,
+        roles: ["admin"],
+      }, // Only for admin
       { link: "/user-profile", label: "My Profile", icon: IconUser },
       {
         link: "/other-settings",
@@ -111,11 +119,11 @@ const menuSections = [
 export function SideBar({ toggle, role }) {
   // All sections start close by default
   const [expandedSections, setExpandedSections] = useState({
-    "MAIN": false,
-    "ADMINISTRATION": false,
+    MAIN: false,
+    ADMINISTRATION: false,
     "EQUIPMENT & INSPECTION": false,
     "MANAGEMENT & REPORTING": false,
-    "SETTINGS": false,
+    SETTINGS: false,
   });
 
   const toggleSection = (sectionTitle) => {
@@ -160,8 +168,10 @@ export function SideBar({ toggle, role }) {
       }
 
       if (userRole === "inspector") {
-        return section.title.includes("EQUIPMENT & INSPECTION") ||
-        section.title.includes("MANAGEMENT & REPORTING")
+        return (
+          section.title.includes("EQUIPMENT & INSPECTION") ||
+          section.title.includes("MANAGEMENT & REPORTING")
+        );
       }
 
       return false;

@@ -9,6 +9,7 @@ import {
   doc,
   getDoc,
   updateDoc,
+  deleteDoc,
   serverTimestamp,
 } from "firebase/firestore";
 import {
@@ -31,10 +32,12 @@ import {
   IconFileText,
   IconDeviceFloppy,
   IconSend,
+  IconEdit,
+  IconTrash,
 } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 
-const ReportGeneration = () => {
+const ReportSubmission = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const reportId = searchParams.get("id");
@@ -121,7 +124,7 @@ const ReportGeneration = () => {
         report={selectedReport}
         onBack={() => {
           setSelectedReport(null);
-          navigate("/report-generation"); // Clear ID from URL
+          navigate("/report-submission"); // Clear ID from URL
         }}
         isDraft={selectedReport.status === "Draft"}
       />
@@ -132,13 +135,14 @@ const ReportGeneration = () => {
   return (
     <Container size="xl" py="xl">
       <Title order={2} mb="lg">
-        Report Generation & Review
+        Report Submission
       </Title>
 
       <Paper withBorder shadow="sm" radius="md" overflow="hidden">
         <Table highlightOnHover verticalSpacing="sm">
           <Table.Thead>
             <Table.Tr>
+              <Table.Th>Report No</Table.Th>
               <Table.Th>Tag No / Equipment</Table.Th>
               <Table.Th>Inspector</Table.Th>
               <Table.Th>Date</Table.Th>
@@ -149,13 +153,16 @@ const ReportGeneration = () => {
           <Table.Tbody>
             {reports.length === 0 && (
               <Table.Tr>
-                <Table.Td colSpan={5} align="center">
+                <Table.Td colSpan={6} align="center">
                   No reports found.
                 </Table.Td>
               </Table.Tr>
             )}
             {reports.map((r) => (
               <Table.Tr key={r.id}>
+                <Table.Td fw={600} style={{ fontFamily: "monospace" }}>
+                  {r.reportNo || "N/A"}
+                </Table.Td>
                 <Table.Td>
                   <Text fw={500}>{r.equipmentId || "N/A"}</Text>
                   <Text size="xs" c="dimmed">
@@ -203,7 +210,6 @@ const ReportEditor = ({ report, onBack, isDraft }) => {
   const [data, setData] = useState(report);
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
-
   const handlePrint = () => {
     window.print();
   };
@@ -242,6 +248,37 @@ const ReportEditor = ({ report, onBack, isDraft }) => {
     }
   };
 
+  const handleDelete = async () => {
+    if (
+      !confirm(
+        "Are you sure you want to delete this draft? This cannot be undone."
+      )
+    )
+      return;
+
+    setSubmitting(true);
+    try {
+      await deleteDoc(doc(db, "inspections", data.id));
+      notifications.show({
+        title: "Deleted",
+        message: "Draft report deleted successfully.",
+        color: "blue",
+      });
+      navigate("/report-submission");
+      // Force refresh or let the parent component handle re-mount
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      notifications.show({
+        title: "Error",
+        message: "Failed to delete report",
+        color: "red",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <Box>
       {/* Toolbar */}
@@ -257,6 +294,24 @@ const ReportEditor = ({ report, onBack, isDraft }) => {
         <Group>
           {isDraft && (
             <>
+              <Button
+                color="red"
+                variant="outline"
+                leftSection={<IconTrash size={16} />}
+                loading={submitting}
+                onClick={handleDelete}
+              >
+                Delete
+              </Button>
+              <Button
+                variant="outline"
+                leftSection={<IconEdit size={16} />}
+                onClick={() =>
+                  navigate("/edit-inspection", { state: { reportData: data } })
+                }
+              >
+                Edit Full Details
+              </Button>
               <Button
                 variant="default"
                 leftSection={<IconDeviceFloppy size={16} />}
@@ -296,4 +351,4 @@ const ReportEditor = ({ report, onBack, isDraft }) => {
   );
 };
 
-export default ReportGeneration;
+export default ReportSubmission;

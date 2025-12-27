@@ -65,7 +65,8 @@ const initialFormState = {
   recommendation: "",
   inspectionType: "VI", // Default to VI
 };
-const InspectionForm = () => {
+
+const EditInspectionForm = () => {
   const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState(0);
   const [formData, setFormData] = useState(initialFormState);
@@ -77,8 +78,6 @@ const InspectionForm = () => {
 
   // Modal for Equipment Search
   const [opened, { open, close }] = useDisclosure(false);
-
-  // ... (skipping initial effects)
 
   const location = useLocation();
   const [editingReportId, setEditingReportId] = useState(null);
@@ -127,17 +126,13 @@ const InspectionForm = () => {
         color: "blue",
       });
     } else {
-      // Auto-fill Date and Inspector (Only if NEW)
-      const today = new Date().toISOString().split("T")[0];
-      const currentUser = auth.currentUser;
-      const inspector =
-        currentUser?.displayName || currentUser?.email || "Unknown Inspector";
-
-      setFormData((prev) => ({
-        ...prev,
-        inspectionDate: prev.inspectionDate || today,
-        inspectorName: prev.inspectorName || inspector,
-      }));
+      // If accessed directly without state, redirect back
+      notifications.show({
+        title: "Error",
+        message: "No report selected for editing.",
+        color: "red",
+      });
+      navigate("/");
     }
 
     // Equipment List
@@ -148,15 +143,10 @@ const InspectionForm = () => {
         setEquipmentList(list);
       } catch (err) {
         console.error("Failed to load equipment list:", err);
-        notifications.show({
-          title: "Error",
-          message: "Failed to load equipment list",
-          color: "red",
-        });
       }
     };
     fetchEquipment();
-  }, [location.state]);
+  }, [location.state, navigate]);
 
   // --- Handlers: Step 1 (General Form) ---
   const handleChange = (name, value) => {
@@ -248,11 +238,32 @@ const InspectionForm = () => {
     setPhotoRows((prev) =>
       prev.map((row) => {
         if (row.id === rowId) {
-          const newFiles = [...row.files];
           const newPreviews = [...row.previews];
-          newFiles.splice(index, 1);
+          const existingCount = row.existingUrls ? row.existingUrls.length : 0;
+
+          // Remove from previews
           newPreviews.splice(index, 1);
-          return { ...row, files: newFiles, previews: newPreviews };
+
+          if (index < existingCount) {
+            // It's an existing URL
+            const newExisting = [...row.existingUrls];
+            newExisting.splice(index, 1);
+            return {
+              ...row,
+              existingUrls: newExisting,
+              previews: newPreviews,
+            };
+          } else {
+            // It's a new file
+            const fileIndex = index - existingCount;
+            const newFiles = [...row.files];
+            newFiles.splice(fileIndex, 1);
+            return {
+              ...row,
+              files: newFiles,
+              previews: newPreviews,
+            };
+          }
         }
         return row;
       })
@@ -266,21 +277,28 @@ const InspectionForm = () => {
 
     setIsSubmitting(true);
     try {
-      // Generate new Document ID first
-      const newDocRef = doc(collection(db, "inspections"));
-      const newDocId = newDocRef.id;
+      // Determine Document Reference (New or Edit)
+      let docRef;
+      if (editingReportId) {
+        docRef = doc(db, "inspections", editingReportId);
+      } else {
+        // Fallback or error, but this component is Edit Only
+        docRef = doc(collection(db, "inspections"));
+      }
+      const docId = docRef.id;
 
       const uploadedPhotos = [];
 
       for (const row of photoRows) {
-        const photoUrls = [];
+        // Start with existing URLs if any
+        const photoUrls = [...(row.existingUrls || [])];
 
-        // Upload all files in this row
+        // Upload all NEW files in this row
         if (row.files && row.files.length > 0) {
           for (const file of row.files) {
             const storageRef = ref(
               storage,
-              `inspection-photos/${newDocId}/${Date.now()}-${file.name}`
+              `inspection-photos/${docId}/${Date.now()}-${file.name}`
             );
             await uploadBytes(storageRef, file);
             const url = await getDownloadURL(storageRef);
@@ -299,19 +317,17 @@ const InspectionForm = () => {
         }
       }
 
-      // Generate Report No: PLANT/VI/TAG/TA2025
-      // Ensure plantUnitArea is clean (trimmed and stripped of spaces)
+      // Generate Report No (Update if needed, but usually stays same on edit unless fields change)
+      // Format: [Plant]/[Type]/[Tag]/TA[Year]
       const plant = formData.plantUnitArea
         ? formData.plantUnitArea.trim().toUpperCase().replace(/\s+/g, "")
         : "PLANT";
       const tag = formData.equipmentId
         ? formData.equipmentId.trim().toUpperCase().replace(/\s+/g, "")
         : "TAG";
-      // Construct Report No
-      // Format: [Plant]/[Type]/[Tag]/TA[Year]
       const typeCode = formData.inspectionType || "VI";
 
-      // Extract year from inspectionDate (YYYY-MM-DD or Date object)
+      // Extract year from inspectionDate
       const dateObj = new Date(formData.inspectionDate);
       const year = !isNaN(dateObj.getFullYear())
         ? dateObj.getFullYear()
@@ -319,26 +335,26 @@ const InspectionForm = () => {
 
       const reportNo = `${plant}/${typeCode}/${tag}/TA${year}`;
 
-      // Save everything to Firestore
+      // Prepare Final Data
       const finalData = {
         ...formData,
-        reportNo: reportNo, // Add generated Report No
+        reportNo: reportNo,
         photoReport: uploadedPhotos,
-        status: "Draft", // Changed to Draft
-        createdAt: serverTimestamp(),
+        status: "Draft",
         updatedAt: serverTimestamp(),
       };
 
-      await setDoc(newDocRef, finalData);
+      // Save to Firestore with Update semantics
+      await updateDoc(docRef, finalData);
 
       notifications.show({
-        title: "Draft Saved",
+        title: "Report Updated",
         message: "Redirecting to Report Review...",
         color: "blue",
       });
 
-      // Navigate to Report Generation for final review
-      navigate(`/report-submission?id=${newDocId}`);
+      // Navigate to Report Generation
+      navigate(`/report-submission?id=${docId}`);
     } catch (error) {
       console.error("Step 2 Error:", error);
       notifications.show({
@@ -354,7 +370,7 @@ const InspectionForm = () => {
   return (
     <Container size="lg" maw={1200} py="xl">
       <Title order={2} mb="md">
-        Inspection Report
+        Edit Inspection Report
       </Title>
 
       <Stepper
@@ -794,11 +810,11 @@ const InspectionForm = () => {
                       </Dropzone>
                     </Box>
 
-                    {/* Column 2: Finding */}
+                    {/* Column 2: Specific Finding */}
                     <Textarea
-                      label="Specific Finding / Observation"
-                      placeholder="Describe what is seen in the photo..."
-                      minRows={6}
+                      label="Specific Finding"
+                      placeholder="Describe what's in the photo..."
+                      minRows={4}
                       value={row.finding}
                       onChange={(e) =>
                         updatePhotoRow(row.id, "finding", e.currentTarget.value)
@@ -807,9 +823,9 @@ const InspectionForm = () => {
 
                     {/* Column 3: Recommendation */}
                     <Textarea
-                      label="Specific Recommendation"
-                      placeholder="Action required for this specific item..."
-                      minRows={6}
+                      label="Recommendation"
+                      placeholder="Action required..."
+                      minRows={4}
                       value={row.recommendation}
                       onChange={(e) =>
                         updatePhotoRow(
@@ -823,29 +839,25 @@ const InspectionForm = () => {
                 </Paper>
               ))}
 
-              <Group justify="center" mt="md">
-                <Button
-                  leftSection={<IconPlus size={16} />}
-                  variant="outline"
-                  onClick={addPhotoRow}
-                >
-                  Add Photo Row
-                </Button>
-              </Group>
+              <Button
+                variant="outline"
+                leftSection={<IconPlus size={16} />}
+                onClick={addPhotoRow}
+              >
+                Add Photo Row
+              </Button>
 
-              <Divider my="lg" />
-
-              <Group justify="flex-end">
+              <Group justify="space-between" mt="xl">
                 <Button variant="default" onClick={() => setActiveStep(0)}>
-                  Back to Details
+                  Back
                 </Button>
                 <Button
                   color="green"
-                  leftSection={<IconCheck size={16} />}
                   onClick={handleStep2Submit}
                   loading={isSubmitting}
+                  leftSection={<IconCheck size={18} />}
                 >
-                  Complete Report
+                  Complete & Save Report
                 </Button>
               </Group>
             </Stack>
@@ -853,155 +865,56 @@ const InspectionForm = () => {
         </Stepper.Step>
       </Stepper>
 
-      {/* Search Modal */}
-      <EquipmentSearchModal
-        opened={opened}
-        onClose={close}
-        equipmentList={equipmentList}
-        onPick={handleEquipmentPick}
-      />
+      {/* Equipment Search Modal */}
+      <Modal opened={opened} onClose={close} title="Search Equipment" size="lg">
+        <Stack>
+          {equipmentList.map((eq) => (
+            <Paper
+              key={eq.docId}
+              withBorder
+              p="sm"
+              style={{ cursor: "pointer" }}
+              onClick={() => handleEquipmentPick(eq)}
+              hover={{ bg: "gray.0" }}
+            >
+              <Group justify="space-between">
+                <div>
+                  <Text fw={600}>{eq.tagNumber}</Text>
+                  <Text size="sm" c="dimmed">
+                    {eq.equipmentDescription}
+                  </Text>
+                </div>
+                <Badge>{eq.plantUnitArea}</Badge>
+              </Group>
+            </Paper>
+          ))}
+        </Stack>
+      </Modal>
     </Container>
   );
 };
 
-// --- Helper Components ---
-
-function EquipmentSearchModal({ opened, onClose, equipmentList, onPick }) {
-  const [query, setQuery] = useState("");
-
-  const q = query.toLowerCase().trim();
-  const results = equipmentList
-    .filter((eq) => {
-      const fields = [
-        eq.tagNumber,
-        eq.type,
-        eq.plantUnitArea,
-        eq.doshNumber,
-        eq.service,
-        eq.status,
-        eq.function,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return q === "" ? true : fields.includes(q);
-    })
-    .slice(0, 15);
-
-  return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title="Select Equipment Database"
-      size="lg"
-      centered
+const ImagePreviewItem = ({ src, onDelete, height }) => (
+  <div style={{ position: "relative", width: "100%", height: height }}>
+    <Image
+      src={src}
+      height={height}
+      radius="sm"
+      style={{ objectFit: "cover" }}
+    />
+    <ActionIcon
+      color="red"
+      variant="filled"
+      size="sm"
+      style={{ position: "absolute", top: 4, right: 4 }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onDelete();
+      }}
     >
-      <TextInput
-        placeholder="Type Tag No, DOSH, or Plant..."
-        leftSection={<IconSearch size={16} />}
-        value={query}
-        onChange={(e) => setQuery(e.currentTarget.value)}
-        mb="md"
-        data-autofocus
-      />
+      <IconX size={12} />
+    </ActionIcon>
+  </div>
+);
 
-      <Stack gap="xs" style={{ maxHeight: "60vh", overflowY: "auto" }}>
-        {results.length === 0 && (
-          <Text c="dimmed" align="center" py="xl">
-            No matching equipment found.
-          </Text>
-        )}
-        {results.map((eq) => (
-          <Paper
-            key={eq.docId}
-            withBorder
-            p="sm"
-            onClick={() => onPick(eq)}
-            style={{ cursor: "pointer", transition: "background-color 0.2s" }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = "#f1f3f5")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor = "transparent")
-            }
-          >
-            <Group wrap="nowrap">
-              <Image
-                src={eq.imageUrl || "https://placehold.co/48?text=Eq"}
-                w={48}
-                h={48}
-                radius="md"
-              />
-              <Box style={{ flex: 1 }}>
-                <Group justify="space-between" mb={2}>
-                  <Text fw={600} size="sm">
-                    {eq.tagNumber || "(No Tag)"}
-                  </Text>
-                  <Badge
-                    size="sm"
-                    variant="outline"
-                    color={eq.status === "Active" ? "green" : "yellow"}
-                  >
-                    {eq.status}
-                  </Badge>
-                </Group>
-                <Text size="xs" c="dimmed">
-                  {[eq.type, eq.plantUnitArea, eq.doshNumber]
-                    .filter(Boolean)
-                    .join(" • ")}
-                </Text>
-                <Text size="xs" lineClamp={1}>
-                  {eq.equipmentDescription}
-                </Text>
-              </Box>
-            </Group>
-          </Paper>
-        ))}
-      </Stack>
-    </Modal>
-  );
-}
-
-const ImagePreviewItem = ({ src, onDelete, height }) => {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <Box
-      pos="relative"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      h={height}
-    >
-      <Image src={src} radius="sm" h="100%" w="auto" fit="cover" />
-      {hovered && (
-        <Box
-          pos="absolute"
-          top={0}
-          left={0}
-          w="100%"
-          h="100%"
-          bg="rgba(0,0,0,0.5)"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 4,
-            zIndex: 10,
-          }}
-        >
-          <ActionIcon
-            color="red"
-            variant="filled"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-          >
-            <IconTrash size={16} />
-          </ActionIcon>
-        </Box>
-      )}
-    </Box>
-  );
-};
-
-export default InspectionForm;
+export default EditInspectionForm;

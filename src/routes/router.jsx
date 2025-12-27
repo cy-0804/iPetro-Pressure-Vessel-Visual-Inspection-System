@@ -19,7 +19,8 @@ import EquipmentRegistration from "../pages/EquipmentRegistration.jsx";
 
 // New Pages (Inspector)
 import InspectionForm from "../pages/InspectionForm.jsx";
-import ReportGeneration from "../pages/ReportGeneration.jsx";
+import EditInspectionForm from "../pages/EditInspectionForm.jsx";
+import ReportSubmission from "../pages/ReportSubmission.jsx";
 
 // New Pages (Supervisor)
 import TaskPlanning from "../pages/supervisor/TaskPlanning.jsx";
@@ -56,8 +57,18 @@ export const router = createBrowserRouter([
           // --- INSPECTOR (I) ---
           { path: "/equipment", element: <EquipmentRegistration /> },
           { path: "/inspection-plan", element: <InspectionCalendar /> }, // "View Assigned Schedule"
-          { path: "/inspection-form", element: <InspectionForm /> }, // "Inspection Execution"
-          { path: "/report-generation", element: <ReportGeneration /> }, // "Generate Report"
+          {
+            path: "/inspection-form",
+            element: <InspectionForm />,
+          },
+          {
+            path: "/edit-inspection",
+            element: <EditInspectionForm />,
+          },
+          {
+            path: "/report-submission",
+            element: <ReportSubmission />,
+          }, // "Generate Report"
           { path: "/inspection-history", element: <InspectionReportHistory /> }, // "History"
 
           // --- SUPERVISOR (I.S) ---
