@@ -1,6 +1,13 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { db, auth, storage } from "../firebase";
-import { collection, doc, setDoc, serverTimestamp, getDocs } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  setDoc,
+  serverTimestamp,
+  getDocs,
+} from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
   Container,
@@ -27,8 +34,17 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { Dropzone, IMAGE_MIME_TYPE } from '@mantine/dropzone';
-import { IconSearch, IconDeviceFloppy, IconPhoto, IconPlus, IconTrash, IconCheck, IconUpload, IconX } from "@tabler/icons-react";
+import { Dropzone, IMAGE_MIME_TYPE } from "@mantine/dropzone";
+import {
+  IconSearch,
+  IconDeviceFloppy,
+  IconPhoto,
+  IconPlus,
+  IconTrash,
+  IconCheck,
+  IconUpload,
+  IconX,
+} from "@tabler/icons-react";
 
 // Standard report fields
 const initialFormState = {
@@ -36,11 +52,8 @@ const initialFormState = {
   equipmentDescription: "",
   doshNumber: "",
   plantUnitArea: "",
-  fabricator: "",
-  type: "",
   inspectionDate: "",
   inspectorName: "",
-  location: "",
   condition: "",
   preInspectionFinding: "",
   finalInspectionFinding: "",
@@ -50,11 +63,12 @@ const initialFormState = {
   recommendation: "",
 };
 const InspectionForm = () => {
+  const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState(0);
   const [formData, setFormData] = useState(initialFormState);
   const [equipmentList, setEquipmentList] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // Step 2 State
   const [photoRows, setPhotoRows] = useState([]); // { id, file, preview, finding, recommendation }
 
@@ -73,7 +87,11 @@ const InspectionForm = () => {
         setEquipmentList(list);
       } catch (err) {
         console.error("Failed to load equipment list:", err);
-        notifications.show({ title: "Error", message: "Failed to load equipment list", color: "red" });
+        notifications.show({
+          title: "Error",
+          message: "Failed to load equipment list",
+          color: "red",
+        });
       }
     };
     fetchEquipment();
@@ -81,12 +99,13 @@ const InspectionForm = () => {
     // Auto-fill Date and Inspector
     const today = new Date().toISOString().split("T")[0];
     const currentUser = auth.currentUser;
-    const inspector = currentUser?.displayName || currentUser?.email || "Unknown Inspector";
+    const inspector =
+      currentUser?.displayName || currentUser?.email || "Unknown Inspector";
 
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       inspectionDate: prev.inspectionDate || today,
-      inspectorName: prev.inspectorName || inspector
+      inspectorName: prev.inspectorName || inspector,
     }));
   }, []);
 
@@ -102,414 +121,652 @@ const InspectionForm = () => {
       equipmentDescription: eq.equipmentDescription || "",
       doshNumber: eq.doshNumber || "",
       plantUnitArea: eq.plantUnitArea || "",
-      fabricator: eq.fabricator || "",
-      type: eq.type || "",
     }));
     close();
-    notifications.show({ title: "Equipment Loaded", message: `Loaded details for ${eq.tagNumber}`, color: "blue" });
+    notifications.show({
+      title: "Equipment Loaded",
+      message: `Loaded details for ${eq.tagNumber}`,
+      color: "blue",
+    });
   };
 
   const handleStep1Submit = (e) => {
     e.preventDefault();
 
-    if (!formData.equipmentId || !formData.inspectionDate || !formData.inspectorName) {
-      notifications.show({ title: "Validation Error", message: "Please fill in Equipment ID, Date and Inspector Name.", color: "red" });
+    if (
+      !formData.equipmentId ||
+      !formData.inspectionDate ||
+      !formData.inspectorName
+    ) {
+      notifications.show({
+        title: "Validation Error",
+        message: "Please fill in Equipment ID, Date and Inspector Name.",
+        color: "red",
+      });
       return;
     }
 
     // Auto-add first row if empty
     if (photoRows.length === 0) {
-      setPhotoRows([{ id: Date.now(), files: [], previews: [], finding: "", recommendation: "" }]);
+      setPhotoRows([
+        {
+          id: Date.now(),
+          files: [],
+          previews: [],
+          finding: "",
+          recommendation: "",
+        },
+      ]);
     }
     setActiveStep(1); // Move to Step 2
-    notifications.show({ title: "Step 1 Validated", message: "Proceeding to Photo Report...", color: "blue" });
+    notifications.show({
+      title: "Step 1 Validated",
+      message: "Proceeding to Photo Report...",
+      color: "blue",
+    });
   };
 
   // --- Handlers: Step 2 (Photo Report) ---
   const addPhotoRow = () => {
-    setPhotoRows(prev => [
-      ...prev, 
-      { id: Date.now(), files: [], previews: [], finding: "", recommendation: "" }
+    setPhotoRows((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        files: [],
+        previews: [],
+        finding: "",
+        recommendation: "",
+      },
     ]);
   };
 
   const updatePhotoRow = (id, field, value) => {
-    setPhotoRows(prev => prev.map(row => {
-      if (row.id === id) {
-        return { ...row, [field]: value };
-      }
-      return row;
-    }));
+    setPhotoRows((prev) =>
+      prev.map((row) => {
+        if (row.id === id) {
+          return { ...row, [field]: value };
+        }
+        return row;
+      })
+    );
   };
 
   const removePhotoRow = (id) => {
-    setPhotoRows(prev => prev.filter(row => row.id !== id));
+    setPhotoRows((prev) => prev.filter((row) => row.id !== id));
   };
 
   const removeImageFromRow = (rowId, index) => {
-    setPhotoRows(prev => prev.map(row => {
-      if (row.id === rowId) {
-         const newFiles = [...row.files];
-         const newPreviews = [...row.previews];
-         newFiles.splice(index, 1);
-         newPreviews.splice(index, 1);
-         return { ...row, files: newFiles, previews: newPreviews };
-      }
-      return row;
-    }));
+    setPhotoRows((prev) =>
+      prev.map((row) => {
+        if (row.id === rowId) {
+          const newFiles = [...row.files];
+          const newPreviews = [...row.previews];
+          newFiles.splice(index, 1);
+          newPreviews.splice(index, 1);
+          return { ...row, files: newFiles, previews: newPreviews };
+        }
+        return row;
+      })
+    );
   };
 
   const handleStep2Submit = async () => {
     if (photoRows.length === 0) {
-        if(!confirm("Submit report without specific photos?")) return;
+      if (!confirm("Submit report without specific photos?")) return;
     }
 
     setIsSubmitting(true);
     try {
-        // Generate new Document ID first
-        const newDocRef = doc(collection(db, "inspections"));
-        const newDocId = newDocRef.id;
+      // Generate new Document ID first
+      const newDocRef = doc(collection(db, "inspections"));
+      const newDocId = newDocRef.id;
 
-        const uploadedPhotos = [];
+      const uploadedPhotos = [];
 
-        for (const row of photoRows) {
-            const photoUrls = [];
-            
-            // Upload all files in this row
-            if (row.files && row.files.length > 0) {
-                for (const file of row.files) {
-                    const storageRef = ref(storage, `inspection-photos/${newDocId}/${Date.now()}-${file.name}`);
-                    await uploadBytes(storageRef, file);
-                    const url = await getDownloadURL(storageRef);
-                    photoUrls.push(url);
-                }
-            }
+      for (const row of photoRows) {
+        const photoUrls = [];
 
-            // Only add to report if there's content or photos
-            if (photoUrls.length > 0 || row.finding || row.recommendation) {
-                 uploadedPhotos.push({
-                    finding: row.finding,
-                    recommendation: row.recommendation,
-                    photoUrls: photoUrls, 
-                    timestamp: new Date().toISOString()
-                });
-            }
+        // Upload all files in this row
+        if (row.files && row.files.length > 0) {
+          for (const file of row.files) {
+            const storageRef = ref(
+              storage,
+              `inspection-photos/${newDocId}/${Date.now()}-${file.name}`
+            );
+            await uploadBytes(storageRef, file);
+            const url = await getDownloadURL(storageRef);
+            photoUrls.push(url);
+          }
         }
 
-        // Save everything to Firestore
-        const finalData = {
-            ...formData,
-            photoReport: uploadedPhotos,
-            status: "Completed",
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-        };
+        // Only add to report if there's content or photos
+        if (photoUrls.length > 0 || row.finding || row.recommendation) {
+          uploadedPhotos.push({
+            finding: row.finding,
+            recommendation: row.recommendation,
+            photoUrls: photoUrls,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
 
-        await setDoc(newDocRef, finalData);
+      // Save everything to Firestore
+      const finalData = {
+        ...formData,
+        photoReport: uploadedPhotos,
+        status: "Draft", // Changed to Draft
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
 
-        notifications.show({ title: "Success", message: "Inspection Report Completed!", color: "green" });
-        
-        // Reset Everything
-        setFormData(initialFormState);
-        setPhotoRows([]);
-        setActiveStep(0);
-        
-        // Re-init date/inspector
-        const today = new Date().toISOString().split("T")[0];
-        const currentUser = auth.currentUser;
-        const inspector = currentUser?.displayName || currentUser?.email || "Unknown Inspector";
-        setFormData(prev => ({ ...prev, inspectionDate: today, inspectorName: inspector }));
+      await setDoc(newDocRef, finalData);
 
+      notifications.show({
+        title: "Draft Saved",
+        message: "Redirecting to Report Review...",
+        color: "blue",
+      });
+
+      // Navigate to Report Generation for final review
+      navigate(`/report-generation?id=${newDocId}`);
     } catch (error) {
-        console.error("Step 2 Error:", error);
-        notifications.show({ title: "Error", message: "Failed to save photo report.", color: "red" });
+      console.error("Step 2 Error:", error);
+      notifications.show({
+        title: "Error",
+        message: "Failed to save photo report.",
+        color: "red",
+      });
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
   return (
     <Container size="lg" maw={1200} py="xl">
-      <Title order={2} mb="md">Inspection Report</Title>
-      
-      <Stepper active={activeStep} onStepClick={setActiveStep} mb="xl" allowNextStepsSelect={false}>
-        <Stepper.Step label="Inspection Details" description="General findings & condition" allowStepSelect={activeStep > 0}>
-             {/* Step 1 Content: The General Form */}
-             <Paper withBorder shadow="sm" p="xl" radius="md">
-                <form onSubmit={handleStep1Submit}>
-                  <Stack gap="xl">
-                    {/* Section 1: Equipment Details */}
+      <Title order={2} mb="md">
+        Inspection Report
+      </Title>
+
+      <Stepper
+        active={activeStep}
+        onStepClick={setActiveStep}
+        mb="xl"
+        allowNextStepsSelect={false}
+      >
+        <Stepper.Step
+          label="Inspection Details"
+          description="General findings & condition"
+          allowStepSelect={activeStep > 0}
+        >
+          {/* Step 1 Content: The General Form */}
+          <Paper withBorder shadow="sm" p="xl" radius="md">
+            <form onSubmit={handleStep1Submit}>
+              <Stack gap="xl">
+                {/* Section 1: Equipment Details */}
+                <Box>
+                  <Divider
+                    label="Equipment Details"
+                    labelPosition="left"
+                    mb="md"
+                    fw={700}
+                  />
+                  <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
                     <Box>
-                      <Divider label="Equipment Details" labelPosition="left" mb="md" fw={700} />
-                      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
-                        <Box>
-                          <TextInput
-                            label="Tag Number"
-                            placeholder="Search..."
-                            value={formData.equipmentId}
-                            onChange={(e) => handleChange("equipmentId", e.currentTarget.value)}
-                            rightSection={
-                              <ActionIcon onClick={open} variant="filled" color="blue" size="sm">
-                                <IconSearch size={14} />
-                              </ActionIcon>
-                            }
-                            readOnly 
-                          />
-                           <Text size="xs" mt={4} c="blue" style={{ cursor: "pointer" }} onClick={open}>
-                            Click to Search Equipment 
-                          </Text>
-                        </Box>
-                        <TextInput label="DOSH No." value={formData.doshNumber} onChange={(e) => handleChange("doshNumber", e.currentTarget.value)} />
-                        <TextInput label="Plant / Unit" value={formData.plantUnitArea} onChange={(e) => handleChange("plantUnitArea", e.currentTarget.value)} />
-                        <TextInput label="Equipment Type" value={formData.type} onChange={(e) => handleChange("type", e.currentTarget.value)} />
-                        <TextInput label="Fabricator" value={formData.fabricator} onChange={(e) => handleChange("fabricator", e.currentTarget.value)} />
-                      </SimpleGrid>
-                      <Textarea 
-                        mt="md" 
-                        label="Equipment Description" 
-                        value={formData.equipmentDescription} 
-                        onChange={(e) => handleChange("equipmentDescription", e.currentTarget.value)} 
-                        minRows={2}
+                      <TextInput
+                        label="Tag Number"
+                        placeholder="Search..."
+                        value={formData.equipmentId}
+                        onChange={(e) =>
+                          handleChange("equipmentId", e.currentTarget.value)
+                        }
+                        withAsterisk
+                        rightSection={
+                          <ActionIcon
+                            onClick={open}
+                            variant="filled"
+                            color="blue"
+                            size="sm"
+                          >
+                            <IconSearch size={14} />
+                          </ActionIcon>
+                        }
+                        readOnly
                       />
+                      <Text
+                        size="xs"
+                        mt={4}
+                        c="blue"
+                        style={{ cursor: "pointer" }}
+                        onClick={open}
+                      >
+                        Click to Search Equipment
+                      </Text>
                     </Box>
-        
-                    {/* Section 2: Inspection Metadata */}
-                    <Box>
-                      <Divider label="Inspection Data" labelPosition="left" mb="md" fw={700} />
-                      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
-                        <TextInput type="date" label="Inspection Date" value={formData.inspectionDate} onChange={(e) => handleChange("inspectionDate", e.currentTarget.value)} withAsterisk />
-                        <TextInput label="Inspector Name" value={formData.inspectorName} onChange={(e) => handleChange("inspectorName", e.currentTarget.value)} withAsterisk />
-                        <TextInput label="Location" value={formData.location} onChange={(e) => handleChange("location", e.currentTarget.value)} />
-                      </SimpleGrid>
-                    </Box>
-        
-                    {/* Section 3: Findings & Conditions */}
-                    <Box>
-                      <Divider label="Condition" labelPosition="left" mb="md" fw={700} />
-                      
-                      <Textarea 
-                        label="Condition" 
-                        minRows={2} 
-                        mb="md" 
-                        value={formData.condition} 
-                        onChange={(e) => handleChange("condition", e.currentTarget.value)} 
+                    <TextInput
+                      label="DOSH No."
+                      value={formData.doshNumber}
+                      onChange={(e) =>
+                        handleChange("doshNumber", e.currentTarget.value)
+                      }
+                      withAsterisk
+                    />
+                    <TextInput
+                      label="Plant / Unit"
+                      value={formData.plantUnitArea}
+                      onChange={(e) =>
+                        handleChange("plantUnitArea", e.currentTarget.value)
+                      }
+                      withAsterisk
+                    />
+                  </SimpleGrid>
+                  <Textarea
+                    mt="md"
+                    label="Equipment Description"
+                    value={formData.equipmentDescription}
+                    onChange={(e) =>
+                      handleChange(
+                        "equipmentDescription",
+                        e.currentTarget.value
+                      )
+                    }
+                    withAsterisk
+                    minRows={2}
+                  />
+                </Box>
+
+                {/* Section 2: Inspection Metadata */}
+                <Box>
+                  <Divider
+                    label="Inspection Data"
+                    labelPosition="left"
+                    mb="md"
+                    fw={700}
+                  />
+                  <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                    <TextInput
+                      type="date"
+                      label="Inspection Date"
+                      value={formData.inspectionDate}
+                      onChange={(e) =>
+                        handleChange("inspectionDate", e.currentTarget.value)
+                      }
+                      withAsterisk
+                    />
+                    <TextInput
+                      label="Inspector Name"
+                      value={formData.inspectorName}
+                      onChange={(e) =>
+                        handleChange("inspectorName", e.currentTarget.value)
+                      }
+                      withAsterisk
+                    />
+                  </SimpleGrid>
+                </Box>
+
+                {/* Section 3: Findings & Conditions */}
+                <Box>
+                  <Divider
+                    label="Condition"
+                    labelPosition="left"
+                    mb="md"
+                    fw={700}
+                  />
+
+                  <Textarea
+                    label="Condition"
+                    minRows={2}
+                    mb="md"
+                    value={formData.condition}
+                    onChange={(e) =>
+                      handleChange("condition", e.currentTarget.value)
+                    }
+                  />
+
+                  <Divider
+                    label="Findings"
+                    labelPosition="left"
+                    mt="lg"
+                    mb="sm"
+                    fw={700}
+                  />
+
+                  {/* Initial/Pre-Inspection */}
+                  <Stack mb="md" gap="xs">
+                    <Checkbox
+                      label={<Text fw={600}>Initial/Pre-Inspection</Text>}
+                      checked={
+                        formData.preInspectionFinding !== "Not applicable"
+                      }
+                      onChange={(e) =>
+                        handleChange(
+                          "preInspectionFinding",
+                          e.currentTarget.checked ? "" : "Not applicable"
+                        )
+                      }
+                    />
+                    {formData.preInspectionFinding !== "Not applicable" && (
+                      <Textarea
+                        placeholder="Enter findings..."
+                        minRows={3}
+                        value={formData.preInspectionFinding}
+                        onChange={(e) =>
+                          handleChange(
+                            "preInspectionFinding",
+                            e.currentTarget.value
+                          )
+                        }
                       />
-
-                      <Divider label="Findings" labelPosition="left" mt="lg" mb="sm" fw={700} />
-        
-                      {/* Initial/Pre-Inspection */}
-                      <Stack mb="md" gap="xs">
-                        <Checkbox 
-                            label={<Text fw={600}>Initial/Pre-Inspection</Text>}
-                            checked={formData.preInspectionFinding !== "Not applicable"}
-                            onChange={(e) => handleChange("preInspectionFinding", e.currentTarget.checked ? "" : "Not applicable")}
-                        />
-                        {formData.preInspectionFinding !== "Not applicable" && (
-                            <Textarea 
-                                placeholder="Enter findings..."
-                                minRows={3} 
-                                value={formData.preInspectionFinding} 
-                                onChange={(e) => handleChange("preInspectionFinding", e.currentTarget.value)} 
-                            />
-                        )}
-                      </Stack>
-
-                      {/* Post/Final Inspection */}
-                      <Stack mb="md" gap="xs">
-                         <Checkbox 
-                            label={<Text fw={600}>Post/Final Inspection</Text>}
-                            checked={formData.externalCondition !== "Not applicable"}
-                            onChange={(e) => {
-                                const val = e.currentTarget.checked ? "" : "Not applicable";
-                                handleChange("externalCondition", val);
-                                handleChange("internalCondition", val);
-                            }}
-                        />
-                        {formData.externalCondition !== "Not applicable" && (
-                             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-                                <Textarea 
-                                   label="External" 
-                                   minRows={3} 
-                                   value={formData.externalCondition} 
-                                   onChange={(e) => handleChange("externalCondition", e.currentTarget.value)} 
-                               />
-                                <Textarea 
-                                   label="Internal" 
-                                   minRows={3} 
-                                   value={formData.internalCondition} 
-                                   onChange={(e) => handleChange("internalCondition", e.currentTarget.value)} 
-                               />
-                             </SimpleGrid>
-                        )}
-                      </Stack>
-
-                      <Textarea 
-                        label="NON-DESTRUCTIVE TESTINGS" 
-                        minRows={4} 
-                        mb="md"
-                        value={formData.nonDestructiveTesting} 
-                        onChange={(e) => handleChange("nonDestructiveTesting", e.currentTarget.value)} 
-                      />
-                      
-                      <Textarea 
-                        label="RECOMMENDATIONS" 
-                        minRows={4} 
-                        mb="md"
-                        value={formData.recommendation} 
-                        onChange={(e) => handleChange("recommendation", e.currentTarget.value)} 
-                      />
-                    </Box>
-
-                    <Button type="submit" size="md" rightSection={<IconDeviceFloppy size={18} />} loading={isSubmitting}>
-                      Save and Proceed to Photos
-                    </Button>
+                    )}
                   </Stack>
-                </form>
-             </Paper>
+
+                  {/* Post/Final Inspection */}
+                  <Stack mb="md" gap="xs">
+                    <Checkbox
+                      label={<Text fw={600}>Post/Final Inspection</Text>}
+                      checked={formData.externalCondition !== "Not applicable"}
+                      onChange={(e) => {
+                        const val = e.currentTarget.checked
+                          ? ""
+                          : "Not applicable";
+                        handleChange("externalCondition", val);
+                        handleChange("internalCondition", val);
+                      }}
+                    />
+                    {formData.externalCondition !== "Not applicable" && (
+                      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                        <Textarea
+                          label="External"
+                          minRows={3}
+                          value={formData.externalCondition}
+                          onChange={(e) =>
+                            handleChange(
+                              "externalCondition",
+                              e.currentTarget.value
+                            )
+                          }
+                        />
+                        <Textarea
+                          label="Internal"
+                          minRows={3}
+                          value={formData.internalCondition}
+                          onChange={(e) =>
+                            handleChange(
+                              "internalCondition",
+                              e.currentTarget.value
+                            )
+                          }
+                        />
+                      </SimpleGrid>
+                    )}
+                  </Stack>
+
+                  <Textarea
+                    label="NON-DESTRUCTIVE TESTINGS"
+                    minRows={4}
+                    mb="md"
+                    value={formData.nonDestructiveTesting}
+                    onChange={(e) =>
+                      handleChange(
+                        "nonDestructiveTesting",
+                        e.currentTarget.value
+                      )
+                    }
+                  />
+
+                  <Textarea
+                    label="RECOMMENDATIONS"
+                    minRows={4}
+                    mb="md"
+                    value={formData.recommendation}
+                    onChange={(e) =>
+                      handleChange("recommendation", e.currentTarget.value)
+                    }
+                  />
+                </Box>
+
+                <Button
+                  type="submit"
+                  size="md"
+                  rightSection={<IconDeviceFloppy size={18} />}
+                  loading={isSubmitting}
+                >
+                  Save and Proceed to Photos
+                </Button>
+              </Stack>
+            </form>
+          </Paper>
         </Stepper.Step>
 
-        <Stepper.Step label="Photo Report" description="Upload photos with findings">
-            {/* Step 2 Content: Photo Report */}
-            <Paper withBorder shadow="sm" p="xl" radius="md">
-                <Stack>
-                    <Title order={4}>Photo Evidence & Specific Recommendations</Title>
-                    <Text c="dimmed" size="sm">Add photos of specific defects/observations along with dedicated findings.</Text>
-                    
-                    {photoRows.length === 0 && (
-                         <Box p="xl" bg="gray.1" style={{ textAlign: 'center', borderRadius: 8 }}>
-                            <Text c="dimmed">No photos added yet. Click "Add Photo Row" to begin.</Text>
-                         </Box>
-                    )}
+        <Stepper.Step
+          label="Photo Report"
+          description="Upload photos with findings"
+        >
+          {/* Step 2 Content: Photo Report */}
+          <Paper withBorder shadow="sm" p="xl" radius="md">
+            <Stack>
+              <Title order={4}>Photo Evidence & Specific Recommendations</Title>
+              <Text c="dimmed" size="sm">
+                Add photos of specific defects/observations along with dedicated
+                findings.
+              </Text>
 
-                    {photoRows.map((row, index) => (
-                        <Paper key={row.id} withBorder p="md" bg="gray.0">
-                            <Group align="flex-start" justify="space-between" mb="xs">
-                                <Badge variant="filled" color="gray">Photo #{index + 1}</Badge>
-                                <ActionIcon color="red" variant="subtle" onClick={() => removePhotoRow(row.id)}><IconTrash size={16}/></ActionIcon>
-                            </Group>
-                            <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
-                                 {/* Column 1: Image */}
-                                 <Box>
-                                     <Dropzone
-                                        onDrop={(files) => {
-                                            if (files.length === 0) return;
-                                            
-                                            setPhotoRows(prev => {
-                                                const newRows = [...prev];
-                                                const targetIndex = newRows.findIndex(r => r.id === row.id);
-                                                
-                                                if (targetIndex !== -1) {
-                                                    const existingFiles = newRows[targetIndex].files || [];
-                                                    const currentCount = existingFiles.length;
+              {photoRows.length === 0 && (
+                <Box
+                  p="xl"
+                  bg="gray.1"
+                  style={{ textAlign: "center", borderRadius: 8 }}
+                >
+                  <Text c="dimmed">
+                    No photos added yet. Click "Add Photo Row" to begin.
+                  </Text>
+                </Box>
+              )}
 
-                                                    if (currentCount >= 5) {
-                                                        notifications.show({ title: 'Limit Reached', message: 'Maximum 5 photos allowed per row.', color: 'red' });
-                                                        return prev;
-                                                    }
+              {photoRows.map((row, index) => (
+                <Paper key={row.id} withBorder p="md" bg="gray.0">
+                  <Group align="flex-start" justify="space-between" mb="xs">
+                    <Badge variant="filled" color="gray">
+                      Photo #{index + 1}
+                    </Badge>
+                    <ActionIcon
+                      color="red"
+                      variant="subtle"
+                      onClick={() => removePhotoRow(row.id)}
+                    >
+                      <IconTrash size={16} />
+                    </ActionIcon>
+                  </Group>
+                  <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
+                    {/* Column 1: Image */}
+                    <Box>
+                      <Dropzone
+                        onDrop={(files) => {
+                          if (files.length === 0) return;
 
-                                                    let filesToAdd = files;
-                                                    if (currentCount + files.length > 5) {
-                                                        const allowed = 5 - currentCount;
-                                                        filesToAdd = files.slice(0, allowed);
-                                                        notifications.show({ 
-                                                            title: 'Limit Reached', 
-                                                            message: `Only ${allowed} photo(s) added to meet the limit of 5.`, 
-                                                            color: 'orange' 
-                                                        });
-                                                    }
+                          setPhotoRows((prev) => {
+                            const newRows = [...prev];
+                            const targetIndex = newRows.findIndex(
+                              (r) => r.id === row.id
+                            );
 
-                                                    const existingPreviews = newRows[targetIndex].previews || [];
-                                                    
-                                                    const newFiles = [...existingFiles, ...filesToAdd];
-                                                    const newPreviews = [...existingPreviews, ...filesToAdd.map(f => URL.createObjectURL(f))];
-                                                    
-                                                    newRows[targetIndex] = {
-                                                        ...newRows[targetIndex],
-                                                        files: newFiles,
-                                                        previews: newPreviews
-                                                    };
-                                                }
-                                                return newRows;
-                                            });
-                                        }}
-                                        onReject={() => notifications.show({ title: 'Image Rejected ', message: 'Image size too large, please select a image under 10 mb', color: 'red' })}
-                                        maxSize={10 * 1024 ** 2}
-                                        accept={IMAGE_MIME_TYPE}
-                                        multiple={true}
-                                        style={{ 
-                                            minHeight: 160, 
-                                            display: 'flex', 
-                                            alignItems: 'center', 
-                                            justifyContent: 'center', 
-                                            border: '1px dashed #ced4da', 
-                                            borderRadius: 8,
-                                            cursor: 'pointer',
-                                            overflow: 'hidden',
-                                            backgroundColor: (row.previews && row.previews.length > 0) ? 'white' : 'transparent',
-                                            padding: 10
-                                        }}
-                                     >
-                                        {(row.previews && row.previews.length > 0) ? (
-                                            <SimpleGrid cols={row.previews.length > 4 ? 3 : (row.previews.length > 1 ? 2 : 1)} spacing="xs" w="100%">
-                                                {row.previews.map((preview, i) => (
-                                                    <ImagePreviewItem 
-                                                        key={i} 
-                                                        src={preview} 
-                                                        onDelete={() => removeImageFromRow(row.id, i)}
-                                                        height={row.previews.length > 2 ? 80 : 140}
-                                                    />
-                                                ))}
-                                            </SimpleGrid>
-                                        ) : (
-                                            <Stack align="center" gap={4} style={{ pointerEvents: 'none' }}>
-                                              <Dropzone.Idle>
-                                                <IconPhoto size={32} color="gray" />
-                                              </Dropzone.Idle>
-                                              <Dropzone.Accept>
-                                                <IconUpload size={32} color="blue" />
-                                              </Dropzone.Accept>
-                                              <Dropzone.Reject>
-                                                <IconX size={32} color="red" />
-                                              </Dropzone.Reject>
-                                              <Text size="xs" c="dimmed" ta="center">Drag images here<br/>Max file size 5MB<br/>5 images only</Text>
-                                            </Stack>
-                                        )}
-                                     </Dropzone>
-                                 </Box>
+                            if (targetIndex !== -1) {
+                              const existingFiles =
+                                newRows[targetIndex].files || [];
+                              const currentCount = existingFiles.length;
 
-                                 {/* Column 2: Finding */}
-                                 <Textarea 
-                                    label="Specific Finding / Observation" 
-                                    placeholder="Describe what is seen in the photo..." 
-                                    minRows={6}
-                                    value={row.finding}
-                                    onChange={(e) => updatePhotoRow(row.id, 'finding', e.currentTarget.value)}
-                                 />
+                              if (currentCount >= 5) {
+                                notifications.show({
+                                  title: "Limit Reached",
+                                  message: "Maximum 5 photos allowed per row.",
+                                  color: "red",
+                                });
+                                return prev;
+                              }
 
-                                 {/* Column 3: Recommendation */}
-                                 <Textarea 
-                                    label="Specific Recommendation" 
-                                    placeholder="Action required for this specific item..." 
-                                    minRows={6}
-                                    value={row.recommendation}
-                                    onChange={(e) => updatePhotoRow(row.id, 'recommendation', e.currentTarget.value)}
-                                 />
-                            </SimpleGrid>
-                        </Paper>
-                    ))}
+                              let filesToAdd = files;
+                              if (currentCount + files.length > 5) {
+                                const allowed = 5 - currentCount;
+                                filesToAdd = files.slice(0, allowed);
+                                notifications.show({
+                                  title: "Limit Reached",
+                                  message: `Only ${allowed} photo(s) added to meet the limit of 5.`,
+                                  color: "orange",
+                                });
+                              }
 
-                    <Group justify="center" mt="md">
-                        <Button leftSection={<IconPlus size={16} />} variant="outline" onClick={addPhotoRow}>Add Photo Row</Button>
-                    </Group>
+                              const existingPreviews =
+                                newRows[targetIndex].previews || [];
 
-                    <Divider my="lg" />
+                              const newFiles = [
+                                ...existingFiles,
+                                ...filesToAdd,
+                              ];
+                              const newPreviews = [
+                                ...existingPreviews,
+                                ...filesToAdd.map((f) =>
+                                  URL.createObjectURL(f)
+                                ),
+                              ];
 
-                    <Group justify="flex-end">
-                        <Button variant="default" onClick={() => setActiveStep(0)}>Back to Details</Button>
-                        <Button color="green" leftSection={<IconCheck size={16} />} onClick={handleStep2Submit} loading={isSubmitting}>Complete Report</Button>
-                    </Group>
-                </Stack>
-            </Paper>
+                              newRows[targetIndex] = {
+                                ...newRows[targetIndex],
+                                files: newFiles,
+                                previews: newPreviews,
+                              };
+                            }
+                            return newRows;
+                          });
+                        }}
+                        onReject={() =>
+                          notifications.show({
+                            title: "Image Rejected ",
+                            message:
+                              "Image size too large, please select a image under 10 mb",
+                            color: "red",
+                          })
+                        }
+                        maxSize={10 * 1024 ** 2}
+                        accept={IMAGE_MIME_TYPE}
+                        multiple={true}
+                        style={{
+                          minHeight: 160,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: "1px dashed #ced4da",
+                          borderRadius: 8,
+                          cursor: "pointer",
+                          overflow: "hidden",
+                          backgroundColor:
+                            row.previews && row.previews.length > 0
+                              ? "white"
+                              : "transparent",
+                          padding: 10,
+                        }}
+                      >
+                        {row.previews && row.previews.length > 0 ? (
+                          <SimpleGrid
+                            cols={
+                              row.previews.length > 4
+                                ? 3
+                                : row.previews.length > 1
+                                ? 2
+                                : 1
+                            }
+                            spacing="xs"
+                            w="100%"
+                          >
+                            {row.previews.map((preview, i) => (
+                              <ImagePreviewItem
+                                key={i}
+                                src={preview}
+                                onDelete={() => removeImageFromRow(row.id, i)}
+                                height={row.previews.length > 2 ? 80 : 140}
+                              />
+                            ))}
+                          </SimpleGrid>
+                        ) : (
+                          <Stack
+                            align="center"
+                            gap={4}
+                            style={{ pointerEvents: "none" }}
+                          >
+                            <Dropzone.Idle>
+                              <IconPhoto size={32} color="gray" />
+                            </Dropzone.Idle>
+                            <Dropzone.Accept>
+                              <IconUpload size={32} color="blue" />
+                            </Dropzone.Accept>
+                            <Dropzone.Reject>
+                              <IconX size={32} color="red" />
+                            </Dropzone.Reject>
+                            <Text size="xs" c="dimmed" ta="center">
+                              Drag images here
+                              <br />
+                              Max file size 5MB
+                              <br />5 images only
+                            </Text>
+                          </Stack>
+                        )}
+                      </Dropzone>
+                    </Box>
+
+                    {/* Column 2: Finding */}
+                    <Textarea
+                      label="Specific Finding / Observation"
+                      placeholder="Describe what is seen in the photo..."
+                      minRows={6}
+                      value={row.finding}
+                      onChange={(e) =>
+                        updatePhotoRow(row.id, "finding", e.currentTarget.value)
+                      }
+                    />
+
+                    {/* Column 3: Recommendation */}
+                    <Textarea
+                      label="Specific Recommendation"
+                      placeholder="Action required for this specific item..."
+                      minRows={6}
+                      value={row.recommendation}
+                      onChange={(e) =>
+                        updatePhotoRow(
+                          row.id,
+                          "recommendation",
+                          e.currentTarget.value
+                        )
+                      }
+                    />
+                  </SimpleGrid>
+                </Paper>
+              ))}
+
+              <Group justify="center" mt="md">
+                <Button
+                  leftSection={<IconPlus size={16} />}
+                  variant="outline"
+                  onClick={addPhotoRow}
+                >
+                  Add Photo Row
+                </Button>
+              </Group>
+
+              <Divider my="lg" />
+
+              <Group justify="flex-end">
+                <Button variant="default" onClick={() => setActiveStep(0)}>
+                  Back to Details
+                </Button>
+                <Button
+                  color="green"
+                  leftSection={<IconCheck size={16} />}
+                  onClick={handleStep2Submit}
+                  loading={isSubmitting}
+                >
+                  Complete Report
+                </Button>
+              </Group>
+            </Stack>
+          </Paper>
         </Stepper.Step>
       </Stepper>
 
@@ -549,7 +806,13 @@ function EquipmentSearchModal({ opened, onClose, equipmentList, onPick }) {
     .slice(0, 15);
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Select Equipment Database" size="lg" centered>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="Select Equipment Database"
+      size="lg"
+      centered
+    >
       <TextInput
         placeholder="Type Tag No, DOSH, or Plant..."
         leftSection={<IconSearch size={16} />}
@@ -558,18 +821,26 @@ function EquipmentSearchModal({ opened, onClose, equipmentList, onPick }) {
         mb="md"
         data-autofocus
       />
-      
-      <Stack gap="xs" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-        {results.length === 0 && <Text c="dimmed" align="center" py="xl">No matching equipment found.</Text>}
+
+      <Stack gap="xs" style={{ maxHeight: "60vh", overflowY: "auto" }}>
+        {results.length === 0 && (
+          <Text c="dimmed" align="center" py="xl">
+            No matching equipment found.
+          </Text>
+        )}
         {results.map((eq) => (
           <Paper
             key={eq.docId}
             withBorder
             p="sm"
             onClick={() => onPick(eq)}
-            style={{ cursor: 'pointer', transition: 'background-color 0.2s' }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f3f5'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            style={{ cursor: "pointer", transition: "background-color 0.2s" }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.backgroundColor = "#f1f3f5")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.backgroundColor = "transparent")
+            }
           >
             <Group wrap="nowrap">
               <Image
@@ -580,14 +851,24 @@ function EquipmentSearchModal({ opened, onClose, equipmentList, onPick }) {
               />
               <Box style={{ flex: 1 }}>
                 <Group justify="space-between" mb={2}>
-                  <Text fw={600} size="sm">{eq.tagNumber || "(No Tag)"}</Text>
-                  <Badge size="sm" variant="outline" color={eq.status === 'Active' ? 'green' : 'yellow'}>{eq.status}</Badge>
+                  <Text fw={600} size="sm">
+                    {eq.tagNumber || "(No Tag)"}
+                  </Text>
+                  <Badge
+                    size="sm"
+                    variant="outline"
+                    color={eq.status === "Active" ? "green" : "yellow"}
+                  >
+                    {eq.status}
+                  </Badge>
                 </Group>
                 <Text size="xs" c="dimmed">
-                  {[eq.type, eq.plantUnitArea, eq.doshNumber].filter(Boolean).join(" • ")}
+                  {[eq.type, eq.plantUnitArea, eq.doshNumber]
+                    .filter(Boolean)
+                    .join(" • ")}
                 </Text>
                 <Text size="xs" lineClamp={1}>
-                    {eq.equipmentDescription}
+                  {eq.equipmentDescription}
                 </Text>
               </Box>
             </Group>
@@ -601,27 +882,40 @@ function EquipmentSearchModal({ opened, onClose, equipmentList, onPick }) {
 const ImagePreviewItem = ({ src, onDelete, height }) => {
   const [hovered, setHovered] = useState(false);
   return (
-    <Box 
-      pos="relative" 
-      onMouseEnter={() => setHovered(true)} 
+    <Box
+      pos="relative"
+      onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       h={height}
     >
       <Image src={src} radius="sm" h="100%" w="auto" fit="cover" />
       {hovered && (
-         <Box 
-            pos="absolute" 
-            top={0} 
-            left={0} 
-            w="100%" 
-            h="100%" 
-            bg="rgba(0,0,0,0.5)" 
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, zIndex: 10 }}
-         >
-             <ActionIcon color="red" variant="filled" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
-                <IconTrash size={16} />
-             </ActionIcon>
-         </Box>
+        <Box
+          pos="absolute"
+          top={0}
+          left={0}
+          w="100%"
+          h="100%"
+          bg="rgba(0,0,0,0.5)"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 4,
+            zIndex: 10,
+          }}
+        >
+          <ActionIcon
+            color="red"
+            variant="filled"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+          >
+            <IconTrash size={16} />
+          </ActionIcon>
+        </Box>
       )}
     </Box>
   );

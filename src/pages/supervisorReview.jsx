@@ -1,274 +1,258 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Container,
-  Card,
+  Paper,
   Title,
+  Table,
+  Badge,
   Button,
   Group,
-  Divider,
-  SimpleGrid,
-  Table,
-  Text,
-  Badge,
   Modal,
   Stack,
-  Paper,
+  Text,
+  Loader,
+  SimpleGrid,
+  Image,
+  Divider,
+  Box,
 } from "@mantine/core";
-import { IconTrash, IconEye, IconCheck } from "@tabler/icons-react";
-
-// Placeholder sample reports from inspectors
-const initialReports = [
-  {
-    id: 1,
-    reportId: "R-2025-001",
-    inspector: "Inspector A",
-    inspectionDate: "2025-11-01",
-    status: "Received",
-    decision: "Pending",
-    findings:
-      "Observed minor non-compliance with section 3.2; recommended documentation update.",
-    attachment: "report_R-2025-001.pdf",
-    notes: "Requires follow-up by team lead.",
-    receivedAt: "2025-11-01 10:12",
-  },
-  {
-    id: 2,
-    reportId: "R-2025-002",
-    inspector: "Inspector B",
-    inspectionDate: "2025-11-05",
-    status: "Requires Action",
-    decision: "Pending",
-    findings:
-      "Critical issue in deployment pipeline causing intermittent failures.",
-    attachment: "report_R-2025-002.pdf",
-    notes: "Escalate to DevOps.",
-    receivedAt: "2025-11-05 14:03",
-  },
-  {
-    id: 3,
-    reportId: "R-2025-003",
-    inspector: "Inspector C",
-    inspectionDate: "2025-11-08",
-    status: "Received",
-    decision: "Pending",
-    findings: "All checks passed. No actions required.",
-    attachment: "",
-    notes: "",
-    receivedAt: "2025-11-08 09:20",
-  },
-];
+import { useDisclosure } from "@mantine/hooks";
+import { notifications } from "@mantine/notifications";
+import { IconCheck, IconEye, IconX } from "@tabler/icons-react";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
+  updateDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+import { db, auth } from "../firebase";
+import { InspectionReportView } from "../components/InspectionReportView";
 
 export default function SupervisorReview() {
-  const [reports, setReports] = useState(initialReports);
-  const [preview, setPreview] = useState(null);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [opened, { open, close }] = useDisclosure(false);
+  const [processing, setProcessing] = useState(false);
 
-  function openPreview(report) {
-    console.log("openPreview", report?.reportId);
-    setPreview(report);
-    setModalOpen(true);
-  }
-
-  function closePreview() {
-    setModalOpen(false);
-    setPreview(null);
-  }
-
-  function handleApprove(id) {
-    setReports((r) =>
-      r.map((rep) =>
-        rep.id === id ? { ...rep, decision: "Approved", status: "Closed" } : rep
-      )
-    );
-    // if previewing same report, update it too
-    if (preview && preview.id === id) {
-      setPreview((p) => ({ ...p, decision: "Approved", status: "Closed" }));
+  const fetchReports = async () => {
+    setLoading(true);
+    try {
+      // Query for "Submitted" reports
+      const q = query(
+        collection(db, "inspections"),
+        where("status", "==", "Submitted")
+      );
+      const snap = await getDocs(q);
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setReports(list);
+    } catch (err) {
+      console.error(err);
+      notifications.show({
+        title: "Error",
+        message: "Failed to load reports",
+        color: "red",
+      });
+    } finally {
+      setLoading(false);
     }
-    // close modal after approving
-    closePreview();
-  }
+  };
 
-  function handleDelete(id) {
-    setReports((r) => r.filter((rep) => rep.id !== id));
-    if (preview && preview.id === id) closePreview();
-  }
+  useEffect(() => {
+    fetchReports();
+  }, []);
+
+  const handleOpenReview = (report) => {
+    setSelectedReport(report);
+    open();
+  };
+
+  const handleReject = async () => {
+    if (!selectedReport) return;
+    if (
+      !window.confirm(
+        "Are you sure you want to reject this report? It will be returned to the inspector as a Draft."
+      )
+    )
+      return;
+
+    setProcessing(true);
+    try {
+      const docRef = doc(db, "inspections", selectedReport.id);
+      await updateDoc(docRef, {
+        status: "Draft", // Send back to Draft
+        reviewedBy: null, // Clear reviewer
+        reviewedAt: null,
+      });
+
+      notifications.show({
+        title: "Report Rejected",
+        message: "Report returned to inspector for revision.",
+        color: "orange",
+      });
+      close();
+      fetchReports();
+    } catch (err) {
+      console.error(err);
+      notifications.show({
+        title: "Error",
+        message: "Failed to reject report",
+        color: "red",
+      });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleApprove = async () => {
+    if (!selectedReport) return;
+    setProcessing(true);
+    try {
+      const user = auth.currentUser;
+      const supervisorName =
+        user?.displayName || user?.email || "Unknown Supervisor";
+
+      const docRef = doc(db, "inspections", selectedReport.id);
+      await updateDoc(docRef, {
+        status: "Approved",
+        reviewedBy: supervisorName,
+        reviewedAt: serverTimestamp(),
+      });
+
+      notifications.show({
+        title: "Approved",
+        message: "Report approved successfully",
+        color: "green",
+      });
+      close();
+      fetchReports(); // Refresh list
+    } catch (err) {
+      console.error(err);
+      notifications.show({
+        title: "Error",
+        message: "Failed to approve report",
+        color: "red",
+      });
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   return (
-    <Container mx={0} fluid w="100%">
-      <Title order={2} mb="sm">
-        Inspection Report Review
+    <Container size="xl" py="xl">
+      <Title order={2} mb="xl">
+        Supervisor Review
       </Title>
 
-      <Text c="dimmed" mb="md">
-        Review submitted inspection reports. Verify findings, check attachments,
-        and approve reports for final documentation.
-      </Text>
-
-      <SimpleGrid cols={1} spacing="lg" w="100%">
-        <Paper withBorder p="lg" w="100%">
-          <Group justify="space-between" mb="sm">
-            <Title order={4}>Incoming reports</Title>
-            <Text size="sm" fw={700}>
-              {reports.length} total
-            </Text>
-          </Group>
-
-          <Divider mb="sm" />
-
-          {reports.length === 0 ? (
-            <Text c="dimmed">No reports available.</Text>
-          ) : (
-            <Table highlightOnHover verticalSpacing="sm">
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Report ID</Table.Th>
-                  <Table.Th>Inspector</Table.Th>
-                  <Table.Th>Inspection date</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th>Decision</Table.Th>
-                  <Table.Th></Table.Th>
+      <Paper withBorder p="md" radius="md">
+        {loading ? (
+          <Loader />
+        ) : reports.length === 0 ? (
+          <Text c="dimmed" ta="center" py="xl">
+            No pending reports for review.
+          </Text>
+        ) : (
+          <Table striped highlightOnHover>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Tag Number</Table.Th>
+                <Table.Th>Date</Table.Th>
+                <Table.Th>Inspector</Table.Th>
+                <Table.Th>Plant / Unit</Table.Th>
+                <Table.Th>Status</Table.Th>
+                <Table.Th>Action</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {reports.map((r) => (
+                <Table.Tr key={r.id}>
+                  <Table.Td fw={500}>{r.equipmentId}</Table.Td>
+                  <Table.Td>{r.inspectionDate}</Table.Td>
+                  <Table.Td>{r.inspectorName}</Table.Td>
+                  <Table.Td>{r.plantUnitArea}</Table.Td>
+                  <Table.Td>
+                    <Badge color="blue">{r.status}</Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    <Button
+                      size="xs"
+                      variant="light"
+                      leftSection={<IconEye size={14} />}
+                      onClick={() => handleOpenReview(r)}
+                    >
+                      Review
+                    </Button>
+                  </Table.Td>
                 </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {reports.map((r) => (
-                  <Table.Tr key={r.id}>
-                    <Table.Td>
-                      <Text fw={600}>{r.reportId}</Text>
-                      <Text size="xs" c="dimmed">
-                        Received: {r.receivedAt}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>{r.inspector}</Table.Td>
-                    <Table.Td>{r.inspectionDate}</Table.Td>
-                    <Table.Td>
-                      <Badge
-                        color={
-                          r.status === "Received"
-                            ? "blue"
-                            : r.status === "Requires Action"
-                            ? "yellow"
-                            : "red"
-                        }
-                      >
-                        {r.status}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>{r.decision}</Table.Td>
-                    <Table.Td>
-                      <Group gap={6} justify="flex-end">
-                        <Button
-                          variant="light"
-                          size="xs"
-                          leftSection={<IconEye size={14} />}
-                          onClick={() => openPreview(r)}
-                        >
-                          View
-                        </Button>
-                        <Button
-                          variant="light"
-                          color="green"
-                          size="xs"
-                          leftSection={<IconCheck size={14} />}
-                          onClick={() => handleApprove(r.id)}
-                        >
-                          Approve
-                        </Button>
-                        <Button
-                          variant="light"
-                          color="red"
-                          size="xs"
-                          onClick={() => handleDelete(r.id)}
-                          leftSection={<IconTrash size={14} />}
-                        >
-                          Delete
-                        </Button>
-                      </Group>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          )}
-        </Paper>
-      </SimpleGrid>
+              ))}
+            </Table.Tbody>
+          </Table>
+        )}
+      </Paper>
 
+      {/* Review Modal - Full Screen A4 View */}
       <Modal
-        opened={modalOpen}
-        onClose={closePreview}
-        title={
-          preview
-            ? `${preview.reportId} — ${preview.inspector}`
-            : "Report preview"
-        }
+        opened={opened}
+        onClose={close}
+        title={`Review Report: ${selectedReport?.equipmentId}`}
         size="100%"
-        centered
+        styles={{
+          body: { backgroundColor: "#f0f0f0", padding: 0 },
+        }}
       >
-        {preview ? (
-          <Stack gap="sm">
-            {/* PDF preview (dummy PDF if no attachment) */}
-            <div
+        {selectedReport && (
+          <Box>
+            {/* Scrollable Report Area */}
+            <Box
               style={{
-                width: "100%",
-                height: 500,
-                border: "1px solid var(--mantine-color-gray-3)",
-                borderRadius: 6,
-                overflow: "hidden",
+                height: "calc(100vh - 140px)",
+                overflowY: "auto",
+                paddingTop: "20px",
               }}
             >
-              <iframe
-                src={
-                  preview.attachment
-                    ? preview.attachment
-                    : "https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf"
-                }
-                style={{ width: "100%", height: "100%", border: "none" }}
-                title="report-preview"
-              />
-            </div>
+              <InspectionReportView data={selectedReport} />
+            </Box>
 
-            <Group justify="space-between">
-              <Text fw={700}>{preview.reportId}</Text>
-              <Text size="sm" c="dimmed">
-                Received: {preview.receivedAt}
-              </Text>
-            </Group>
-
-            <Text size="sm">
-              <strong>Inspection date:</strong> {preview.inspectionDate}
-            </Text>
-
-            <Text>
-              <strong>Findings:</strong>
-            </Text>
-            <Text c="dimmed">{preview.findings || "—"}</Text>
-
-            <Text>
-              <strong>Notes:</strong>
-            </Text>
-            <Text c="dimmed">{preview.notes || "—"}</Text>
-
-            {preview.attachment ? (
-              <Text>
-                <strong>Attachment:</strong> {preview.attachment}
-              </Text>
-            ) : null}
-
-            <Group justify="flex-end" mt="md">
+            {/* Sticky Action Footer */}
+            <Group
+              justify="flex-end"
+              p="md"
+              style={{
+                borderTop: "1px solid #ddd",
+                backgroundColor: "white",
+                position: "fixed",
+                bottom: 0,
+                left: 0,
+                right: 0,
+                zIndex: 100,
+              }}
+            >
+              <Button variant="default" onClick={close}>
+                Cancel
+              </Button>
               <Button
+                color="red"
                 variant="light"
-                color="green"
-                onClick={() => {
-                  handleApprove(preview.id);
-                }}
+                leftSection={<IconX size={16} />}
+                onClick={handleReject}
+                loading={processing}
               >
-                Approve
+                Reject & Return
               </Button>
-              <Button variant="light" color="gray" onClick={closePreview}>
-                Close
+              <Button
+                color="green"
+                leftSection={<IconCheck size={16} />}
+                onClick={handleApprove}
+                loading={processing}
+              >
+                Approve Report
               </Button>
             </Group>
-          </Stack>
-        ) : null}
+          </Box>
+        )}
       </Modal>
     </Container>
   );
