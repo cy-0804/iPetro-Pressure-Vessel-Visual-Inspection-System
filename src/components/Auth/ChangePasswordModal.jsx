@@ -41,6 +41,8 @@ export default function ChangePasswordModal({ opened, user, onSuccess }) {
       notifications.show({
         title: "Success",
         message: "Password updated successfully!",
+        position: "top-center",
+        autoClose: 2500,
         color: "green",
       });
 
