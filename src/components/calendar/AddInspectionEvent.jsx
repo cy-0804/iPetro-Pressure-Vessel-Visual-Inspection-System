@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   TextInput, Select, Checkbox, Textarea, Group, Button,
-  ActionIcon, Stack, Text, Box, ColorSwatch, Badge
+  ActionIcon, Stack, Text, Box, ColorSwatch, Badge, Autocomplete
 } from "@mantine/core";
 import { IconCheck, IconX } from "@tabler/icons-react";
 
@@ -13,7 +13,8 @@ export default function AddInspectionForm({
   initialDateISO = null,
   inspectors = [],
   initialEvent = null,
-  readOnly = false
+  readOnly = false,
+  equipmentList = []
 }) {
   const [title, setTitle] = useState("");
   const [equipmentId, setEquipmentId] = useState("");
@@ -100,6 +101,18 @@ export default function AddInspectionForm({
       return;
     }
 
+    // Validation: Check if Equipment exists
+    if (!equipmentList.some(eq => eq.tagNumber === equipmentId)) {
+      alert("Invalid Equipment ID. Please select one from the list.");
+      return;
+    }
+
+    // Validation: Check if Inspector exists (mock check against list strings)
+    if (!inspectors.includes(inspector)) {
+      alert("Invalid Inspector. Please select one from the list.");
+      return;
+    }
+
     let startISO, endISO;
     if (allDay) {
       startISO = startDate;
@@ -161,18 +174,21 @@ export default function AddInspectionForm({
         </Group>
 
         <Group grow>
-          <TextInput
-            label="Equipment ID"
-            placeholder="e.g. EQ-12345"
+          <Select
+            label="Equipment Tag No"
+            placeholder="Select or Search Equipment"
             size="sm"
             value={equipmentId}
-            onChange={(e) => setEquipmentId(e.currentTarget.value)}
+            onChange={setEquipmentId}
+            data={equipmentList.map(eq => String(eq.tagNumber || "")).filter(t => t.length > 0)}
+            searchable
+            nothingFoundMessage="No equipment found"
             readOnly={readOnly}
           />
 
           <Select
             label="Assigned Inspector"
-            data={inspectors}
+            data={[...new Set(inspectors)]}
             value={inspector}
             onChange={setInspector}
             placeholder="Select Inspector"

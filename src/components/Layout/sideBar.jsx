@@ -37,7 +37,7 @@ const menuSections = [
         link: "/task-monitoring",
         label: "Task Monitoring",
         icon: IconDeviceDesktopAnalytics,
-        roles: ["admin", "supervisor"], // Only for admin and supervisor
+        roles: ["admin", "supervisor"],
       },
       { link: "/notification", label: "Notifications", icon: IconBellRinging },
     ],
@@ -81,12 +81,7 @@ const menuSections = [
   {
     title: "MANAGEMENT & REPORTING",
     items: [
-      {
-        link: "/task-planning",
-        label: "Task Planning",
-        icon: IconChecklist,
-        roles: ["admin", "supervisor"], // Only for admin and supervisor
-      },
+
       {
         link: "/supervisor-review",
         label: "Review Reports",

@@ -1,24 +1,45 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
-import { Popover, Modal, Button, SegmentedControl, Group, Text, ActionIcon } from "@mantine/core";
+import { Popover, Modal, Button, SegmentedControl, Group, Text, ActionIcon, Loader, Center } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
-import AddInspectionForm from "../components/calendar/AddInspectionEvent";
+import { IconChevronLeft, IconChevronRight, IconRefresh } from "@tabler/icons-react";
+import CreateInspectionPlanForm from "../components/inspection/CreateInspectionPlanForm";
 import InspectorEventDetails from "../components/calendar/InspectorEventDetails";
+import { inspectionService } from "../services/inspectionService";
+import { userService } from "../services/userService";
+import { getEquipments } from "../services/equipmentService";
 import "../components/calendar/calendar.css";
+import { auth } from "../firebase"; // Import auth directly if needed, but using userService is cleaner
+
+const getEventColor = (status) => {
+  switch (status) {
+    case "PLANNED": return "gray";
+    case "SCHEDULED": return "#228be6"; // mantine blue-6
+    case "IN_PROGRESS": return "#fd7e14"; // mantine orange-6
+    case "COMPLETED": return "#40c057"; // mantine green-6
+    case "Submitted": return "#15aabf"; // mantine cyan-6 (Pending Review)
+    case "Approved": return "#12b886"; // mantine teal-6
+    case "Rejected": return "#e03131"; // mantine red-8
+    case "OVERDUE": return "#fa5252"; // mantine red-6
+    default: return "gray";
+  }
+};
 
 export default function InspectionCalendar() {
   const calendarRef = useRef(null);
   const containerRef = useRef(null); // Ref for the wrapper
+  const navigate = useNavigate();
   const [view, setView] = useState("dayGridMonth");
   const [currentTitle, setCurrentTitle] = useState("");
 
-  // --- View Mode Logic ---
-  const [viewMode, setViewMode] = useState("supervisor"); // 'supervisor' | 'inspector'
-  const currentUser = "Inspector A"; // Mock current user
+  // --- Real Auth Logic ---
+  const [loadingUser, setLoadingUser] = useState(true);
+  const [viewMode, setViewMode] = useState("inspector"); // Default safe
+  const [currentUser, setCurrentUser] = useState(null); // Will hold username/email
 
   // --- Popover Logic (Google Style) ---
   const [popoverOpened, setPopoverOpened] = useState(false);
@@ -33,86 +54,115 @@ export default function InspectionCalendar() {
   const [selectedEvent, setSelectedEvent] = useState(null);
 
   // --- Events Data ---
-  // Initialize with mock data so it's all mutable
-  const [userEvents, setUserEvents] = useState([
-    { id: 1, title: "Inspection A", start: "2025-11-15T09:00", extendedProps: { inspector: "Inspector A", status: "pending", equipmentId: "EQ-101" } },
-    { id: 2, title: "Inspection B", start: "2025-11-16T14:00", extendedProps: { inspector: "Inspector B", status: "in-progress", equipmentId: "EQ-102" } },
-    { id: 3, title: "Inspection C", start: "2025-11-17T10:00", extendedProps: { inspector: "Inspector C", status: "pending", equipmentId: "EQ-103" } }
-  ]);
+  const [userEvents, setUserEvents] = useState([]);
 
-  const allEvents = userEvents;
+  // --- Data for Dropdowns ---
+  const [inspectorList, setInspectorList] = useState([]);
+  const [equipmentList, setEquipmentList] = useState([]);
 
   // --- Filters ---
   const [inspectorFilter, setInspectorFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
 
+  // 1. Fetch User Profile
+  useEffect(() => {
+    const initUser = async () => {
+      const profile = await userService.getCurrentUserProfile();
+      if (profile) {
+        setViewMode(profile.role === 'supervisor' || profile.role === 'admin' ? 'supervisor' : 'inspector');
+        // Use username or display name or email as the 'currentUser' identifier
+        setCurrentUser(profile.username || profile.email);
+      }
+      setLoadingUser(false);
+    };
+    initUser();
+  }, []);
+
+  // 2. Fetch Data (Events, Inspectors, Equipment)
+  const fetchData = async () => {
+    console.log("Fetching Inspection Data..."); // Debug Log
+    try {
+      const plans = await inspectionService.getInspectionPlans();
+      console.log(" fetched plans:", plans.length); // Debug Log
+      setUserEvents(plans);
+
+      const users = await userService.getInspectors();
+      const uniqueUsers = Array.from(new Set(users.map(u => u.username || u.email))).filter(Boolean);
+      setInspectorList(uniqueUsers);
+
+      const eqs = await getEquipments();
+      setEquipmentList(eqs);
+    } catch (error) {
+      console.error("Failed to fetch data", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+    // Add listener for focus? For now manual refresh is safest fallback if auto fails
+  }, []);
+
+  const allEvents = userEvents;
+
   const filteredEvents = useMemo(() => {
+    if (!currentUser) return [];
+
     return allEvents.filter(evt => {
       // 1. View Mode Filter
       if (viewMode === "inspector") {
+        // Only show events assigned to this user
+        // Note: Check if extendedProps exists. 
+        // Logic: if event inspector == currentUser
         if (evt.extendedProps?.inspector !== currentUser) return false;
       }
 
-      // 2. Toolbar Filters (Only apply in Supervisor mode or if needed)
+      // 2. Toolbar Filters (Only apply in Supervisor mode)
       if (viewMode === "supervisor") {
-        const mi = inspectorFilter === "all" || evt.extendedProps?.inspector === inspectorFilter;
+        // Filter by Inspector (Support Multiple)
+        if (inspectorFilter !== "all") {
+          const primary = evt.extendedProps?.inspector;
+          const list = evt.extendedProps?.inspectors || [];
+          // Match if Primary matches OR if list includes it
+          const match = primary === inspectorFilter || list.includes(inspectorFilter);
+          if (!match) return false;
+        }
+
         const ms = statusFilter === "all" || evt.extendedProps?.status === statusFilter;
-        return mi && ms;
+        return ms;
       }
 
       return true;
     });
-  }, [allEvents, inspectorFilter, statusFilter, viewMode]);
+  }, [allEvents, inspectorFilter, statusFilter, viewMode, currentUser]);
 
   // --- Resize Observer for Dynamic Resizing ---
   useEffect(() => {
     if (!containerRef.current || !calendarRef.current) return;
-
     const resizeObserver = new ResizeObserver(() => {
-      // Use setTimeout to avoid "ResizeObserver loop limit exceeded" error
       setTimeout(() => {
         calendarRef.current?.getApi().updateSize();
       }, 0);
     });
-
     resizeObserver.observe(containerRef.current);
-
     return () => resizeObserver.disconnect();
   }, []);
 
   // --- Handlers ---
-
-  const handlePrev = () => {
-    calendarRef.current?.getApi().prev();
-  };
-
-  const handleNext = () => {
-    calendarRef.current?.getApi().next();
-  };
-
-  const handleToday = () => {
-    calendarRef.current?.getApi().today();
-  };
+  const handlePrev = () => calendarRef.current?.getApi().prev();
+  const handleNext = () => calendarRef.current?.getApi().next();
+  const handleToday = () => calendarRef.current?.getApi().today();
 
   const handleDateClick = (info) => {
-    if (viewMode === "inspector") return; // Inspectors don't create events via date click
+    if (viewMode === "inspector") return;
 
-    // 1. Capture coordinates
     const { clientX, clientY } = info.jsEvent;
-
-    // 2. Set Date
     setSelectedDateISO(info.dateStr);
-
-    // 3. Update position and Open Popover
     setClickPosition({ x: clientX, y: clientY });
-    setPopoverOpened(true);
+    openModal(); // Use Modal instead of Popover
   };
 
   const handleEventClick = (info) => {
-    // Open Inspector Details for both modes
-    // Find the actual event object from state to ensure we have the latest data
-    // Use String comparison to handle both number IDs (mock) and string IDs (new events)
-    const evt = userEvents.find(e => String(e.id) === String(info.event.id)) || {
+    const evt = userEvents.find(e => e.id === info.event.id) || {
       id: info.event.id,
       title: info.event.title,
       start: info.event.startStr,
@@ -124,27 +174,45 @@ export default function InspectionCalendar() {
     openInspectorModal();
   };
 
-  const handleSaveEvent = (newEvent) => {
-    setUserEvents(prev => [...prev, newEvent]);
-    setPopoverOpened(false);
-    closeModal();
-    // Refresh calendar view
-    const api = calendarRef.current?.getApi();
-    if (api && newEvent.start) api.gotoDate(newEvent.start);
+  const handleSaveEvent = async (newEvent) => {
+    const { id, ...dataToSave } = newEvent;
+    try {
+      const savedEvent = await inspectionService.addInspectionPlan(dataToSave);
+      setUserEvents(prev => [...prev, savedEvent]);
+      setPopoverOpened(false);
+      closeModal();
+      const api = calendarRef.current?.getApi();
+      if (api && savedEvent.start) api.gotoDate(savedEvent.start);
+    } catch (error) {
+      alert("Failed to save event");
+    }
   };
 
-  const handleUpdateEvent = (updatedEvent) => {
-    console.log("Updated Event:", updatedEvent);
-
-    setUserEvents(prevEvents => prevEvents.map(evt =>
-      evt.id === updatedEvent.id ? updatedEvent : evt
-    ));
-
-    // Update selectedEvent so the modal reflects changes immediately if it relies on this prop
-    setSelectedEvent(updatedEvent);
+  const handleUpdateEvent = async (updatedEvent) => {
+    try {
+      const { id, ...updates } = updatedEvent;
+      await inspectionService.updateInspectionPlan(id, updates);
+      setUserEvents(prev => prev.map(evt => evt.id === id ? updatedEvent : evt));
+      setSelectedEvent(updatedEvent);
+    } catch (error) {
+      alert("Failed to update event");
+    }
   };
 
-  const inspectors = ["Inspector A", "Inspector B", "Inspector C"];
+  const handleDeleteEvent = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this inspection plan?")) return;
+    try {
+      await inspectionService.deleteInspectionPlan(id);
+      setUserEvents(prev => prev.filter(e => e.id !== id));
+      closeInspectorModal();
+    } catch (error) {
+      alert("Failed to delete event");
+    }
+  }
+
+  if (loadingUser) {
+    return <Center h="100vh"><Loader /></Center>;
+  }
 
   return (
     <div className="calendar-wrapper" ref={containerRef}>
@@ -161,14 +229,8 @@ export default function InspectionCalendar() {
           </Group>
           <Text size="lg" fw={700} style={{ minWidth: 150, textAlign: 'center' }}>{currentTitle}</Text>
 
-          <SegmentedControl
-            value={viewMode}
-            onChange={setViewMode}
-            data={[
-              { label: 'Supervisor', value: 'supervisor' },
-              { label: 'Inspector', value: 'inspector' },
-            ]}
-          />
+
+
         </Group>
 
         <select value={view} onChange={(e) => {
@@ -189,7 +251,7 @@ export default function InspectionCalendar() {
               className="btn"
             >
               <option value="all">All Inspectors</option>
-              {inspectors.map(inspector => (
+              {inspectorList.map(inspector => (
                 <option key={inspector} value={inspector}>{inspector}</option>
               ))}
             </select>
@@ -200,15 +262,18 @@ export default function InspectionCalendar() {
               className="btn"
             >
               <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="in-progress">In Progress</option>
-              <option value="completed">Completed</option>
+              <option value="PLANNED">Planned</option>
+              <option value="SCHEDULED">Scheduled</option>
+              <option value="IN_PROGRESS">In Progress</option>
+              <option value="COMPLETED">Completed (Field)</option>
+              <option value="Submitted">Pending Review</option>
+              <option value="Approved">Approved</option>
+              <option value="Rejected">Rejected</option>
             </select>
-          </>
-        )}
 
-        {viewMode === "inspector" && (
-          <Text size="sm" fw={500} c="dimmed">Viewing as: {currentUser}</Text>
+
+
+          </>
         )}
 
         <div style={{ marginLeft: "auto" }}>
@@ -225,63 +290,39 @@ export default function InspectionCalendar() {
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
           initialView={view}
           headerToolbar={false}
-          events={filteredEvents}
+          events={filteredEvents.map(e => ({
+            ...e,
+            allDay: true,
+            color: getEventColor(e.extendedProps?.status || e.status)
+          }))}
           height="100%"
-          // This enables the "Google Calendar" click behavior
-          dateClick={handleDateClick}
+          dateClick={viewMode === "supervisor" ? handleDateClick : undefined}
           eventClick={handleEventClick}
           eventClassNames={(arg) => [arg.event.extendedProps?.status || ""]}
-          // Ensures calendar resizes when sidebar toggles
           handleWindowResize={true}
           datesSet={(dateInfo) => setCurrentTitle(dateInfo.view.title)}
         />
       </div>
 
-      {/* --- 1. THE GOOGLE STYLE POPOVER (Supervisor Create) --- */}
-      <Popover
-        opened={popoverOpened}
-        onChange={setPopoverOpened}
-        position="right-start"
-        withArrow
-        shadow="md"
-        trapFocus
-        closeOnClickOutside={false}
+      <Modal
+        opened={modalOpened}
+        onClose={closeModal}
+        title="Create Inspection Plan"
+        centered
+        size="lg"
       >
-        <Popover.Target>
-          {/* This invisible div acts as the anchor point at your mouse click coordinates */}
-          <div
-            style={{
-              position: 'fixed',
-              top: clickPosition.y,
-              left: clickPosition.x,
-              width: 1,
-              height: 1,
-              pointerEvents: 'none'
-            }}
-          />
-        </Popover.Target>
-
-        <Popover.Dropdown p={0}>
-          <AddInspectionForm
-            onCancel={() => setPopoverOpened(false)}
-            onSave={handleSaveEvent}
-            initialDateISO={selectedDateISO}
-            inspectors={inspectors}
-          />
-        </Popover.Dropdown>
-      </Popover>
-
-      {/* --- 2. CENTERED MODAL (Supervisor Create) --- */}
-      <Modal opened={modalOpened} onClose={closeModal} withCloseButton={false} centered>
-        <AddInspectionForm
+        <CreateInspectionPlanForm
           onCancel={closeModal}
-          onSave={handleSaveEvent}
-          initialDateISO={null}
-          inspectors={inspectors}
+          onSaved={() => {
+            closeModal();
+            // Simple refresh: re-fetch or reload. To avoid prop drilling or large refactor, we can reload or try to fetch.
+            // We will try to rely on router or just reload for safety as the form is complex.
+            window.location.reload();
+          }}
+          initialDate={selectedDateISO}
         />
       </Modal>
 
-      {/* --- 3. INSPECTOR DETAILS MODAL --- */}
       <Modal
         opened={inspectorModalOpened}
         onClose={closeInspectorModal}
@@ -289,14 +330,18 @@ export default function InspectionCalendar() {
         centered
         title={null}
         padding={0}
-        size="auto" // Let content dictate size
+        size="auto"
       >
         {selectedEvent && (
           <InspectorEventDetails
             event={selectedEvent}
             onUpdate={handleUpdateEvent}
+            onDelete={handleDeleteEvent}
             onClose={closeInspectorModal}
             viewMode={viewMode}
+            inspectors={inspectorList}
+            equipmentList={equipmentList}
+            currentUser={currentUser}
           />
         )}
       </Modal>
