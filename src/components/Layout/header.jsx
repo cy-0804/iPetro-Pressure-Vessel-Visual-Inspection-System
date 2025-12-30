@@ -22,11 +22,13 @@ import {
 import { signOut } from "firebase/auth";
 import { auth } from "../../firebase";
 import { useTheme } from "../context/ThemeContext";
+import { modals } from "@mantine/modals";
+import { notifications } from "@mantine/notifications";
 
 export function Header({ opened, toggle, userInfo }) {
   const navigate = useNavigate();
-  const { colorScheme } = useTheme(); // Get theme
-  const isDark = colorScheme === "dark"; //Check if dark mode
+  const { colorScheme } = useTheme();
+  const isDark = colorScheme === "dark";
 
   const currentUser = userInfo || {
     name: "User",
@@ -45,21 +47,47 @@ export function Header({ opened, toggle, userInfo }) {
   };
 
   const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      navigate("/login");
-    } catch (error) {
-      console.error("Error signing out:", error);
-    }
+    // Added confirmation modal
+    modals.openConfirmModal({
+      title: "Logout Confirmation",
+      centered: true,
+      children: (
+        <Text size="sm">
+          Are you sure you want to logout?
+        </Text>
+      ),
+      labels: { confirm: "Logout", cancel: "Cancel" },
+      confirmProps: { color: "red", leftSection: <IconLogout size={16} /> },
+      onConfirm: async () => {
+        try {
+          await signOut(auth);
+          notifications.show({
+            title: "Logged Out",
+            message: "You have been successfully logged out.",
+            color: "green",
+            autoClose: 3000,
+          });
+          navigate("/login");
+        } catch (error) {
+          console.error("Error signing out:", error);
+          notifications.show({
+            title: "Logout Failed",
+            message: "There was an error logging out. Please try again.",
+            color: "red",
+            autoClose: 5000,
+          });
+        }
+      },
+    });
   };
 
   return (
     <Box
       h={64}
       p={0}
-      bg={isDark ? "#1a1b1e" : "white"} // Dynamic background
+      bg={isDark ? "#1a1b1e" : "white"}
       style={{
-        borderBottom: `1px solid ${isDark ? "#373a40" : "#e9ecef"}`, // Dynamic border
+        borderBottom: `1px solid ${isDark ? "#373a40" : "#e9ecef"}`,
         boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
       }}
     >
@@ -70,7 +98,7 @@ export function Header({ opened, toggle, userInfo }) {
               opened={opened}
               onClick={toggle}
               size="sm"
-              color={isDark ? "#c1c2c5" : "#495057"} // Dynamic color
+              color={isDark ? "#c1c2c5" : "#495057"}
               aria-label="Toggle navigation"
             />
 

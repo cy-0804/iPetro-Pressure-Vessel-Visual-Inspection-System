@@ -61,6 +61,7 @@ import {
   IconSend,
 } from "@tabler/icons-react";
 import { ReportEditor } from "./ReportGeneration"; // Import ReportEditor
+import { useTheme } from "../components/context/ThemeContext"
 
 // Standard report fields
 const initialFormState = {
@@ -85,6 +86,8 @@ const InspectionForm = () => {
   const [formData, setFormData] = useState(initialFormState);
   const [equipmentList, setEquipmentList] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { colorScheme } = useTheme(); 
+  const isDark = colorScheme === 'dark';
 
   // Step 2 State
   const [photoRows, setPhotoRows] = useState([]); // { id, file, preview, finding, recommendation }
@@ -633,7 +636,7 @@ const InspectionForm = () => {
           allowStepSelect={activeStep > 0}
         >
           {/* Step 1 Content: The General Form */}
-          <Paper withBorder shadow="sm" p="xl" radius="md">
+          <Paper withBorder shadow="sm" p="xl" radius="md" bg={isDark ? "#1a1b1e" : undefined} style={{ borderColor: isDark ? "#373a40" : undefined }}>
             <form onSubmit={handleStep1Submit}>
               <Stack gap="xl">
                 {/* Section 1: Equipment Details */}
@@ -889,7 +892,7 @@ const InspectionForm = () => {
           description="Upload photos with findings"
         >
           {/* Step 2 Content: Photo Report */}
-          <Paper withBorder shadow="sm" p="xl" radius="md">
+          <Paper withBorder shadow="sm" p="xl" radius="md" bg={isDark ? "#1a1b1e" : undefined} style={{ borderColor: isDark ? "#373a40" : undefined }} >
             <Stack>
               <Title order={4}>Photo Evidence & Specific Recommendations</Title>
               <Text c="dimmed" size="sm">
@@ -900,7 +903,7 @@ const InspectionForm = () => {
               {photoRows.length === 0 && (
                 <Box
                   p="xl"
-                  bg="gray.1"
+                  bg={isDark ? "#25262b" : "gray.1"}
                   style={{ textAlign: "center", borderRadius: 8 }}
                 >
                   <Text c="dimmed">
@@ -911,18 +914,26 @@ const InspectionForm = () => {
 
               {photoRows.map((row, index) => (
                 <Paper
-                  key={row.id}
-                  withBorder
-                  p="md"
-                  bg="gray.0"
-                  onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = 'blue'; }}
-                  onDragLeave={(e) => { e.currentTarget.style.borderColor = '#ced4da'; }}
-                  onDrop={(e) => {
-                    e.currentTarget.style.borderColor = '#ced4da';
-                    handleDrop(e, row.id);
-                  }}
-                  style={{ transition: 'border-color 0.2s' }}
-                >
+                      key={row.id}
+                      withBorder
+                      p="md"
+                      bg={isDark ? "#25262b" : "gray.0"}
+                      style={{ 
+                        transition: 'border-color 0.2s',
+                        borderColor: isDark ? "#373a40" : undefined
+                      }}
+                      onDragOver={(e) => { 
+                        e.preventDefault(); 
+                        e.currentTarget.style.borderColor = '#228be6'; 
+                      }}
+                      onDragLeave={(e) => { 
+                        e.currentTarget.style.borderColor = isDark ? '#373a40' : '#ced4da'; 
+                      }}
+                      onDrop={(e) => {
+                        e.currentTarget.style.borderColor = isDark ? '#373a40' : '#ced4da';
+                        handleDrop(e, row.id);
+                      }}
+                    >
                   <Group align="flex-start" justify="space-between" mb="xs">
                     <Badge variant="filled" color="gray">
                       Photo #{index + 1}
@@ -1008,20 +1019,20 @@ const InspectionForm = () => {
                         accept={IMAGE_MIME_TYPE}
                         multiple={true}
                         style={{
-                          minHeight: 160,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          border: "1px dashed #ced4da",
-                          borderRadius: 8,
-                          cursor: "pointer",
-                          overflow: "hidden",
-                          backgroundColor:
-                            row.photos && row.photos.length > 0
-                              ? "white"
-                              : "transparent",
-                          padding: 10,
-                        }}
+                            minHeight: 160,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            border: `1px dashed ${isDark ? "#373a40" : "#ced4da"}`,
+                            borderRadius: 8,
+                            cursor: "pointer",
+                            overflow: "hidden",
+                            backgroundColor:
+                              row.photos && row.photos.length > 0
+                                ? (isDark ? "#25262b" : "white")
+                                : "transparent",
+                            padding: 10,
+                          }}
                       >
                         {row.photos && row.photos.length > 0 ? (
                           <SimpleGrid
@@ -1128,7 +1139,14 @@ const InspectionForm = () => {
         onClose={() => setPreviewOpened(false)}
         fullScreen
         title="Report Preview"
-        styles={{ title: { fontWeight: 'bold' }, body: { backgroundColor: '#f5f5f5', minHeight: '100vh', padding: 0 } }}
+        styles={{ 
+            title: { fontWeight: 'bold' }, 
+            body: { 
+            backgroundColor: isDark ? '#1a1b1e' : '#f5f5f5', 
+            minHeight: '100vh', 
+            padding: 0 
+          } 
+        }}
       >
         <Container size="xl" py="md">
           {previewData && (
@@ -1181,6 +1199,7 @@ const InspectionForm = () => {
         onClose={close}
         equipmentList={equipmentList}
         onPick={handleEquipmentPick}
+        isDark={isDark}
       />
 
       <Drawer
@@ -1230,7 +1249,7 @@ const InspectionForm = () => {
 
 // --- Helper Components ---
 
-function EquipmentSearchModal({ opened, onClose, equipmentList, onPick }) {
+function EquipmentSearchModal({ opened, onClose, equipmentList, onPick, isDark }) {
   const [query, setQuery] = useState("");
 
   const q = query.toLowerCase().trim();
@@ -1281,13 +1300,17 @@ function EquipmentSearchModal({ opened, onClose, equipmentList, onPick }) {
             withBorder
             p="sm"
             onClick={() => onPick(eq)}
-            style={{ cursor: "pointer", transition: "background-color 0.2s" }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = "#f1f3f5")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor = "transparent")
-            }
+            style={{ 
+                  cursor: "pointer", 
+                  transition: "background-color 0.2s",
+                  borderColor: isDark ? "#373a40" : undefined
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.backgroundColor = isDark ? "#25262b" : "#f1f3f5")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.backgroundColor = "transparent")
+                }
           >
             <Group wrap="nowrap">
               <Image

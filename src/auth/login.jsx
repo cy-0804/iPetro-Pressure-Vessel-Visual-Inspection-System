@@ -23,8 +23,14 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import ChangePasswordModal from "../components/Auth/ChangePasswordModal";
+import { useTheme } from "../components/context/ThemeContext";
+import { notifications } from "@mantine/notifications";
 
 export default function Login() {
+
+  // dark mode hook
+  const { colorScheme } = useTheme();
+
   const navigate = useNavigate();
 
   /* =======================
@@ -90,7 +96,23 @@ export default function Login() {
         // Show Modal, DO NOT Navigate
         setCurrentUser(user);
         setShowPasswordModal(true);
+        
+        //  Show notification for first login
+        notifications.show({
+          title: "First Login Detected",
+          message: "Please change your password to continue.",
+          color: "blue",
+          autoClose: 4000,
+        });
       } else {
+        //  Show success notification for normal login
+        notifications.show({
+          title: "Login Successful",
+          message: `Welcome back, ${userSnap.data()?.username || "User"}!`,
+          color: "green",
+          autoClose: 3000,
+        });
+        
         // Normal Login
         navigate("/dashboard");
       }
@@ -101,11 +123,32 @@ export default function Login() {
         err.code === "auth/invalid-credential"
       ) {
         setError("Invalid email/username or password");
+        //  Show error notification
+        notifications.show({
+          title: "Login Failed",
+          message: "Invalid email/username or password",
+          color: "red",
+          autoClose: 4000,
+        });
       } else if (err.code === "auth/too-many-requests") {
         setError("Too many attempts. Try again later.");
+        //  Show error notification
+        notifications.show({
+          title: "Too Many Attempts",
+          message: "Please try again later.",
+          color: "red",
+          autoClose: 5000,
+        });
       } else {
         setError("Login failed. Please try again.");
         console.error(err);
+        //  Show error notification
+        notifications.show({
+          title: "Login Error",
+          message: "An unexpected error occurred. Please try again.",
+          color: "red",
+          autoClose: 4000,
+        });
       }
     } finally {
       setLoading(false);
@@ -154,6 +197,13 @@ export default function Login() {
   // Callback when password change is successful
   const handlePasswordChanged = () => {
     setShowPasswordModal(false);
+    // ✅ Show success notification after password change
+    notifications.show({
+      title: "Password Changed",
+      message: "Your password has been updated successfully!",
+      color: "green",
+      autoClose: 3000,
+    });
     navigate("/dashboard");
   };
 
@@ -161,7 +211,7 @@ export default function Login() {
      UI
   ======================= */
   return (
-    <div className="auth-page">
+    <div className="auth-page" data-theme={colorScheme}>
       <div className="auth-card">
         {/* LOGO */}
         <div className="auth-logo">
@@ -171,7 +221,7 @@ export default function Login() {
         <Title className="auth-title">Welcome Back</Title>
 
         <Text className="auth-subtitle">
-          Don’t have an account?{" "}
+          Don't have an account?{" "}
           <span className="auth-link" onClick={() => navigate("/register")}>
             Register
           </span>

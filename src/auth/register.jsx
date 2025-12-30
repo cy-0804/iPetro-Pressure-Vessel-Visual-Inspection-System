@@ -20,8 +20,14 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { auth, db } from "../firebase";
+import { useTheme } from "../components/context/ThemeContext";
+import { notifications } from "@mantine/notifications"; 
 
 export default function Register() {
+
+  // dark mode hook
+  const { colorScheme } = useTheme();
+
   const navigate = useNavigate();
 
   /* =======================
@@ -99,6 +105,13 @@ export default function Register() {
 
     if (!username || !email || !password || !confirmPassword) {
       setPasswordError("All fields are required");
+      //  Show error notification
+      notifications.show({
+        title: "Validation Error",
+        message: "Please fill in all fields",
+        color: "red",
+        autoClose: 4000,
+      });
       return;
     }
 
@@ -108,11 +121,25 @@ export default function Register() {
       setPasswordError(
         "Password must be at least 8 characters with uppercase, lowercase and number"
       );
+      //  Show error notification
+      notifications.show({
+        title: "Weak Password",
+        message: "Password must be at least 8 characters with uppercase, lowercase and number",
+        color: "red",
+        autoClose: 5000,
+      });
       return;
     }
 
     if (password !== confirmPassword) {
       setPasswordError("Passwords do not match");
+      //  Show error notification
+      notifications.show({
+        title: "Password Mismatch",
+        message: "Passwords do not match. Please try again.",
+        color: "red",
+        autoClose: 4000,
+      });
       return;
     }
 
@@ -134,16 +161,53 @@ export default function Register() {
         createdAt: serverTimestamp(),
       });
 
+      //  Show success notification
+      notifications.show({
+        title: "Registration Successful",
+        message: `Welcome ${username}! Please login to continue.`,
+        color: "green",
+        autoClose: 4000,
+      });
+
       navigate("/login");
     } catch (err) {
       if (err.code === "auth/email-already-in-use") {
         setEmailError("Email already registered");
+        //  Show error notification
+        notifications.show({
+          title: "Email Already In Use",
+          message: "This email is already registered. Please use another email or login.",
+          color: "red",
+          autoClose: 5000,
+        });
       } else if (err.code === "auth/invalid-email") {
         setEmailError("Invalid email");
+        //  Show error notification
+        notifications.show({
+          title: "Invalid Email",
+          message: "Please enter a valid email address.",
+          color: "red",
+          autoClose: 4000,
+        });
       } else if (err.code === "auth/weak-password") {
         setPasswordError("Password is too weak");
+        //  Show error notification
+        notifications.show({
+          title: "Weak Password",
+          message: "Please use a stronger password.",
+          color: "red",
+          autoClose: 4000,
+        });
       } else {
         setPasswordError("Registration failed. Please try again.");
+        //  Show error notification
+        notifications.show({
+          title: "Registration Failed",
+          message: "An unexpected error occurred. Please try again.",
+          color: "red",
+          autoClose: 5000,
+        });
+        console.error("Registration error:", err);
       }
     } finally {
       setLoading(false);
@@ -154,7 +218,7 @@ export default function Register() {
      UI
   ======================= */
   return (
-    <div className="auth-page">
+    <div className="auth-page" data-theme={colorScheme}>
       <div className="auth-card">
         {/* LOGO */}
         <div className="auth-logo">

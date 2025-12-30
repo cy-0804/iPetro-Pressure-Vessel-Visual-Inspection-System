@@ -4,8 +4,14 @@ import { TextInput, Button, Text, Title, Image } from "@mantine/core";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "../firebase";
 import { useNavigate } from "react-router-dom";
+import { useTheme } from "../components/context/ThemeContext";
+import { notifications } from "@mantine/notifications"; 
 
 export default function ForgotPassword() {
+
+  // dark mode hook
+  const { colorScheme } = useTheme();
+
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
@@ -38,6 +44,13 @@ export default function ForgotPassword() {
 
     if (!email) {
       setError("Please enter your email");
+      // Show error notification
+      notifications.show({
+        title: "Email Required",
+        message: "Please enter your email address to reset your password.",
+        color: "red",
+        autoClose: 4000,
+      });
       return;
     }
 
@@ -48,15 +61,52 @@ export default function ForgotPassword() {
 
       setMessage("Password reset email sent. Please check your inbox.");
       setCooldown(60); // 🔥 60 seconds cooldown (anti-spam)
+      
+      //  Show success notification
+      notifications.show({
+        title: "Reset Email Sent",
+        message: "Please check your inbox for password reset instructions.",
+        color: "green",
+        autoClose: 5000,
+      });
     } catch (err) {
       if (err.code === "auth/user-not-found") {
         setError("No account found with this email");
+        //  Show error notification
+        notifications.show({
+          title: "Account Not Found",
+          message: "No account exists with this email address.",
+          color: "red",
+          autoClose: 4000,
+        });
       } else if (err.code === "auth/invalid-email") {
         setError("Invalid email address");
+        //  Show error notification
+        notifications.show({
+          title: "Invalid Email",
+          message: "Please enter a valid email address.",
+          color: "red",
+          autoClose: 4000,
+        });
       } else if (err.code === "auth/too-many-requests") {
         setError("Too many requests. Please wait and try again.");
+        //  Show error notification
+        notifications.show({
+          title: "Too Many Requests",
+          message: "Please wait a moment before trying again.",
+          color: "orange",
+          autoClose: 5000,
+        });
       } else {
         setError("Failed to send reset email");
+        //  Show error notification
+        notifications.show({
+          title: "Reset Failed",
+          message: "Unable to send password reset email. Please try again.",
+          color: "red",
+          autoClose: 4000,
+        });
+        console.error("Password reset error:", err);
       }
     } finally {
       setLoading(false);
@@ -67,7 +117,7 @@ export default function ForgotPassword() {
      UI
   ======================= */
   return (
-    <div className="auth-page">
+    <div className="auth-page" data-theme={colorScheme}>
       <div className="auth-card">
         <div className="auth-logo">
           <Image
@@ -80,7 +130,7 @@ export default function ForgotPassword() {
         <Title className="auth-title">Forgot Password</Title>
 
         <Text className="auth-subtitle">
-          Enter your email and we’ll send you a reset link
+          Enter your email and we'll send you a reset link
         </Text>
 
         <TextInput
