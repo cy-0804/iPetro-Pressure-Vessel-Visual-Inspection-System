@@ -1,6 +1,6 @@
 import { db, storage } from "../firebase";
 import {
-    collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp
+    collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
@@ -65,4 +65,15 @@ export const subscribeToEquipment = (callback) => {
     }, (error) => {
         console.error("Listener error:", error);
     });
+};
+
+export const getEquipments = async () => {
+    try {
+        const q = query(collection(db, COLLECTION_NAME));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (e) {
+        console.error("Error fetching equipments: ", e);
+        return [];
+    }
 };

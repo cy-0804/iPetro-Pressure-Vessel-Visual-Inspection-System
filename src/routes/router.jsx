@@ -21,9 +21,11 @@ import EquipmentRegistration from "../pages/EquipmentRegistration.jsx";
 import InspectionForm from "../pages/InspectionForm.jsx";
 import EditInspectionForm from "../pages/EditInspectionForm.jsx";
 import ReportSubmission from "../pages/ReportSubmission.jsx";
+import InspectionExecution from "../pages/InspectionExecution.jsx";
+import InspectionDraftPreview from "../pages/InspectionDraftPreview.jsx";
 
 // New Pages (Supervisor)
-import TaskPlanning from "../pages/supervisor/TaskPlanning.jsx";
+
 import TaskMonitoring from "../pages/supervisor/TaskMonitoring.jsx";
 
 // New Pages (Admin)
@@ -71,9 +73,14 @@ export const router = createBrowserRouter([
           }, // "Generate Report"
           { path: "/inspection-history", element: <InspectionReportHistory /> }, // "History"
 
+          // New Execution Flows
+          { path: "/inspection-execution/:id", element: <InspectionExecution /> },
+          { path: "/inspection-draft/:id", element: <InspectionDraftPreview /> },
+
+
           // --- SUPERVISOR (I.S) ---
           // Dashboard & Notification shared above
-          { path: "/task-planning", element: <TaskPlanning /> },
+
           { path: "/task-monitoring", element: <TaskMonitoring /> },
           { path: "/supervisor-review", element: <SupervisorReview /> },
 
@@ -90,7 +97,7 @@ export const router = createBrowserRouter([
           // Default redirect
           {
             path: "/",
-            element: <Navigate to="/login" replace />,
+            element: <Navigate to="/inspection-plan" replace />,
           },
         ],
       },

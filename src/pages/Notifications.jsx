@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     Container,
     Title,
@@ -10,57 +10,73 @@ import {
     Tabs,
     ThemeIcon,
     ActionIcon,
-    Button
+    Button,
+    Loader
 } from "@mantine/core";
 import { IconBell, IconCheck, IconClock, IconInfoCircle, IconAlertTriangle, IconTrash } from "@tabler/icons-react";
-
-// Mock Data
-const initialNotifications = [
-    {
-        id: 1,
-        title: "New Inspection Assigned",
-        message: "PV-101 needs visual check",
-        time: "10 minutes ago",
-        read: false,
-        type: "info"
-    },
-    {
-        id: 2,
-        title: "Report Overdue",
-        message: "HX-220 report was due yesterday",
-        time: "1 hour ago",
-        read: false,
-        type: "alert"
-    },
-    {
-        id: 3,
-        title: "System Update",
-        message: "Maintenance scheduled for 12 AM",
-        time: "2 hours ago",
-        read: true,
-        type: "info"
-    },
-    {
-        id: 4,
-        title: "Inspection Completed",
-        message: "Amin completed UT for TK-300",
-        time: "1 day ago",
-        read: true,
-        type: "success"
-    },
-    {
-        id: 5,
-        title: "Document Approved",
-        message: "Safety plan for Q4 approved",
-        time: "2 days ago",
-        read: true,
-        type: "success"
-    }
-];
+import { notificationService } from "../services/notificationService";
+import { auth, db } from "../firebase";
+import { collection, query, where, getDocs } from "firebase/firestore";
 
 export default function NotificationsPage() {
-    const [notifications, setNotifications] = useState(initialNotifications);
+    const [notifications, setNotifications] = useState([]);
     const [activeTab, setActiveTab] = useState("all");
+    const [loading, setLoading] = useState(true);
+
+    // State to store the resolved username
+    const [resolvedUsername, setResolvedUsername] = useState(null);
+
+    // 1. Resolve User Identity
+    useEffect(() => {
+        const resolveUser = async () => {
+            if (!auth.currentUser) {
+                // Fallback for dev/testing without login
+                console.log("No user logged in, defaulting to Inspector A");
+                setResolvedUsername("Inspector A");
+                return;
+            }
+
+            try {
+                // Try to find the user in 'users' collection by email to get their 'username'
+                const { email } = auth.currentUser;
+                const q = query(collection(db, "users"), where("email", "==", email));
+                const snapshot = await getDocs(q);
+
+                if (!snapshot.empty) {
+                    const userData = snapshot.docs[0].data();
+                    const properUsername = userData.username || email;
+                    console.log("Logged in as:", email, "| Resolved Username:", properUsername);
+                    setResolvedUsername(properUsername);
+                } else {
+                    // Fallback if not found in DB
+                    const fallback = auth.currentUser.displayName || email;
+                    console.log("User not found in DB, using fallback:", fallback);
+                    setResolvedUsername(fallback);
+                }
+            } catch (err) {
+                console.error("Error resolving user:", err);
+                setResolvedUsername(auth.currentUser.email);
+            }
+        };
+        resolveUser();
+    }, []); // Run once on mount
+
+    // 2. Fetch Notifications once user is resolved
+    useEffect(() => {
+        const fetchNotifications = async () => {
+            if (!resolvedUsername) return;
+            setLoading(true);
+            try {
+                const data = await notificationService.getUserNotifications(resolvedUsername);
+                setNotifications(data);
+            } catch (error) {
+                console.error("Failed to fetch notifications", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchNotifications();
+    }, [resolvedUsername]);
 
     // Filter logic
     const filteredNotifications = notifications.filter(n => {
@@ -70,18 +86,24 @@ export default function NotificationsPage() {
     });
 
     // Mark as read
-    const markAsRead = (id) => {
+    const markAsRead = async (id) => {
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+        await notificationService.markAsRead(id);
     };
 
     // Mark all as read
-    const markAllAsRead = () => {
+    const markAllAsRead = async () => {
         setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        const unread = notifications.filter(n => !n.read);
+        for (const n of unread) {
+            await notificationService.markAsRead(n.id);
+        }
     }
 
     // Delete
-    const deleteNotification = (id) => {
+    const deleteNotification = async (id) => {
         setNotifications(prev => prev.filter(n => n.id !== id));
+        await notificationService.deleteNotification(id);
     };
 
     const getIcon = (type) => {
@@ -94,6 +116,22 @@ export default function NotificationsPage() {
         if (type === "alert") return "red";
         if (type === "success") return "teal";
         return "blue";
+    };
+
+    // Calculate relative time (basic)
+    const getTimeAgo = (isoString) => {
+        if (!isoString) return "";
+        const date = new Date(isoString);
+        const now = new Date();
+        const diffInSeconds = Math.floor((now - date) / 1000);
+
+        if (diffInSeconds < 60) return `${diffInSeconds} seconds ago`;
+        const diffInMinutes = Math.floor(diffInSeconds / 60);
+        if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`;
+        const diffInHours = Math.floor(diffInMinutes / 60);
+        if (diffInHours < 24) return `${diffInHours} hours ago`;
+        const diffInDays = Math.floor(diffInHours / 24);
+        return `${diffInDays} days ago`;
     };
 
     return (
@@ -125,61 +163,63 @@ export default function NotificationsPage() {
             </Tabs>
 
             <Stack>
-                {filteredNotifications.length === 0 ? (
-                    <Text c="dimmed" ta="center" py="xl">No notifications found</Text>
-                ) : (
-                    filteredNotifications.map((notification) => (
-                        <Paper
-                            key={notification.id}
-                            shadow="xs"
-                            p="md"
-                            radius="md"
-                            withBorder
-                            style={{
-                                backgroundColor: notification.read ? 'white' : '#f0f9ff',
-                                borderColor: notification.read ? '#e5e7eb' : '#bfdbfe'
-                            }}
-                        >
-                            <Group justify="space-between" align="start" wrap="nowrap">
-                                <Group wrap="nowrap">
-                                    <ThemeIcon size="lg" radius="xl" color={getColor(notification.type)} variant="light">
-                                        {getIcon(notification.type)}
-                                    </ThemeIcon>
-                                    <div>
-                                        <Text size="sm" fw={notification.read ? 500 : 700}>
-                                            {notification.title}
-                                        </Text>
-                                        <Text size="sm" c="dimmed">
-                                            {notification.message}
-                                        </Text>
-                                        <Text size="xs" c="dimmed" mt={4}>
-                                            {notification.time}
-                                        </Text>
-                                    </div>
-                                </Group>
-                                <Group gap="xs">
-                                    {!notification.read && (
+                {loading ? <Loader color="blue" /> : (
+                    filteredNotifications.length === 0 ? (
+                        <Text c="dimmed" ta="center" py="xl">No notifications found</Text>
+                    ) : (
+                        filteredNotifications.map((notification) => (
+                            <Paper
+                                key={notification.id}
+                                shadow="xs"
+                                p="md"
+                                radius="md"
+                                withBorder
+                                style={{
+                                    backgroundColor: notification.read ? 'white' : '#f0f9ff',
+                                    borderColor: notification.read ? '#e5e7eb' : '#bfdbfe'
+                                }}
+                            >
+                                <Group justify="space-between" align="start" wrap="nowrap">
+                                    <Group wrap="nowrap">
+                                        <ThemeIcon size="lg" radius="xl" color={getColor(notification.type)} variant="light">
+                                            {getIcon(notification.type)}
+                                        </ThemeIcon>
+                                        <div>
+                                            <Text size="sm" fw={notification.read ? 500 : 700}>
+                                                {notification.title}
+                                            </Text>
+                                            <Text size="sm" c="dimmed">
+                                                {notification.message}
+                                            </Text>
+                                            <Text size="xs" c="dimmed" mt={4}>
+                                                {getTimeAgo(notification.createdAt)}
+                                            </Text>
+                                        </div>
+                                    </Group>
+                                    <Group gap="xs">
+                                        {!notification.read && (
+                                            <ActionIcon
+                                                variant="subtle"
+                                                color="blue"
+                                                onClick={() => markAsRead(notification.id)}
+                                                title="Mark as read"
+                                            >
+                                                <IconCheck size={18} />
+                                            </ActionIcon>
+                                        )}
                                         <ActionIcon
                                             variant="subtle"
-                                            color="blue"
-                                            onClick={() => markAsRead(notification.id)}
-                                            title="Mark as read"
+                                            color="gray"
+                                            onClick={() => deleteNotification(notification.id)}
+                                            title="Delete"
                                         >
-                                            <IconCheck size={18} />
+                                            <IconTrash size={18} />
                                         </ActionIcon>
-                                    )}
-                                    <ActionIcon
-                                        variant="subtle"
-                                        color="gray"
-                                        onClick={() => deleteNotification(notification.id)}
-                                        title="Delete"
-                                    >
-                                        <IconTrash size={18} />
-                                    </ActionIcon>
+                                    </Group>
                                 </Group>
-                            </Group>
-                        </Paper>
-                    ))
+                            </Paper>
+                        ))
+                    )
                 )}
             </Stack>
         </Container>

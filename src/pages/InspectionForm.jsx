@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { db, auth, storage } from "../firebase";
 import {
   collection,
@@ -8,6 +8,7 @@ import {
   updateDoc,
   serverTimestamp,
   getDocs,
+  getDoc,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
@@ -33,6 +34,13 @@ import {
   Loader,
   Checkbox,
   Select,
+  Affix,
+  Transition,
+  rem,
+  Accordion,
+  Drawer,
+  Alert,
+  ScrollArea,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -46,7 +54,13 @@ import {
   IconCheck,
   IconUpload,
   IconX,
+  IconFolder,
+  IconNotebook,
+  IconInfoCircle,
+  IconEye, // Added IconEye
+  IconSend,
 } from "@tabler/icons-react";
+import { ReportEditor } from "./ReportGeneration"; // Import ReportEditor
 
 // Standard report fields
 const initialFormState = {
@@ -78,10 +92,22 @@ const InspectionForm = () => {
   // Modal for Equipment Search
   const [opened, { open, close }] = useDisclosure(false);
 
-  // ... (skipping initial effects)
+  // Draft Data State (Restored)
+  const [draftData, setDraftData] = useState({ notes: "", photos: [] });
+  const [drawerOpened, { open: openDrawer, close: closeDrawer }] = useDisclosure(false);
 
+  const [searchParams] = useSearchParams();
+  const urlPlanId = searchParams.get("planId");
+  const [currentPlanId, setCurrentPlanId] = useState(urlPlanId);
   const location = useLocation();
   const [editingReportId, setEditingReportId] = useState(null);
+
+  // Preview State
+  const [previewOpened, setPreviewOpened] = useState(false);
+  const [previewData, setPreviewData] = useState(null);
+
+  // Track new draft ID to prevent duplicates on multiple saves
+  const [newDocId, setNewDocId] = useState(null);
 
   // --- Initial Data Loading ---
   useEffect(() => {
@@ -89,6 +115,11 @@ const InspectionForm = () => {
     if (location.state && location.state.reportData) {
       const report = location.state.reportData;
       setEditingReportId(report.id);
+
+      // Update plan ID if present in report
+      if (report.planId) {
+        setCurrentPlanId(report.planId);
+      }
 
       // Populate Form Data
       setFormData({
@@ -112,9 +143,7 @@ const InspectionForm = () => {
       if (report.photoReport && report.photoReport.length > 0) {
         const rows = report.photoReport.map((item, index) => ({
           id: Date.now() + index,
-          files: [],
-          previews: item.photoUrls || [],
-          existingUrls: item.photoUrls || [], // Track existing URLs separately
+          photos: (item.photoUrls || []).map(u => ({ type: 'url', url: u, preview: u })),
           finding: item.finding || "",
           recommendation: item.recommendation || "",
         }));
@@ -129,22 +158,30 @@ const InspectionForm = () => {
     } else {
       // Auto-fill Date and Inspector (Only if NEW)
       const today = new Date().toISOString().split("T")[0];
-      const currentUser = auth.currentUser;
-      const inspector =
-        currentUser?.displayName || currentUser?.email || "Unknown Inspector";
 
-      setFormData((prev) => ({
-        ...prev,
-        inspectionDate: prev.inspectionDate || today,
-        inspectorName: prev.inspectorName || inspector,
-      }));
+      // Use onAuthStateChanged to ensure we get the user even if auth is initializing
+      const unsubscribe = auth.onAuthStateChanged((user) => {
+        if (user) {
+          const inspector = user.displayName || user.email || "Unknown Inspector";
+          setFormData((prev) => ({
+            ...prev,
+            inspectionDate: prev.inspectionDate || today,
+            inspectorName: prev.inspectorName || inspector,
+          }));
+        }
+      });
+      return () => unsubscribe();
     }
+  }, [location.state]);
 
-    // Equipment List
+  // Dedicated Effect for Loading Equipment List
+  useEffect(() => {
     const fetchEquipment = async () => {
+      console.log("Fetching Equipment List...");
       try {
         const snap = await getDocs(collection(db, "equipments"));
         const list = snap.docs.map((d) => ({ docId: d.id, ...d.data() }));
+        console.log(`Fetched ${list.length} equipment items.`);
         setEquipmentList(list);
       } catch (err) {
         console.error("Failed to load equipment list:", err);
@@ -156,7 +193,96 @@ const InspectionForm = () => {
       }
     };
     fetchEquipment();
-  }, [location.state]);
+  }, []); // Run once on mount
+
+  // New state to hold fetched plan data
+  const [planData, setPlanData] = useState(null);
+
+  // 1. Fetch Plan Data when ID changes
+  useEffect(() => {
+    if (!currentPlanId) return;
+    const loadPlan = async () => {
+      try {
+        const planRef = doc(db, "inspection_plans", currentPlanId);
+        const planSnap = await getDoc(planRef);
+        if (planSnap.exists()) {
+          setPlanData(planSnap.data());
+        }
+      } catch (e) {
+        console.error("Error loading plan:", e);
+      }
+    };
+    loadPlan();
+  }, [currentPlanId]);
+
+  // 2. Auto-fill Form when Plan Data AND Equipment List are ready
+  useEffect(() => {
+    // Debug Logs
+    console.log("Auto-fill Effect Triggered");
+    console.log("PlanData:", planData);
+    console.log("EquipmentList Length:", equipmentList.length);
+
+    if (!planData || equipmentList.length === 0 || location.state?.reportData) {
+      const reasons = [];
+      if (!planData) reasons.push("Plan Data not loaded");
+      if (equipmentList.length === 0) reasons.push("Equipment List empty");
+      if (location.state?.reportData) reasons.push("Report Data exists (Edit Mode)");
+
+      console.log(`Skipping Auto-fill: ${reasons.join(", ")}`);
+      return;
+    }
+
+    const exProps = planData.extendedProps || {};
+    // Try multiple fields for equipment ID just in case
+    const eqTag = exProps.equipmentId || planData.equipmentId || "";
+    console.log("Derived Equipment Tag from Plan:", eqTag);
+
+    if (eqTag) {
+      // Try strict match first
+      let fullEquipment = equipmentList.find(e => e.tagNumber === eqTag);
+
+      // If not found, try loose match (trim + case insensitive)
+      if (!fullEquipment) {
+        console.log("Strict match failed. Trying loose match...");
+        fullEquipment = equipmentList.find(e =>
+          e.tagNumber?.trim().toLowerCase() === eqTag.trim().toLowerCase()
+        );
+      }
+
+      if (fullEquipment) {
+        console.log("Match Found:", fullEquipment);
+        setFormData(prev => ({
+          ...prev,
+          equipmentId: eqTag,
+          doshNumber: fullEquipment.doshNumber || prev.doshNumber || "",
+          plantUnitArea: fullEquipment.plantUnitArea || prev.plantUnitArea || "",
+          equipmentDescription: fullEquipment.equipmentDescription || prev.equipmentDescription || "",
+          // Preserve inspector if already set
+          inspectorName: prev.inspectorName
+        }));
+        console.log(`Data Loaded: Pre-filled details for ${eqTag}`);
+      } else {
+        console.warn("No matching equipment found in list for tag:", eqTag);
+        notifications.show({
+          title: "Equipment Mismatch",
+          message: `Could not find equipment details for tag: ${eqTag}`,
+          color: "orange"
+        });
+      }
+    } else {
+      console.warn("No equipment tag found on plan.");
+    }
+
+    // Load Draft Data (Notes/Photos)
+    if (exProps.fieldPhotos || exProps.executionNotes) {
+      setDraftData({
+        notes: exProps.executionNotes || "",
+        photos: exProps.fieldPhotos || []
+      });
+      console.log("Draft Data Found: Field notes and photos applied.");
+    }
+
+  }, [planData, equipmentList, location.state]);
 
   // --- Handlers: Step 1 (General Form) ---
   const handleChange = (name, value) => {
@@ -200,19 +326,15 @@ const InspectionForm = () => {
       setPhotoRows([
         {
           id: Date.now(),
-          files: [],
-          previews: [],
+          photos: [],
+
           finding: "",
           recommendation: "",
         },
       ]);
     }
     setActiveStep(1); // Move to Step 2
-    notifications.show({
-      title: "Step 1 Validated",
-      message: "Proceeding to Photo Report...",
-      color: "blue",
-    });
+    console.log("Step 1 Validated: Proceeding to Photo Report...");
   };
 
   // --- Handlers: Step 2 (Photo Report) ---
@@ -221,8 +343,7 @@ const InspectionForm = () => {
       ...prev,
       {
         id: Date.now(),
-        files: [],
-        previews: [],
+        photos: [],
         finding: "",
         recommendation: "",
       },
@@ -248,52 +369,171 @@ const InspectionForm = () => {
     setPhotoRows((prev) =>
       prev.map((row) => {
         if (row.id === rowId) {
-          const newFiles = [...row.files];
-          const newPreviews = [...row.previews];
-          newFiles.splice(index, 1);
-          newPreviews.splice(index, 1);
-          return { ...row, files: newFiles, previews: newPreviews };
+          const newPhotos = [...row.photos];
+          newPhotos.splice(index, 1);
+          return { ...row, photos: newPhotos };
         }
         return row;
       })
     );
   };
 
-  const handleStep2Submit = async () => {
+  const handleDrop = (e, rowId) => {
+    e.preventDefault();
+    e.stopPropagation(); // Stop bubbling
+    const droppedData = e.dataTransfer.getData("text/plain");
+
+    if (droppedData) {
+      let urlsToAdd = [];
+      try {
+        const parsed = JSON.parse(droppedData);
+        if (Array.isArray(parsed)) urlsToAdd = parsed;
+        else urlsToAdd = [droppedData];
+      } catch (err) {
+        urlsToAdd = [droppedData];
+      }
+
+      setPhotoRows((prev) =>
+        prev.map((row) => {
+          if (row.id === rowId) {
+            const currentCount = row.photos?.length || 0;
+            if (currentCount >= 5) {
+              notifications.show({ title: "Limit Reached", message: "Max 5 photos.", color: "red" });
+              return row;
+            }
+
+            const remaining = 5 - currentCount;
+            const finalAdditions = urlsToAdd.slice(0, remaining);
+
+            if (finalAdditions.length < urlsToAdd.length) {
+              notifications.show({ title: "Partial Add", message: `Added ${finalAdditions.length} photos. Limit is 5.`, color: "orange" });
+            } else {
+              notifications.show({ title: "Photo(s) Added", message: `${finalAdditions.length} photos inserted.`, color: "green" });
+            }
+
+            const newPhotoObjects = finalAdditions.map(url => ({
+              type: 'url',
+              url: url,
+              preview: url
+            }));
+
+            return {
+              ...row,
+              photos: [...(row.photos || []), ...newPhotoObjects]
+            };
+          }
+          return row;
+        })
+      );
+    }
+  };
+
+  // --- Preview Logic ---
+  const handlePreview = () => {
     if (photoRows.length === 0) {
       if (!confirm("Submit report without specific photos?")) return;
     }
 
+    // Construct Preview Data
+    // We need to simulate the structure expected by ReportEditor (which expects 'photoReport' array)
+
+    const simulatedPhotoReport = photoRows.map(row => {
+      // Gather all 'visual' sources for this row:
+      // 1. Existing URLs (from Draft)
+      // 2. New Files (we need to show something - use the preview URLs)
+
+      const draftUrls = row.existingUrls || [];
+      const newFilePreviews = row.previews || [];
+
+      // Note: In real submission, we upload files then get URLs. 
+      // In preview, we just use the blob previews.
+
+      const photos = row.photos || [];
+      const allPhotoUrls = photos.map(p => p.preview);
+
+      if (allPhotoUrls.length === 0 && !row.finding && !row.recommendation) return null;
+
+      return {
+        finding: row.finding,
+        recommendation: row.recommendation,
+        photoUrls: allPhotoUrls,
+        timestamp: new Date().toISOString()
+      };
+    }).filter(Boolean);
+
+    // Generate Report No for Preview
+    const plant = formData.plantUnitArea
+      ? formData.plantUnitArea.trim().toUpperCase().replace(/\s+/g, "")
+      : "PLANT";
+    const tag = formData.equipmentId
+      ? formData.equipmentId.trim().toUpperCase().replace(/\s+/g, "")
+      : "TAG";
+    const typeCode = formData.inspectionType || "VI";
+    const dateObj = new Date(formData.inspectionDate);
+    const year = !isNaN(dateObj.getFullYear())
+      ? dateObj.getFullYear()
+      : new Date().getFullYear();
+    const previewReportNo = `${plant}/${typeCode}/${tag}/TA${year}`;
+
+    const mockReport = {
+      ...formData,
+      inspectionDate: formData.inspectionDate || new Date().toISOString().split("T")[0],
+      reportNo: previewReportNo,
+      photoReport: simulatedPhotoReport,
+      // Calculated fields for display
+      plantUnitArea: formData.plantUnitArea || "Plant 1",
+      doshNumber: formData.doshNumber || "MK PMT 1002"
+    };
+
+    setPreviewData(mockReport);
+    setPreviewOpened(true);
+  };
+
+  const handleStep2Submit = async (status = "Submitted") => {
+    // 1. Prevent Double Submission
+    if (isSubmitting) {
+      console.warn(`Double submit detected! Ignoring call for status: ${status}`);
+      return;
+    }
+
+    console.log(`handleStep2Submit START - Status: ${status}`);
     setIsSubmitting(true);
+
     try {
-      // Generate new Document ID first
-      const newDocRef = doc(collection(db, "inspections"));
-      const newDocId = newDocRef.id;
+      // Create photo report data (wait for uploads if any)
+
+      // ...Generate new Document ID first (for Upload Path if needed)
+      // Reference priority: 
+      // 1. editingReportId (Refers to existing doc we are editing)
+      // 2. newDocId (Refers to a draft we just saved in this session)
+      // 3. New ID
+      const targetDocId = editingReportId || newDocId || doc(collection(db, "inspections")).id;
 
       const uploadedPhotos = [];
 
       for (const row of photoRows) {
-        const photoUrls = [];
+        const photos = row.photos || [];
+        const rowUrls = photos.filter(p => p.type === 'url').map(p => p.url);
 
-        // Upload all files in this row
-        if (row.files && row.files.length > 0) {
-          for (const file of row.files) {
+        const filesToUpload = photos.filter(p => p.type === 'file').map(p => p.file);
+
+        if (filesToUpload.length > 0) {
+          for (const file of filesToUpload) {
             const storageRef = ref(
               storage,
-              `inspection-photos/${newDocId}/${Date.now()}-${file.name}`
+              `reports/${targetDocId}/${Date.now()}_${file.name}`
             );
-            await uploadBytes(storageRef, file);
-            const url = await getDownloadURL(storageRef);
-            photoUrls.push(url);
+            const snapshot = await uploadBytes(storageRef, file);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+            rowUrls.push(downloadURL);
           }
         }
 
-        // Only add to report if there's content or photos
-        if (photoUrls.length > 0 || row.finding || row.recommendation) {
+        if (rowUrls.length > 0 || row.finding || row.recommendation) {
           uploadedPhotos.push({
             finding: row.finding,
             recommendation: row.recommendation,
-            photoUrls: photoUrls,
+            photoUrls: rowUrls,
             timestamp: new Date().toISOString(),
           });
         }
@@ -304,41 +544,65 @@ const InspectionForm = () => {
       const plant = formData.plantUnitArea
         ? formData.plantUnitArea.trim().toUpperCase().replace(/\s+/g, "")
         : "PLANT";
-      const tag = formData.equipmentId
-        ? formData.equipmentId.trim().toUpperCase().replace(/\s+/g, "")
-        : "TAG";
-      // Construct Report No
-      // Format: [Plant]/[Type]/[Tag]/TA[Year]
-      const typeCode = formData.inspectionType || "VI";
-
-      // Extract year from inspectionDate (YYYY-MM-DD or Date object)
-      const dateObj = new Date(formData.inspectionDate);
-      const year = !isNaN(dateObj.getFullYear())
-        ? dateObj.getFullYear()
-        : new Date().getFullYear();
-
-      const reportNo = `${plant}/${typeCode}/${tag}/TA${year}`;
-
-      // Save everything to Firestore
+      // 1. Prepare Data
       const finalData = {
-        ...formData,
-        reportNo: reportNo, // Add generated Report No
-        photoReport: uploadedPhotos,
-        status: "Draft", // Changed to Draft
-        createdAt: serverTimestamp(),
+        ...previewData,
+        photoReport: uploadedPhotos, // Use the real uploaded URLs
+        status: status, // Use passed status (Draft or Submitted)
         updatedAt: serverTimestamp(),
+        stepsCompleted: 2,
+        planId: currentPlanId // PERSIST PLAN ID
       };
 
-      await setDoc(newDocRef, finalData);
+      // 2. Save/Update Report
+      // Logic:
+      // - If we have state 'newDocId' (from previous draft save), update that.
+      // - If not, we use the 'targetDocId' we generated above for uploads.
+
+      // 2. Save/Update Report
+      // Logic:
+      // - If we have state 'newDocId' (from previous draft save), update that.
+      // - If not, we use the 'targetDocId' we generated above for uploads.
+
+      const distinctId = editingReportId || newDocId || targetDocId;
+
+      // Always update state if it wasn't set (so subsequent saves update this doc)
+      if (!newDocId && !editingReportId) {
+        setNewDocId(distinctId);
+      }
+
+      const reportRef = doc(db, "inspections", distinctId);
+
+      // Use setDoc with merge:true to handle both Create (if new) and Update (if exists) 
+      // safely without 'No document to update' error.
+      await setDoc(reportRef, finalData, { merge: true });
+
+      // Update Plan Status ONLY if Submitted
+      if (currentPlanId && status === "Submitted") {
+        const planRef = doc(db, "inspection_plans", currentPlanId);
+        await updateDoc(planRef, {
+          status: "Submitted",
+          "extendedProps.status": "Submitted",
+          outcome: "Pass",
+          updatedAt: serverTimestamp()
+        });
+      }
 
       notifications.show({
-        title: "Draft Saved",
-        message: "Redirecting to Report Review...",
-        color: "blue",
+        title: status === "Draft" ? "Draft Saved" : "Report Submitted",
+        message: status === "Draft"
+          ? "Your report has been saved as a draft."
+          : "Report submitted to supervisor for review.",
+        color: "green",
       });
 
-      // Navigate to Report Generation for final review
-      navigate(`/report-submission?id=${newDocId}`);
+      // Navigate based on action
+      if (status === "Draft") {
+        navigate(`/report-submission`); // Go to list to see draft
+      } else {
+        navigate(`/report-submission?id=${distinctId}`); // Review submitted report
+      }
+
     } catch (error) {
       console.error("Step 2 Error:", error);
       notifications.show({
@@ -646,7 +910,19 @@ const InspectionForm = () => {
               )}
 
               {photoRows.map((row, index) => (
-                <Paper key={row.id} withBorder p="md" bg="gray.0">
+                <Paper
+                  key={row.id}
+                  withBorder
+                  p="md"
+                  bg="gray.0"
+                  onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = 'blue'; }}
+                  onDragLeave={(e) => { e.currentTarget.style.borderColor = '#ced4da'; }}
+                  onDrop={(e) => {
+                    e.currentTarget.style.borderColor = '#ced4da';
+                    handleDrop(e, row.id);
+                  }}
+                  style={{ transition: 'border-color 0.2s' }}
+                >
                   <Group align="flex-start" justify="space-between" mb="xs">
                     <Badge variant="filled" color="gray">
                       Photo #{index + 1}
@@ -661,7 +937,26 @@ const InspectionForm = () => {
                   </Group>
                   <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
                     {/* Column 1: Image */}
-                    <Box>
+                    <div
+                      onDragOverCapture={(e) => {
+                        console.log("DragOver Capture Types:", e.dataTransfer.types);
+                        // Allow drop if it contains text/plain (drawer item)
+                        if (e.dataTransfer.types.includes("text/plain")) {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "copy";
+                        }
+                      }}
+                      onDropCapture={(e) => {
+                        console.log("Drop Capture Types:", e.dataTransfer.types);
+                        // Capture drop before Dropzone sees it
+                        if (e.dataTransfer.types.includes("text/plain")) {
+                          console.log("Is text/plain drop");
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleDrop(e, row.id);
+                        }
+                      }}
+                    >
                       <Dropzone
                         onDrop={(files) => {
                           if (files.length === 0) return;
@@ -673,16 +968,11 @@ const InspectionForm = () => {
                             );
 
                             if (targetIndex !== -1) {
-                              const existingFiles =
-                                newRows[targetIndex].files || [];
-                              const currentCount = existingFiles.length;
+                              const currentPhotos = newRows[targetIndex].photos || [];
+                              const currentCount = currentPhotos.length;
 
                               if (currentCount >= 5) {
-                                notifications.show({
-                                  title: "Limit Reached",
-                                  message: "Maximum 5 photos allowed per row.",
-                                  color: "red",
-                                });
+                                notifications.show({ title: "Limit Reached", message: "Max 5 photos.", color: "red" });
                                 return prev;
                               }
 
@@ -690,31 +980,18 @@ const InspectionForm = () => {
                               if (currentCount + files.length > 5) {
                                 const allowed = 5 - currentCount;
                                 filesToAdd = files.slice(0, allowed);
-                                notifications.show({
-                                  title: "Limit Reached",
-                                  message: `Only ${allowed} photo(s) added to meet the limit of 5.`,
-                                  color: "orange",
-                                });
+                                notifications.show({ title: "Limit Reached", message: `Partial add.`, color: "orange" });
                               }
 
-                              const existingPreviews =
-                                newRows[targetIndex].previews || [];
-
-                              const newFiles = [
-                                ...existingFiles,
-                                ...filesToAdd,
-                              ];
-                              const newPreviews = [
-                                ...existingPreviews,
-                                ...filesToAdd.map((f) =>
-                                  URL.createObjectURL(f)
-                                ),
-                              ];
+                              const newPhotoObjects = filesToAdd.map(f => ({
+                                type: 'file',
+                                file: f,
+                                preview: URL.createObjectURL(f)
+                              }));
 
                               newRows[targetIndex] = {
                                 ...newRows[targetIndex],
-                                files: newFiles,
-                                previews: newPreviews,
+                                photos: [...currentPhotos, ...newPhotoObjects]
                               };
                             }
                             return newRows;
@@ -723,8 +1000,7 @@ const InspectionForm = () => {
                         onReject={() =>
                           notifications.show({
                             title: "Image Rejected ",
-                            message:
-                              "Image size too large, please select a image under 10 mb",
+                            message: "File too large (Max 10MB)",
                             color: "red",
                           })
                         }
@@ -741,30 +1017,24 @@ const InspectionForm = () => {
                           cursor: "pointer",
                           overflow: "hidden",
                           backgroundColor:
-                            row.previews && row.previews.length > 0
+                            row.photos && row.photos.length > 0
                               ? "white"
                               : "transparent",
                           padding: 10,
                         }}
                       >
-                        {row.previews && row.previews.length > 0 ? (
+                        {row.photos && row.photos.length > 0 ? (
                           <SimpleGrid
-                            cols={
-                              row.previews.length > 4
-                                ? 3
-                                : row.previews.length > 1
-                                ? 2
-                                : 1
-                            }
+                            cols={row.photos.length > 4 ? 3 : row.photos.length > 1 ? 2 : 1}
                             spacing="xs"
                             w="100%"
                           >
-                            {row.previews.map((preview, i) => (
+                            {row.photos.map((p, i) => (
                               <ImagePreviewItem
                                 key={i}
-                                src={preview}
+                                src={p.preview}
                                 onDelete={() => removeImageFromRow(row.id, i)}
-                                height={row.previews.length > 2 ? 80 : 140}
+                                height={row.photos.length > 2 ? 80 : 140}
                               />
                             ))}
                           </SimpleGrid>
@@ -792,7 +1062,7 @@ const InspectionForm = () => {
                           </Stack>
                         )}
                       </Dropzone>
-                    </Box>
+                    </div>
 
                     {/* Column 2: Finding */}
                     <Textarea
@@ -842,8 +1112,7 @@ const InspectionForm = () => {
                 <Button
                   color="green"
                   leftSection={<IconCheck size={16} />}
-                  onClick={handleStep2Submit}
-                  loading={isSubmitting}
+                  onClick={handlePreview}
                 >
                   Complete Report
                 </Button>
@@ -853,6 +1122,59 @@ const InspectionForm = () => {
         </Stepper.Step>
       </Stepper>
 
+      {/* Preview Modal - Full Screen */}
+      <Modal
+        opened={previewOpened}
+        onClose={() => setPreviewOpened(false)}
+        fullScreen
+        title="Report Preview"
+        styles={{ title: { fontWeight: 'bold' }, body: { backgroundColor: '#f5f5f5', minHeight: '100vh', padding: 0 } }}
+      >
+        <Container size="xl" py="md">
+          {previewData && (
+            <ReportEditor
+              report={previewData}
+              hideBackButton
+              ActionButtons={
+                <Group>
+                  <Button
+                    type="button" // Prevent default submit
+                    variant="default"
+                    size="md"
+                    loading={isSubmitting}
+                    leftSection={<IconDeviceFloppy size={16} />}
+                    onClick={async (e) => {
+                      e.preventDefault(); // Extra safety
+                      e.stopPropagation();
+                      // setPreviewOpened(false); // Don't close immediately
+                      await handleStep2Submit("Draft");
+                      setPreviewOpened(false); // Close after success/failure
+                    }}
+                  >
+                    Save as Draft
+                  </Button>
+                  <Button
+                    type="button" // Prevent default submit
+                    color="green"
+                    size="md"
+                    loading={isSubmitting}
+                    leftSection={<IconSend size={16} />}
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      // setPreviewOpened(false); 
+                      await handleStep2Submit("Submitted");
+                      setPreviewOpened(false);
+                    }}
+                  >
+                    Confirm & Submit
+                  </Button>
+                </Group>
+              }
+            />
+          )}
+        </Container>
+      </Modal>
       {/* Search Modal */}
       <EquipmentSearchModal
         opened={opened}
@@ -860,6 +1182,48 @@ const InspectionForm = () => {
         equipmentList={equipmentList}
         onPick={handleEquipmentPick}
       />
+
+      <Drawer
+        opened={drawerOpened}
+        onClose={closeDrawer}
+        title="Field Notes & Draft Photos"
+        position="right"
+        size="lg"
+        withOverlay={false}
+        lockScroll={false}
+        styles={{ content: { boxShadow: '-5px 0px 20px rgba(0,0,0,0.1)' } }}
+      >
+        <Stack>
+          <Title order={4}>Execution Notes</Title>
+          <div dangerouslySetInnerHTML={{ __html: draftData.notes || "<p>No notes recorded.</p>" }} />
+          <Divider />
+          <Title order={4}>Field Photos</Title>
+          {(!draftData.photos || draftData.photos.length === 0) ? (
+            <Text c="dimmed">No photos available.</Text>
+          ) : (
+            <DraftPhotoGallery photos={draftData.photos} />
+          )}
+        </Stack>
+      </Drawer>
+
+      <Affix position={{ bottom: 20, right: 20 }}>
+        <Transition transition="slide-up" mounted={!!(draftData.notes || (draftData.photos && draftData.photos.length > 0))}>
+          {(transitionStyles) => (
+            <Button
+              leftSection={<IconNotebook size={20} />}
+              style={transitionStyles}
+              color="orange"
+              onClick={openDrawer}
+              size="lg"
+              radius="xl"
+              shadow="xl"
+            >
+              Draft Data ({draftData.photos?.length || 0})
+            </Button>
+          )}
+        </Transition>
+      </Affix>
+
     </Container>
   );
 };
@@ -1003,5 +1367,103 @@ const ImagePreviewItem = ({ src, onDelete, height }) => {
     </Box>
   );
 };
+
+// Component to group photos by folder in Drawer
+function DraftPhotoGallery({ photos }) {
+  const [selected, setSelected] = useState(new Set()); // Set of URLs
+
+  // Extract unique folders
+  const uniqueFolders = new Set(['General']);
+  photos.forEach(p => {
+    if (p.folder) uniqueFolders.add(p.folder);
+  });
+  const folders = Array.from(uniqueFolders);
+
+  const toggleSelect = (url) => {
+    const newSet = new Set(selected);
+    if (newSet.has(url)) newSet.delete(url);
+    else newSet.add(url);
+    setSelected(newSet);
+  };
+
+  return (
+    <Stack>
+      <Alert variant="light" color="blue" title="How to use" icon={<IconInfoCircle />}>
+        Click photos to select multiple. Drag any selected photo to add all of them at once.
+      </Alert>
+      <Accordion multiple defaultValue={['General']} variant="separated">
+        {selected.size > 0 && (
+          <Text size="sm" mb="xs" c="blue" ta="right">
+            {selected.size} selected. Drag any selected item.
+          </Text>
+        )}
+        {folders.map(folder => {
+          const folderPhotos = photos.filter(p => (p.folder || 'General') === folder);
+          if (folderPhotos.length === 0) return null;
+
+          return (
+            <Accordion.Item key={folder} value={folder}>
+              <Accordion.Control icon={<IconFolder size={20} color="orange" />}>
+                {folder} ({folderPhotos.length})
+              </Accordion.Control>
+              <Accordion.Panel>
+                <SimpleGrid cols={2} spacing="xs">
+                  {folderPhotos.map((p, i) => {
+                    const url = p.url || p;
+                    const isSelected = selected.has(url);
+                    return (
+                      <Box
+                        key={i}
+                        draggable
+                        onClick={() => toggleSelect(url)}
+                        onDragStart={(e) => {
+                          let dataToSend;
+                          // If dragging a selected item, send ALL selected items
+                          if (isSelected) {
+                            dataToSend = JSON.stringify(Array.from(selected));
+                            console.log("Dragging multiple:", selected.size);
+                          } else {
+                            // If dragging unselected item, just send that one (even if others selected?)
+                            // Standardize behavior: dragging one overrides selection logic for simple drag?
+                            // Or better: clear selection and drag valid one?
+                            // Let's implement: if dragging unselected, just drag that one as single.
+                            dataToSend = url; // Single URL behaves as standard text/plain
+                            console.log("Dragging single:", url);
+                          }
+                          e.dataTransfer.setData("text/plain", dataToSend);
+                          e.dataTransfer.effectAllowed = "copy";
+                        }}
+                        style={{
+                          cursor: 'grab',
+                          border: isSelected ? '3px solid #228be6' : '1px solid transparent',
+                          borderRadius: 8,
+                          transition: 'border 0.2s',
+                          position: 'relative'
+                        }}
+                      >
+                        <Image
+                          src={url}
+                          radius="md"
+                          h={100}
+                          fit="cover"
+                          style={{ pointerEvents: 'none' }} // prevent image from hijacking drag
+                        />
+                        {isSelected && (
+                          <Box pos="absolute" top={5} right={5} bg="blue" style={{ borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <IconCheck size={14} color="white" />
+                          </Box>
+                        )}
+                      </Box>
+                    );
+                  })}
+                </SimpleGrid>
+              </Accordion.Panel>
+            </Accordion.Item>
+          );
+        })}
+      </Accordion>
+    </Stack>
+  );
+}
 
 export default InspectionForm;
