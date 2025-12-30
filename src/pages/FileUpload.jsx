@@ -177,45 +177,54 @@ const FileUploadComponent = () => {
     }
   };
 
-  const handleDelete = async (file) => {
-    modals.openConfirmModal({
-      title: 'Delete Document',
-      centered: true,
-      children: (
-        <Text size="sm">
-          Are you sure you want to delete <Text component="span" fw={600}>{file.fileName}</Text>? This action cannot be undone.
-        </Text>
-      ),
-      labels: { confirm: 'Delete', cancel: 'Cancel' },
-      confirmProps: { color: 'red', leftSection: <IconTrash size={16} /> },
-      onConfirm: async () => {
+const handleDelete = async (file) => {
+  modals.openConfirmModal({
+    title: 'Delete Document',
+    centered: true,
+    children: (
+      <Text size="sm">
+        Are you sure you want to delete <Text component="span" fw={600}>{file.fileName}</Text>? This action cannot be undone.
+      </Text>
+    ),
+    labels: { confirm: 'Delete', cancel: 'Cancel' },
+    confirmProps: { color: 'red', leftSection: <IconTrash size={16} /> },
+    onConfirm: async () => {
+      try {
+        // Try to delete from Firebase Storage
         try {
           const fileRef = ref(storage, file.storagePath);
           await deleteObject(fileRef);
-          await deleteDoc(doc(db, "documents", file.id));
-
-          setUploadedFiles((prev) =>
-            prev.filter((item) => item.id !== file.id)
-          );
-
-          notifications.show({
-            title: 'Success',
-            message: 'Document deleted successfully',
-            color: 'green',
-            autoClose: 3000,
-          });
-        } catch (error) {
-          console.error("Error deleting file:", error);
-          notifications.show({
-            title: 'Delete Failed',
-            message: 'Unable to delete document.',
-            color: 'red',
-            autoClose: 5000,
-          });
+        } catch (storageError) {
+          // If file doesn't exist in storage, log it but continue
+          console.warn("File not found in storage, removing metadata only:", storageError);
         }
-      },
-    });
-  };
+
+        // Always delete from Firestore (metadata)
+        await deleteDoc(doc(db, "documents", file.id));
+
+        // Update UI
+        setUploadedFiles((prev) =>
+          prev.filter((item) => item.id !== file.id)
+        );
+
+        notifications.show({
+          title: 'Success',
+          message: 'Document deleted successfully',
+          color: 'green',
+          autoClose: 3000,
+        });
+      } catch (error) {
+        console.error("Error deleting file:", error);
+        notifications.show({
+          title: 'Delete Failed',
+          message: 'Unable to delete document. Please try again.',
+          color: 'red',
+          autoClose: 5000,
+        });
+      }
+    },
+  });
+};
 
   const getFileIcon = (fileName) => {
     const ext = fileName.split('.').pop().toLowerCase();
