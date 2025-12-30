@@ -1,11 +1,11 @@
 import { AppShell } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { Outlet } from "react-router-dom";
-import { SideBar } from "./sideBar.jsx"; // Adjust path as needed
-import { Header } from "./header.jsx"; // Adjust path as needed
+import { SideBar } from "./sideBar.jsx";
+import { Header } from "./header.jsx";
 import { FooterLinks } from "../FooterLinks.jsx";
+import { useTheme } from "../context/ThemeContext";
 
-// Firebase Heartbeat
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import {
@@ -16,14 +16,11 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 
-// Debug code removed
-
 export function MainLayout() {
-  // defaulting to false means it starts CLOSED.
-  // Change to useDisclosure(true) if you want it open by default.
   const [opened, { toggle }] = useDisclosure();
+  const { colorScheme } = useTheme();
+  const isDark = colorScheme === "dark";
 
-  // Heartbeat & User Data Logic
   const [currentUser, setCurrentUser] = useState(null);
   const [userData, setUserData] = useState(null);
 
@@ -42,12 +39,10 @@ export function MainLayout() {
 
     const userRef = doc(db, "users", currentUser.uid);
 
-    // 1. Real-time User Data Listener (Optimized)
     const unsubscribeUserData = onSnapshot(userRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
 
-        // Construct display name logic
         let displayName = data.username || "User";
         if (data.firstName && data.lastName) {
           displayName = `${data.firstName} ${data.lastName}`;
@@ -65,7 +60,6 @@ export function MainLayout() {
       }
     });
 
-    // 2. Heartbeat Logic
     const updatePresence = async () => {
       try {
         await updateDoc(userRef, {
@@ -77,8 +71,8 @@ export function MainLayout() {
       }
     };
 
-    updatePresence(); // Run immediately
-    const interval = setInterval(updatePresence, 60000); // Run every 60s
+    updatePresence();
+    const interval = setInterval(updatePresence, 60000);
 
     return () => {
       unsubscribeUserData();
@@ -92,10 +86,14 @@ export function MainLayout() {
       navbar={{
         width: 260,
         breakpoint: "sm",
-        // UPDATE HERE: Control desktop state too
         collapsed: { mobile: !opened, desktop: !opened },
       }}
       padding={0}
+      styles={{
+        main: {
+          backgroundColor: isDark ? "#141517" : "#f8f9fa",
+        },
+      }}
     >
       <AppShell.Header>
         <Header opened={opened} toggle={toggle} userInfo={userData} />
@@ -105,24 +103,21 @@ export function MainLayout() {
         <SideBar toggle={toggle} role={userData?.role} />
       </AppShell.Navbar>
 
-    <AppShell.Main style={{ 
-      display: 'flex', 
-      flexDirection: 'column',
-      minHeight: '100vh'
-    }}>
-  {/* Content area with padding and spacing before footer */}
-  <div style={{ 
-    flex: 1,
-    padding: '30px',
-    paddingBottom: '60px', /* ✅ Space before footer */
-    backgroundColor: '#f8f9fa'
-  }}>
-    <Outlet />
-  </div>
-  
-  {/* Footer */}
-  <FooterLinks />
-  </AppShell.Main>
-  </AppShell>
+      <AppShell.Main style={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        minHeight: '100vh'
+      }}>
+        <div style={{ 
+          flex: 1,
+          padding: '30px',
+          paddingBottom: '60px',
+        }}>
+          <Outlet />
+        </div>
+        
+        <FooterLinks />
+      </AppShell.Main>
+    </AppShell>
   );
 }

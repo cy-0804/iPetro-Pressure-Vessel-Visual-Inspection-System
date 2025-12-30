@@ -21,11 +21,13 @@ import {
 } from "@tabler/icons-react";
 import { signOut } from "firebase/auth";
 import { auth } from "../../firebase";
+import { useTheme } from "../context/ThemeContext";
 
 export function Header({ opened, toggle, userInfo }) {
   const navigate = useNavigate();
+  const { colorScheme } = useTheme(); // Get theme
+  const isDark = colorScheme === "dark"; //Check if dark mode
 
-  // Default user data while loading (or if userInfo is null)
   const currentUser = userInfo || {
     name: "User",
     email: "user@ipetro.com",
@@ -33,7 +35,6 @@ export function Header({ opened, toggle, userInfo }) {
     avatar: null,
   };
 
-  // Get initials for avatar
   const getInitials = (name) => {
     return name
       .split(" ")
@@ -56,21 +57,20 @@ export function Header({ opened, toggle, userInfo }) {
     <Box
       h={64}
       p={0}
-      bg="white"
+      bg={isDark ? "#1a1b1e" : "white"} // Dynamic background
       style={{
-        borderBottom: "1px solid #e9ecef",
+        borderBottom: `1px solid ${isDark ? "#373a40" : "#e9ecef"}`, // Dynamic border
         boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
       }}
     >
       <Container fluid px={24} h="100%">
         <Group justify="space-between" align="center" h="100%">
-          {/* Left Side: Burger & Logo */}
           <Group gap={16}>
             <Burger
               opened={opened}
               onClick={toggle}
               size="sm"
-              color="#495057"
+              color={isDark ? "#c1c2c5" : "#495057"} // Dynamic color
               aria-label="Toggle navigation"
             />
 
@@ -91,7 +91,6 @@ export function Header({ opened, toggle, userInfo }) {
             </Box>
           </Group>
 
-          {/* Right Side: Notification & User Profile */}
           <Group gap={12}>
             {/* Notification Menu */}
             <Menu
@@ -230,7 +229,7 @@ export function Header({ opened, toggle, userInfo }) {
                     transition: "background-color 0.2s ease",
                   }}
                   onMouseEnter={(e) =>
-                    (e.currentTarget.style.backgroundColor = "#f8f9fa")
+                    (e.currentTarget.style.backgroundColor = isDark ? "#25262b" : "#f8f9fa")
                   }
                   onMouseLeave={(e) =>
                     (e.currentTarget.style.backgroundColor = "transparent")
@@ -265,8 +264,7 @@ export function Header({ opened, toggle, userInfo }) {
               </Menu.Target>
 
               <Menu.Dropdown>
-                {/* User Info Header */}
-                <Box p="md" style={{ backgroundColor: "#f8f9fa" }}>
+                <Box p="md" style={{ backgroundColor: isDark ? "#25262b" : "#f8f9fa" }}>
                   <Group gap="sm">
                     <Avatar
                       src={currentUser.avatar}
@@ -289,7 +287,6 @@ export function Header({ opened, toggle, userInfo }) {
 
                 <Menu.Divider />
 
-                {/* Menu Items */}
                 <Menu.Item
                   leftSection={<IconUser size={16} stroke={1.5} />}
                   onClick={() => navigate("/user-profile")}

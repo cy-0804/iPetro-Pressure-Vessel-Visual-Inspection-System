@@ -4,14 +4,15 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #ffffff;
-  border-right: 1px solid #e9ecef; /* Keep border but lighter */
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.02); /* Add subtle shadow */
+  background: light-dark(#ffffff, #1a1b1e);
+  border-right: 1px solid light-dark(#e9ecef, #373a40);
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.02);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .logoSection {
   padding: 24px 20px;
-  border-bottom: 1px solid #f1f3f5;
+  border-bottom: 1px solid light-dark(#f1f3f5, #373a40);
 }
 
 .navbarMain {
@@ -19,7 +20,6 @@
   padding: 24px 12px;
 }
 
-/* Section Header - Clickable dropdown trigger with darker hover */
 .sectionHeader {
   display: flex;
   align-items: center;
@@ -34,15 +34,11 @@
 }
 
 .sectionHeader:hover {
-  background-color: #e9ecef;
+  background-color: light-dark(#e9ecef, #25262b);
 }
 
 .sectionHeader:active {
-  background-color: #dee2e6;
-}
-
-.sectionHeader:hover Text {
-  color: #495057;
+  background-color: light-dark(#dee2e6, #373a40);
 }
 
 .link {
@@ -50,7 +46,7 @@
   align-items: center;
   text-decoration: none;
   font-size: 14px;
-  color: #495057;
+  color: light-dark(#495057, #c1c2c5);
   padding: 11px 16px;
   border-radius: 8px;
   font-weight: 500;
@@ -73,8 +69,8 @@
 }
 
 .link:hover {
-  background-color: #e9ecef;
-  color: #212529;
+  background-color: light-dark(#e9ecef, #25262b);
+  color: light-dark(#212529, #fff);
 }
 
 .link:hover::before {
@@ -82,7 +78,7 @@
 }
 
 .link .linkIcon {
-  color: #868e96;
+  color: light-dark(#868e96, #909296);
   margin-right: 12px;
   width: 20px;
   height: 20px;
@@ -95,9 +91,8 @@
   transform: scale(1.05);
 }
 
-/* Active link - Clean blue accent */
 .linkActive {
-  background-color: #e7f5ff;
+  background-color: light-dark(#e7f5ff, #373a40);
   color: #228be6;
   font-weight: 600;
 }
@@ -111,10 +106,9 @@
 }
 
 .linkActive:hover {
-  background-color: #d0ebff;
+  background-color: light-dark(#d0ebff, #25262b);
 }
 
-/* Mobile optimization */
 @media (max-width: 768px) {
   .logoSection {
     padding: 20px 16px;
@@ -139,7 +133,6 @@
   }
 }
 
-/* Scrollbar styling */
 .navbarMain::-webkit-scrollbar {
   width: 4px;
 }
@@ -149,10 +142,10 @@
 }
 
 .navbarMain::-webkit-scrollbar-thumb {
-  background: #dee2e6;
+  background: light-dark(#dee2e6, #373a40);
   border-radius: 2px;
 }
 
 .navbarMain::-webkit-scrollbar-thumb:hover {
-  background: #ced4da;
+  background: light-dark(#ced4da, #5c5f66);
 }

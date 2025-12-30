@@ -42,12 +42,16 @@ import {
 } from "@tabler/icons-react";
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
+import { useTheme } from "../components/context/ThemeContext";
 
 const FileUploadComponent = () => {
+  const { colorScheme } = useTheme();
+  const isDark = colorScheme === 'dark'; 
+
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isDragging, setIsDragging] = useState(false); // Track drag state
+  const [isDragging, setIsDragging] = useState(false);
 
   // Load documents from Firestore
   const fetchUploadedFiles = async () => {
@@ -93,11 +97,9 @@ const FileUploadComponent = () => {
         const fileName = `${timestamp}-${file.name}`;
         const storageRef = ref(storage, `documents/${fileName}`);
         
-        // Upload to Firebase Storage
         await uploadBytes(storageRef, file);
         const url = await getDownloadURL(storageRef);
 
-        // Save metadata to Firestore
         const docRef = await addDoc(collection(db, "documents"), {
           fileName: file.name,
           storageName: fileName,
@@ -147,7 +149,6 @@ const FileUploadComponent = () => {
     }
   };
 
-  //  Drag & Drop Handlers
   const handleDragEnter = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -189,11 +190,8 @@ const FileUploadComponent = () => {
       confirmProps: { color: 'red', leftSection: <IconTrash size={16} /> },
       onConfirm: async () => {
         try {
-          // Delete from Firebase Storage
           const fileRef = ref(storage, file.storagePath);
           await deleteObject(fileRef);
-
-          // Delete from Firestore
           await deleteDoc(doc(db, "documents", file.id));
 
           setUploadedFiles((prev) =>
@@ -260,7 +258,6 @@ const FileUploadComponent = () => {
         {/* Header */}
         <Box>
           <Title order={1} mb="xs">Documents Upload</Title>
-          <Text c="dimmed">Upload and manage your inspection documents</Text>
         </Box>
 
         {/* Upload Section */}
@@ -289,20 +286,22 @@ const FileUploadComponent = () => {
                   onDrop={handleDrop}
                   style={{
                     border: isDragging ? '3px dashed #1c7ed6' : '2px dashed #228be6',
-                    backgroundColor: isDragging ? '#d0ebff' : '#f8f9fa',
+                    backgroundColor: isDragging 
+                      ? (isDark ? '#1e3a5f' : '#d0ebff')
+                      : (isDark ? '#25262b' : '#f8f9fa'),
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
                     transform: isDragging ? 'scale(1.02)' : 'scale(1)',
                   }}
                   onMouseEnter={(e) => {
                     if (!isDragging) {
-                      e.currentTarget.style.backgroundColor = '#e7f5ff';
+                      e.currentTarget.style.backgroundColor = isDark ? '#2d3035' : '#e7f5ff';
                       e.currentTarget.style.borderColor = '#1c7ed6';
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (!isDragging) {
-                      e.currentTarget.style.backgroundColor = '#f8f9fa';
+                      e.currentTarget.style.backgroundColor = isDark ? '#25262b' : '#f8f9fa';
                       e.currentTarget.style.borderColor = '#228be6';
                     }
                   }}
@@ -390,7 +389,9 @@ const FileUploadComponent = () => {
                       }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.transform = 'translateY(-4px)';
-                        e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.1)';
+                        e.currentTarget.style.boxShadow = isDark 
+                          ? '0 8px 16px rgba(0,0,0,0.4)'
+                          : '0 8px 16px rgba(0,0,0,0.1)';
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.transform = 'translateY(0)';
@@ -473,7 +474,7 @@ const FileUploadComponent = () => {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            backgroundColor: isDark ? 'rgba(20, 21, 23, 0.95)' : 'rgba(255, 255, 255, 0.9)',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',

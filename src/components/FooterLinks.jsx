@@ -2,6 +2,7 @@ import { IconBrandFacebook, IconBrandInstagram, IconBrandLinkedin, IconMail, Ico
 import { ActionIcon, Container, Group, Text, Stack, Divider, Box } from '@mantine/core';
 import ipetroLogo from '../assets/ipetro-logo.png';
 import './FooterLinks.css';
+import { useTheme } from './context/ThemeContext'; 
 
 const data = [
   {
@@ -53,6 +54,9 @@ const contributors = [
 ];
 
 export function FooterLinks() {
+  const { colorScheme } = useTheme(); 
+  const isDark = colorScheme === 'dark';
+
   const groups = data.map((group) => {
     const links = group.links.map((link, index) => (
       <Text
@@ -91,7 +95,7 @@ export function FooterLinks() {
         wrap="nowrap"
         align="flex-start"
       >
-        <Icon size={16} stroke={1.5} style={{ color: '#868e96', flexShrink: 0, marginTop: 2 }} />
+        <Icon size={16} stroke={1.5} style={{ color: isDark ? '#909296' : '#868e96', flexShrink: 0, marginTop: 2 }} />
         <Text size="sm" className="footer-link" style={{ margin: 0 }}>
           {item.label}
         </Text>
@@ -100,7 +104,7 @@ export function FooterLinks() {
   });
 
   return (
-    <footer className="footer">
+    <footer className="footer" data-theme={colorScheme}>
       <Container size="xl" className="footer-inner">
         {/* Logo and Description */}
         <div className="footer-logo-section">
@@ -175,7 +179,7 @@ export function FooterLinks() {
         </div>
       </Container>
 
-      <Divider my="xl" color="#e9ecef" />
+      <Divider my="xl" color={isDark ? "#373a40" : "#e9ecef"} />
 
       {/* Bottom Section */}
       <Container size="xl">

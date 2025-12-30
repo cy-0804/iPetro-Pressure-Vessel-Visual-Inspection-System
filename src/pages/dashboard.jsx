@@ -22,8 +22,12 @@ import {
   IconTrendingUp,
   IconCalendar
 } from '@tabler/icons-react';
+import { useTheme } from "../components/context/ThemeContext";
 
 export default function Dashboard() {
+  const { colorScheme } = useTheme(); 
+  const isDark = colorScheme === 'dark'; 
+
   // Sample data
   const stats = [
     {
@@ -83,15 +87,7 @@ export default function Dashboard() {
       <Stack gap="lg" mb="xl">
         <Group justify="space-between" align="center">
           <div>
-            <Title 
-              order={1} 
-              style={{ 
-                // background: 'linear-gradient(45deg, #667eea 0%, #764ba2 100%)',
-                // WebkitBackgroundClip: 'text',
-                // WebkitTextFillColor: 'transparent',
-                // backgroundClip: 'text'
-              }}
-            >
+            <Title order={1}>
               Dashboard Overview
             </Title>
             <Text c="dimmed" size="sm" mt={5}>
@@ -119,18 +115,24 @@ export default function Dashboard() {
             p="xl" 
             radius="md"
             style={{
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.95) 100%)',
-              border: '1px solid #e9ecef',
+              background: isDark 
+                ? 'linear-gradient(135deg, rgba(26,27,30,0.9) 0%, rgba(26,27,30,0.95) 100%)'
+                : 'linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.95) 100%)',
+              border: isDark ? '1px solid #373a40' : '1px solid #e9ecef',
               transition: 'all 0.3s ease',
               cursor: 'pointer'
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'translateY(-4px)';
-              e.currentTarget.style.boxShadow = '0 12px 24px rgba(0,0,0,0.15)';
+              e.currentTarget.style.boxShadow = isDark 
+                ? '0 12px 24px rgba(0,0,0,0.4)'
+                : '0 12px 24px rgba(0,0,0,0.15)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
+              e.currentTarget.style.boxShadow = isDark
+                ? '0 1px 3px rgba(0,0,0,0.3)'
+                : '0 1px 3px rgba(0,0,0,0.05)';
             }}
           >
             <Group justify="space-between" mb="md">
@@ -139,7 +141,6 @@ export default function Dashboard() {
                 radius="md" 
                 variant="light" 
                 color={stat.color}
-                style={{ background: `rgba(var(--mantine-color-${stat.color}-1-rgb), 0.1)` }}
               >
                 <stat.icon size={28} stroke={1.5} />
               </ThemeIcon>
@@ -192,15 +193,16 @@ export default function Dashboard() {
                   radius="md"
                   style={{
                     transition: 'all 0.2s ease',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    backgroundColor: 'transparent'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#f8f9fa';
+                    e.currentTarget.style.backgroundColor = isDark ? '#25262b' : '#f8f9fa';
                     e.currentTarget.style.borderColor = '#667eea';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.backgroundColor = 'transparent';
-                    e.currentTarget.style.borderColor = '#dee2e6';
+                    e.currentTarget.style.borderColor = isDark ? '#373a40' : '#dee2e6';
                   }}
                 >
                   <Group justify="space-between" wrap="nowrap">

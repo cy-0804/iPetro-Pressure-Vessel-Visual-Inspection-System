@@ -4,11 +4,10 @@
   flex-direction: column;
   width: 100%;
   height: calc(100vh - 60px);
-  /* Fill parent dynamically */
-  background: #ffffff;
-  color: #3c4043;
-  /* Force dark text color */
+  background: light-dark(#ffffff, #1a1b1e);
+  color: light-dark(#3c4043, #c1c2c5);
   overflow: hidden;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .top-toolbar {
@@ -17,10 +16,10 @@
   align-items: center;
   gap: 12px;
   padding: 12px 20px;
-  background: #fff;
-  border-bottom: 1px solid #e5e5e5;
+  background: light-dark(#fff, #1a1b1e);
+  border-bottom: 1px solid light-dark(#e5e5e5, #373a40);
   flex-shrink: 0;
-  /* Keeps toolbar size constant */
+  transition: all 0.2s ease;
 }
 
 /* Toolbar inputs */
@@ -28,13 +27,13 @@
 .top-toolbar .date-input,
 .top-toolbar select {
   padding: 8px 32px 8px 12px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid light-dark(#dcdfe6, #373a40);
   border-radius: 6px;
   font-size: 14px;
-  background-color: white;
-  color: #333;
+  background-color: light-dark(white, #25262b);
+  color: light-dark(#333, #c1c2c5);
   cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: all 0.2s ease;
 }
 
 /* Make select dropdowns more obvious with arrow indicator */
@@ -47,6 +46,10 @@
   background-position: right 8px center;
   background-size: 16px;
   padding-right: 32px;
+}
+
+[data-mantine-color-scheme="dark"] .top-toolbar select {
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23c1c2c5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
 }
 
 .top-toolbar select:hover {
@@ -67,20 +70,23 @@
   font-weight: 500;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.2s ease;
+}
+
+.btn-primary:hover {
+  background-color: #1557b0 !important;
 }
 
 .calendar-container {
-  /* Flex 1 makes it fill all remaining vertical space */
   flex: 1;
   flex-grow: 1;
-  /* Explicitly set grow */
   width: 100%;
   min-height: 0;
   padding: 0;
   position: relative;
 }
 
-/* FullCalendar Styling to match Google */
+/* FullCalendar Styling - Light Mode */
 .fc {
   width: 100% !important;
   height: 100% !important;
@@ -91,28 +97,81 @@
   --fc-list-event-hover-bg-color: #f5f5f5;
 }
 
+/* FullCalendar Styling - Dark Mode */
+[data-mantine-color-scheme="dark"] .fc {
+  --fc-border-color: #373a40;
+  --fc-today-bg-color: rgba(26, 115, 232, 0.15);
+  --fc-page-bg-color: #1a1b1e;
+  --fc-neutral-bg-color: rgba(55, 58, 64, 0.5);
+  --fc-list-event-hover-bg-color: #25262b;
+}
+
 .fc .fc-col-header-cell-cushion {
   padding: 8px;
-  color: #70757a;
+  color: light-dark(#70757a, #909296);
   font-weight: 500;
   text-decoration: none;
+  transition: color 0.2s ease;
 }
 
 .fc .fc-daygrid-day-number {
-  color: #3c4043;
+  color: light-dark(#3c4043, #c1c2c5);
   padding: 8px;
   font-size: 12px;
   font-weight: 500;
   text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+/* Dark mode text colors for calendar */
+[data-mantine-color-scheme="dark"] .fc .fc-daygrid-day-frame {
+  background-color: #1a1b1e;
+}
+
+[data-mantine-color-scheme="dark"] .fc .fc-scrollgrid {
+  border-color: #373a40;
+}
+
+[data-mantine-color-scheme="dark"] .fc-theme-standard td,
+[data-mantine-color-scheme="dark"] .fc-theme-standard th {
+  border-color: #373a40;
+}
+
+[data-mantine-color-scheme="dark"] .fc-theme-standard .fc-scrollgrid {
+  border-color: #373a40;
 }
 
 /* Ensure grid lines are visible */
 .fc td,
 .fc th {
-  border-color: #e5e5e5 !important;
+  border-color: light-dark(#e5e5e5, #373a40) !important;
+  transition: border-color 0.2s ease;
 }
 
 /* Make events look clickable */
 .fc-event {
   cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.fc-event:hover {
+  opacity: 0.9;
+}
+
+/* Dark mode for calendar buttons */
+[data-mantine-color-scheme="dark"] .fc .fc-button-primary {
+  background-color: #373a40;
+  border-color: #373a40;
+  color: #c1c2c5;
+}
+
+[data-mantine-color-scheme="dark"] .fc .fc-button-primary:hover {
+  background-color: #25262b;
+  border-color: #25262b;
+}
+
+[data-mantine-color-scheme="dark"] .fc .fc-button-primary:disabled {
+  background-color: #373a40;
+  border-color: #373a40;
+  opacity: 0.5;
 }

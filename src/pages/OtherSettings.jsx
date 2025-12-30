@@ -7,21 +7,20 @@ import {
   Tabs,
   Stack,
   Switch,
-  Select,
   Button,
-  Divider,
   Group,
   PasswordInput,
   Card,
-  Grid,
   Box,
+  Loader,
+  Center,
 } from "@mantine/core";
 import {
   IconSettings,
-  IconBell,
   IconLock,
-  IconFileText,
   IconDatabase,
+  IconMoon,
+  IconSun,
 } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { auth, db } from "../firebase";
@@ -31,8 +30,10 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential,
 } from "firebase/auth";
+import { useTheme } from "../components/context/ThemeContext";
 
 export default function OtherSettings() {
+  const { colorScheme, changeTheme } = useTheme();
   const [loading, setLoading] = useState(false);
   const [loadingPrefs, setLoadingPrefs] = useState(true);
 
@@ -41,23 +42,6 @@ export default function OtherSettings() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Notification Settings
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [pushNotifications, setPushNotifications] = useState(true);
-  const [inspectionAlerts, setInspectionAlerts] = useState(true);
-  const [reportAlerts, setReportAlerts] = useState(true);
-  const [deadlineAlerts, setDeadlineAlerts] = useState(true);
-
-  // System Preferences
-  const [theme, setTheme] = useState("light");
-  const [dateFormat, setDateFormat] = useState("DD/MM/YYYY");
-  const [language, setLanguage] = useState("en");
-  const [timezone, setTimezone] = useState("Asia/Kuala_Lumpur");
-
-  // Report Settings
-  const [autoExport, setAutoExport] = useState(false);
-  const [reportFormat, setReportFormat] = useState("pdf");
-
   // Load user preferences from Firestore
   useEffect(() => {
     loadUserPreferences();
@@ -65,38 +49,14 @@ export default function OtherSettings() {
 
   const loadUserPreferences = async () => {
     const user = auth.currentUser;
-    if (!user) return;
+    if (!user) {
+      setLoadingPrefs(false);
+      return;
+    }
 
     try {
       setLoadingPrefs(true);
-      const prefsDoc = await getDoc(doc(db, "userPreferences", user.uid));
-
-      if (prefsDoc.exists()) {
-        const prefs = prefsDoc.data();
-
-        // Load notification settings
-        if (prefs.notifications) {
-          setEmailNotifications(prefs.notifications.email ?? true);
-          setPushNotifications(prefs.notifications.push ?? true);
-          setInspectionAlerts(prefs.notifications.inspectionAlerts ?? true);
-          setReportAlerts(prefs.notifications.reportAlerts ?? true);
-          setDeadlineAlerts(prefs.notifications.deadlineAlerts ?? true);
-        }
-
-        // Load system preferences
-        if (prefs.system) {
-          setTheme(prefs.system.theme ?? "light");
-          setDateFormat(prefs.system.dateFormat ?? "DD/MM/YYYY");
-          setLanguage(prefs.system.language ?? "en");
-          setTimezone(prefs.system.timezone ?? "Asia/Kuala_Lumpur");
-        }
-
-        // Load report settings
-        if (prefs.reports) {
-          setAutoExport(prefs.reports.autoExport ?? false);
-          setReportFormat(prefs.reports.format ?? "pdf");
-        }
-      }
+      await getDoc(doc(db, "userPreferences", user.uid));
     } catch (error) {
       console.error("Error loading preferences:", error);
     } finally {
@@ -171,52 +131,16 @@ export default function OtherSettings() {
     }
   };
 
-  const handleSaveNotifications = async () => {
+  // Updated theme toggle handler
+  const handleThemeToggle = async (checked) => {
+    const newTheme = checked ? "dark" : "light";
+    
+    // Change theme immediately in the app
+    changeTheme(newTheme);
+
+    // Save to Firestore
     const user = auth.currentUser;
     if (!user) return;
-
-    setLoading(true);
-
-    try {
-      const prefsRef = doc(db, "userPreferences", user.uid);
-
-      await setDoc(
-        prefsRef,
-        {
-          notifications: {
-            email: emailNotifications,
-            push: pushNotifications,
-            inspectionAlerts,
-            reportAlerts,
-            deadlineAlerts,
-          },
-          updatedAt: new Date(),
-        },
-        { merge: true }
-      );
-
-      notifications.show({
-        title: "Success",
-        message: "Notification preferences saved",
-        color: "green",
-      });
-    } catch (error) {
-      console.error("Error saving notifications:", error);
-      notifications.show({
-        title: "Error",
-        message: "Failed to save notification preferences",
-        color: "red",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSavePreferences = async () => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    setLoading(true);
 
     try {
       const prefsRef = doc(db, "userPreferences", user.uid);
@@ -225,10 +149,7 @@ export default function OtherSettings() {
         prefsRef,
         {
           system: {
-            theme,
-            dateFormat,
-            language,
-            timezone,
+            theme: newTheme,
           },
           updatedAt: new Date(),
         },
@@ -237,56 +158,16 @@ export default function OtherSettings() {
 
       notifications.show({
         title: "Success",
-        message: "Preferences saved successfully",
+        message: `Theme changed to ${newTheme} mode`,
         color: "green",
       });
     } catch (error) {
-      console.error("Error saving preferences:", error);
+      console.error("Error saving theme:", error);
       notifications.show({
         title: "Error",
-        message: "Failed to save preferences",
+        message: "Failed to save theme preference",
         color: "red",
       });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSaveReportSettings = async () => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    setLoading(true);
-
-    try {
-      const prefsRef = doc(db, "userPreferences", user.uid);
-
-      await setDoc(
-        prefsRef,
-        {
-          reports: {
-            autoExport,
-            format: reportFormat,
-          },
-          updatedAt: new Date(),
-        },
-        { merge: true }
-      );
-
-      notifications.show({
-        title: "Success",
-        message: "Report settings saved",
-        color: "green",
-      });
-    } catch (error) {
-      console.error("Error saving report settings:", error);
-      notifications.show({
-        title: "Error",
-        message: "Failed to save report settings",
-        color: "red",
-      });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -329,10 +210,18 @@ export default function OtherSettings() {
     }
   };
 
+  // Wheel spinner loading
   if (loadingPrefs) {
     return (
       <Container size="lg" py="xl">
-        <Text>Loading preferences...</Text>
+        <Center style={{ minHeight: "60vh" }}>
+          <Stack align="center" gap="md">
+            <Loader size="xl" />
+            <Text size="lg" fw={500} c="dimmed">
+              Loading settings...
+            </Text>
+          </Stack>
+        </Center>
       </Container>
     );
   }
@@ -345,7 +234,6 @@ export default function OtherSettings() {
           <Title order={1} mb="xs">
             Settings
           </Title>
-          <Text c="dimmed">Manage your account settings and preferences</Text>
         </Box>
 
         {/* Settings Tabs */}
@@ -355,19 +243,10 @@ export default function OtherSettings() {
               Account
             </Tabs.Tab>
             <Tabs.Tab
-              value="notifications"
-              leftSection={<IconBell size={16} />}
-            >
-              Notifications
-            </Tabs.Tab>
-            <Tabs.Tab
               value="preferences"
               leftSection={<IconSettings size={16} />}
             >
               Preferences
-            </Tabs.Tab>
-            <Tabs.Tab value="reports" leftSection={<IconFileText size={16} />}>
-              Reports
             </Tabs.Tab>
             <Tabs.Tab value="data" leftSection={<IconDatabase size={16} />}>
               Data & Privacy
@@ -414,133 +293,11 @@ export default function OtherSettings() {
                     Change Password
                   </Button>
                 </Group>
-
-                <Divider my="md" />
-
-                <div>
-                  <Title order={4} mb="md" c="red">
-                    Delete Account
-                  </Title>
-                  <Card withBorder style={{ borderColor: "#fa5252" }}>
-                    <Group justify="space-between">
-                      <div>
-                        <Text size="sm" fw={500}>
-                          Delete This Account
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          Permanently delete your account and all data
-                        </Text>
-                      </div>
-                      <Button color="red" variant="light">
-                        Delete Account
-                      </Button>
-                    </Group>
-                  </Card>
-                </div>
               </Stack>
             </Paper>
           </Tabs.Panel>
 
-          {/* Notifications Tab */}
-          <Tabs.Panel value="notifications" pt="lg">
-            <Paper shadow="sm" p="xl" radius="md" withBorder>
-              <Stack gap="lg">
-                <div>
-                  <Title order={3} mb="md">
-                    Notification Preferences
-                  </Title>
-                  <Text size="sm" c="dimmed" mb="lg">
-                    Choose what notifications you want to receive
-                  </Text>
-                </div>
-
-                <Card withBorder>
-                  <Stack gap="md">
-                    <Group justify="space-between">
-                      <div>
-                        <Text size="sm" fw={500}>
-                          Email Notifications
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          Receive notifications via email
-                        </Text>
-                      </div>
-                      <Switch
-                        checked={emailNotifications}
-                        onChange={(e) =>
-                          setEmailNotifications(e.currentTarget.checked)
-                        }
-                      />
-                    </Group>
-
-                    <Divider />
-
-                    <Group justify="space-between">
-                      <div>
-                        <Text size="sm" fw={500}>
-                          Push Notifications
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          Receive push notifications in browser
-                        </Text>
-                      </div>
-                      <Switch
-                        checked={pushNotifications}
-                        onChange={(e) =>
-                          setPushNotifications(e.currentTarget.checked)
-                        }
-                      />
-                    </Group>
-                  </Stack>
-                </Card>
-
-                <div>
-                  <Title order={4} mb="md">
-                    Notification Types
-                  </Title>
-                  <Stack gap="md">
-                    <Group justify="space-between">
-                      <Text size="sm">New inspection assignments</Text>
-                      <Switch
-                        checked={inspectionAlerts}
-                        onChange={(e) =>
-                          setInspectionAlerts(e.currentTarget.checked)
-                        }
-                      />
-                    </Group>
-
-                    <Group justify="space-between">
-                      <Text size="sm">Report status updates</Text>
-                      <Switch
-                        checked={reportAlerts}
-                        onChange={(e) =>
-                          setReportAlerts(e.currentTarget.checked)
-                        }
-                      />
-                    </Group>
-
-                    <Group justify="space-between">
-                      <Text size="sm">Deadline reminders</Text>
-                      <Switch
-                        checked={deadlineAlerts}
-                        onChange={(e) =>
-                          setDeadlineAlerts(e.currentTarget.checked)
-                        }
-                      />
-                    </Group>
-                  </Stack>
-                </div>
-
-                <Group justify="flex-end" mt="md">
-                  <Button onClick={handleSaveNotifications} loading={loading}>
-                    Save Preferences
-                  </Button>
-                </Group>
-              </Stack>
-            </Paper>
-          </Tabs.Panel>
-
-          {/* Preferences Tab */}
+          {/* Preferences Tab - Theme Toggle */}
           <Tabs.Panel value="preferences" pt="lg">
             <Paper shadow="sm" p="xl" radius="md" withBorder>
               <Stack gap="lg">
@@ -553,115 +310,27 @@ export default function OtherSettings() {
                   </Text>
                 </div>
 
-                <Grid gutter="lg">
-                  <Grid.Col span={{ base: 12, md: 6 }}>
-                    <Select
-                      label="Theme"
-                      data={[
-                        { value: "light", label: "Light" },
-                        { value: "dark", label: "Dark" },
-                        { value: "auto", label: "Auto" },
-                      ]}
-                      value={theme}
-                      onChange={setTheme}
-                    />
-                  </Grid.Col>
-
-                  <Grid.Col span={{ base: 12, md: 6 }}>
-                    <Select
-                      label="Language"
-                      data={[
-                        { value: "en", label: "English" },
-                        { value: "ms", label: "Bahasa Melayu" },
-                        { value: "zh", label: "中文" },
-                      ]}
-                      value={language}
-                      onChange={setLanguage}
-                    />
-                  </Grid.Col>
-
-                  <Grid.Col span={{ base: 12, md: 6 }}>
-                    <Select
-                      label="Date Format"
-                      data={[
-                        { value: "DD/MM/YYYY", label: "DD/MM/YYYY" },
-                        { value: "MM/DD/YYYY", label: "MM/DD/YYYY" },
-                        { value: "YYYY-MM-DD", label: "YYYY-MM-DD" },
-                      ]}
-                      value={dateFormat}
-                      onChange={setDateFormat}
-                    />
-                  </Grid.Col>
-
-                  <Grid.Col span={{ base: 12, md: 6 }}>
-                    <Select
-                      label="Timezone"
-                      data={[
-                        {
-                          value: "Asia/Kuala_Lumpur",
-                          label: "Malaysia (GMT+8)",
-                        },
-                        { value: "Asia/Singapore", label: "Singapore (GMT+8)" },
-                        { value: "Asia/Bangkok", label: "Bangkok (GMT+7)" },
-                      ]}
-                      value={timezone}
-                      onChange={setTimezone}
-                    />
-                  </Grid.Col>
-                </Grid>
-
-                <Group justify="flex-end" mt="md">
-                  <Button onClick={handleSavePreferences} loading={loading}>
-                    Save Preferences
-                  </Button>
-                </Group>
-              </Stack>
-            </Paper>
-          </Tabs.Panel>
-
-          {/* Reports Tab */}
-          <Tabs.Panel value="reports" pt="lg">
-            <Paper shadow="sm" p="xl" radius="md" withBorder>
-              <Stack gap="lg">
-                <div>
-                  <Title order={3} mb="md">
-                    Report Settings
-                  </Title>
-                  <Text size="sm" c="dimmed" mb="lg">
-                    Configure default report settings
-                  </Text>
-                </div>
-
-                <Select
-                  label="Default Report Format"
-                  data={[
-                    { value: "pdf", label: "PDF" },
-                    { value: "docx", label: "Word Document" },
-                    { value: "xlsx", label: "Excel Spreadsheet" },
-                  ]}
-                  value={reportFormat}
-                  onChange={setReportFormat}
-                />
-
-                <Group justify="space-between">
-                  <div>
-                    <Text size="sm" fw={500}>
-                      Auto-export reports
-                    </Text>
+                <Group justify="space-between" wrap="nowrap">
+                  <div style={{ flex: 1 }}>
+                    <Group gap="xs" mb={4}>
+                      {colorScheme === "dark" ? (
+                        <IconMoon size={20} />
+                      ) : (
+                        <IconSun size={20} />
+                      )}
+                      <Text size="sm" fw={500}>
+                        Mode
+                      </Text>
+                    </Group>
                     <Text size="xs" c="dimmed">
-                      Automatically export completed reports
+                      Toggle between light and dark theme
                     </Text>
                   </div>
                   <Switch
-                    checked={autoExport}
-                    onChange={(e) => setAutoExport(e.currentTarget.checked)}
+                    size="lg"
+                    checked={colorScheme === "dark"}
+                    onChange={(e) => handleThemeToggle(e.currentTarget.checked)}
                   />
-                </Group>
-
-                <Group justify="flex-end" mt="md">
-                  <Button onClick={handleSaveReportSettings} loading={loading}>
-                    Save Settings
-                  </Button>
                 </Group>
               </Stack>
             </Paper>
@@ -681,35 +350,19 @@ export default function OtherSettings() {
                 </div>
 
                 <Card withBorder>
-                  <Stack gap="md">
-                    <Group justify="space-between">
-                      <div>
-                        <Text size="sm" fw={500}>
-                          Export Your Data
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          Download all your inspection data
-                        </Text>
-                      </div>
-                      <Button variant="light" onClick={handleExportData}>
-                        Export Data
-                      </Button>
-                    </Group>
-
-                    <Divider />
-
-                    <Group justify="space-between">
-                      <div>
-                        <Text size="sm" fw={500}>
-                          Activity Log
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          View your account activity
-                        </Text>
-                      </div>
-                      <Button variant="light">View Log</Button>
-                    </Group>
-                  </Stack>
+                  <Group justify="space-between">
+                    <div>
+                      <Text size="sm" fw={500}>
+                        Export Your Data
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        Download all your inspection data
+                      </Text>
+                    </div>
+                    <Button variant="light" onClick={handleExportData}>
+                      Export Data
+                    </Button>
+                  </Group>
                 </Card>
               </Stack>
             </Paper>
