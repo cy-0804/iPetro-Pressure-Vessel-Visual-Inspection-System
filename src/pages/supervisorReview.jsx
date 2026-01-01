@@ -35,6 +35,7 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "../firebase";
 import { InspectionReportView } from "../components/InspectionReportView";
+import { useTheme } from "../components/context/ThemeContext";
 
 export default function SupervisorReview() {
   const [reports, setReports] = useState([]);
@@ -44,6 +45,8 @@ export default function SupervisorReview() {
   const [processing, setProcessing] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectInput, setShowRejectInput] = useState(false);
+  const { colorScheme } = useTheme();
+  const isDark = colorScheme === 'dark';
 
   // Tabs & Filters
   const [activeTab, setActiveTab] = useState("pending");
@@ -392,7 +395,17 @@ export default function SupervisorReview() {
         title={`Review Report: ${selectedReport?.equipmentId}`}
         size="100%"
         styles={{
-          body: { backgroundColor: "#f0f0f0", padding: 0 },
+          body: { 
+            backgroundColor: isDark ? "#141517" : "#f0f0f0", 
+            padding: 0 
+          },
+          header: {
+            backgroundColor: isDark ? "#1a1b1e" : "#ffffff",
+            borderBottom: `1px solid ${isDark ? "#373a40" : "#e9ecef"}`,
+          },
+          title: {
+            color: isDark ? "#c1c2c5" : "#212529",
+          }
         }}
       >
         {selectedReport && (
@@ -416,8 +429,8 @@ export default function SupervisorReview() {
               justify="flex-end"
               p="md"
               style={{
-                borderTop: "1px solid #ddd",
-                backgroundColor: "white",
+                borderTop: `1px solid ${isDark ? "#373a40" : "#ddd"}`,
+                backgroundColor: isDark ? "#1a1b1e" : "white",
                 position: "fixed",
                 bottom: 0,
                 left: 0,
@@ -459,8 +472,8 @@ export default function SupervisorReview() {
                 left={0}
                 right={0}
                 p="md"
-                bg="white"
-                style={{ borderTop: "1px solid red", zIndex: 101 }}
+                bg={isDark ? "#1a1b1e" : "white"}
+                style={{ borderTop: `1px solid ${isDark ? "#fa5252" : "red"}`, zIndex: 101 }}
               >
                 <Text fw={600} mb="xs" c="red">Rejection Reason:</Text>
                 <Textarea
@@ -470,9 +483,16 @@ export default function SupervisorReview() {
                   autosize
                   minRows={2}
                   mb="sm"
+                  styles={{
+                    input: {
+                      backgroundColor: isDark ? "#25262b" : "#ffffff",
+                      color: isDark ? "#c1c2c5" : "#000000",
+                      borderColor: isDark ? "#373a40" : "#ced4da",
+                    }
+                  }}
                 />
                 <Group justify="flex-end">
-                  <Button variant="subtle" size="xs" onClick={() => setShowRejectInput(false)}>Cancel</Button>
+                  <Button variant="subtle" size="xs" onClick={() => setShowRejectInput(false)} color={isDark ? "gray" : undefined} >Cancel</Button>
                   <Button color="red" size="xs" onClick={handleReject} loading={processing}>Confirm Rejection</Button>
                 </Group>
               </Box>
