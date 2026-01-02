@@ -26,7 +26,7 @@ export function ProfileCompletionModal({ opened, userId, userEmail }) {
             await updateDoc(userRef, {
                 firstName: firstName.trim(),
                 lastName: lastName.trim(),
-                fullName: `${firstName.trim()} ${lastName.trim()}`, // Redundant but useful for search/display
+                fullName: `${firstName.trim()} ${lastName.trim()}`,
                 isProfileComplete: true
             });
 
@@ -36,7 +36,7 @@ export function ProfileCompletionModal({ opened, userId, userEmail }) {
                 color: 'green',
                 icon: <IconCheck size={16} />
             });
-            // MainLayout's listener will detect the change and auto-close the modal
+
         } catch (error) {
             console.error("Error updating profile:", error);
             notifications.show({
@@ -52,7 +52,7 @@ export function ProfileCompletionModal({ opened, userId, userEmail }) {
     return (
         <Modal
             opened={opened}
-            onClose={() => { }} // Prevent closing by clicking outside or escape
+            onClose={() => { }}
             withCloseButton={false}
             title="Complete Your Profile"
             centered
