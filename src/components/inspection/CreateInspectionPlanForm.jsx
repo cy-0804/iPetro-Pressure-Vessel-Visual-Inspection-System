@@ -9,30 +9,30 @@ export default function CreateInspectionPlanForm({ onSaved, onCancel, initialDat
     const [equipmentList, setEquipmentList] = useState([]);
     const [inspectors, setInspectors] = useState([]);
 
-    // Form State (Initialize from initialData if editing)
+
     const [asset, setAsset] = useState(initialData?.extendedProps?.equipmentId || null);
     const [title, setTitle] = useState(initialData?.title || '');
     const [inspectionType, setInspectionType] = useState(initialData?.extendedProps?.inspectionType || 'Visual');
     const [riskCategory, setRiskCategory] = useState(initialData?.extendedProps?.priority || 'Medium');
     const [location, setLocation] = useState(initialData?.extendedProps?.location || '');
 
-    // NEW DATE FIELDS
+
     const [lastInspectionDate, setLastInspectionDate] = useState(null);
     const [intervalMonths, setIntervalMonths] = useState(12);
 
-    // Window Plan
+
     const [windowStart, setWindowStart] = useState(initialData?.start ? new Date(initialData.start) : (initialDate ? new Date(initialDate) : null));
     const [windowEnd, setWindowEnd] = useState(initialData?.end ? new Date(initialData.end) : (initialDate ? new Date(initialDate) : null));
 
     const [scope, setScope] = useState(initialData?.extendedProps?.description || '');
-    // Single Inspector State
+
     const [selectedInspector, setSelectedInspector] = useState(
         (initialData?.extendedProps?.inspectors && initialData.extendedProps.inspectors.length > 0)
             ? initialData.extendedProps.inspectors[0]
             : (initialData?.extendedProps?.inspector || '')
     );
 
-    // Helper to calculate Report Due Date
+
     const calculateDueDate = (lastDate, interval) => {
         if (!lastDate || !interval) return "";
         const d = new Date(lastDate);
@@ -40,14 +40,13 @@ export default function CreateInspectionPlanForm({ onSaved, onCancel, initialDat
         return d.toLocaleDateString(); // Display only
     };
 
-    // Load Data
+
     useEffect(() => {
         async function loadData() {
             const eqs = await getEquipments();
             const usrs = await userService.getInspectors();
             setEquipmentList(eqs.map(e => ({ value: e.tagNumber, label: e.tagNumber })));
 
-            // Filter by role 'inspector'
             const inspectorUsers = usrs.filter(u => u.role === 'inspector');
 
             const uniqueInspectors = new Map();
@@ -90,32 +89,28 @@ export default function CreateInspectionPlanForm({ onSaved, onCancel, initialDat
                 return;
             }
 
-            // Construct Payload (Simplified)
-            const planData = {
-                title: title, // Don't append asset again if editing or if user typed it
-                // Logic: if user didn't change title, it's fine. If new, handled.
-                // Original code appended asset. Let's trust user input for title.
 
-                // Calendar display uses Window Start/End
+            const planData = {
+                title: title,
                 start: wStartObj.toISOString().split("T")[0],
                 end: wEndObj.toISOString().split("T")[0],
 
                 riskCategory,
-                inspectionType: 'Visual', // Default or Hidden
+                inspectionType: 'Visual',
                 scope,
-                interval: 12, // Default
+                interval: 12,
 
-                // Map simplifed inputs to backend fields if needed
+
                 inspectionWindowStart: wStartObj.toISOString(),
                 inspectionWindowEnd: wEndObj.toISOString(),
-                // Report Due Date defaulting to End Date + 1 month roughly if needed for data integrity, or leave null
+
                 reportDueDate: new Date(wEndObj.setMonth(wEndObj.getMonth() + 1)).toISOString(),
 
                 extendedProps: {
                     equipmentId: asset,
-                    inspectors: selectedInspector ? [selectedInspector] : [], // Save as array for compatibility
-                    inspector: selectedInspector || "Unassigned", // Primary inspector
-                    status: initialData?.extendedProps?.status || "PLANNED", // Preserve status if editing
+                    inspectors: selectedInspector ? [selectedInspector] : [],
+                    inspector: selectedInspector || "Unassigned",
+                    status: initialData?.extendedProps?.status || "PLANNED",
                     description: scope,
                     priority: riskCategory,
                     location: location
@@ -182,7 +177,7 @@ export default function CreateInspectionPlanForm({ onSaved, onCancel, initialDat
                     placeholder="Plan start"
                     value={windowStart ? new Date(windowStart).toISOString().split('T')[0] : ''}
                     onChange={(e) => setWindowStart(e.currentTarget.value ? new Date(e.currentTarget.value) : null)}
-                    // min={new Date().toISOString().split('T')[0]}
+                    min={new Date().toISOString().split('T')[0]}
                     required
                 />
                 <TextInput
@@ -191,7 +186,7 @@ export default function CreateInspectionPlanForm({ onSaved, onCancel, initialDat
                     placeholder="Plan end"
                     value={windowEnd ? new Date(windowEnd).toISOString().split('T')[0] : ''}
                     onChange={(e) => setWindowEnd(e.currentTarget.value ? new Date(e.currentTarget.value) : null)}
-                    // min={windowStart ? new Date(windowStart).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
+                    min={windowStart ? new Date(windowStart).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
                     required
                 />
             </Group>
