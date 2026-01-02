@@ -18,14 +18,54 @@ import {
 } from "@tabler/icons-react";
 
 export default function InspectorEventDetails({
-    event, onUpdate, onDelete, onClose, viewMode = 'inspector',
-    inspectors = [], equipmentList = [], currentUser
+    event: propEvent,
+    onUpdate, onDelete, onClose, viewMode = 'inspector',
+    inspectors = [], userMap = [], equipmentList = [], currentUser, userProfile
 }) {
-    console.log("InspectorEventDetails Rendered - v2"); // Debug HMR
+
+    const userFullName = userProfile
+        ? (userProfile.firstName && userProfile.lastName ? `${userProfile.firstName} ${userProfile.lastName}` : (userProfile.fullName || userProfile.username || currentUser))
+        : currentUser;
+
+    const [event, setEvent] = useState(propEvent);
+
+
+    useEffect(() => {
+        setEvent(propEvent);
+    }, [propEvent]);
+
+
+    useEffect(() => {
+        const fetchFreshDetails = async () => {
+
+            if (!propEvent?.id) return;
+
+            const fresh = await inspectionService.getInspectionPlanById(propEvent.id);
+            if (fresh) {
+                setEvent(prev => ({
+                    ...prev,
+                    ...fresh,
+
+                    extendedProps: {
+                        ...prev.extendedProps,
+                        ...fresh.extendedProps
+                    }
+                }));
+            }
+        };
+        fetchFreshDetails();
+    }, [propEvent.id]);
+
     const navigate = useNavigate();
     const isSupervisor = viewMode === 'supervisor';
 
-    // Local state for managing updates before saving
+    console.log("InspectorEventDetails Rendered - v2", {
+        viewMode, isSupervisor,
+        currentUser,
+        eventID: event?.id,
+        status: event?.status
+    });
+
     const [tasks, setTasks] = useState(event.extendedProps?.tasks || []);
     const [status, setStatus] = useState(event.extendedProps?.status || "pending");
     const [progress, setProgress] = useState(event.extendedProps?.progress || 0);
@@ -34,26 +74,26 @@ export default function InspectorEventDetails({
     const [pdfModalOpen, setPdfModalOpen] = useState(false);
     const [checkingStatus, setCheckingStatus] = useState(true);
 
-    // New Fields Local State
+
     const [outcome, setOutcome] = useState(event.extendedProps?.outcome || null);
 
-    // Sync state with event prop updates
+
     useEffect(() => {
-        if (event.extendedProps) {
+        if (event?.extendedProps) {
             setStatus(event.extendedProps.status || "pending");
             setTasks(event.extendedProps.tasks || []);
             setProgress(event.extendedProps.progress || 0);
             setOutcome(event.extendedProps.outcome || null);
             setHasReport(false);
             setReportData(null);
-            setCheckingStatus(true); // Reset check on new event
+            setCheckingStatus(true);
         }
     }, [event]);
 
-    // Self-Healing: Check if a report actually exists for this plan
+
     useEffect(() => {
         const checkReportExistence = async () => {
-            if (!event.id) { setCheckingStatus(false); return; }
+            if (!event?.id) { setCheckingStatus(false); return; }
             try {
                 const q = query(collection(db, "inspections"), where("planId", "==", event.id));
                 const snap = await getDocs(q);
@@ -65,13 +105,11 @@ export default function InspectorEventDetails({
                     console.log("Found existing report:", rData.status);
                     setHasReport(true);
 
-                    // Use the actual status from the report if available, else COMPLETED
                     const actualStatus = rData.status || "COMPLETED";
                     setStatus(actualStatus);
                     setProgress(100);
 
-                    // DB Healing: Persist the fix only if strictly necessary (e.g. was pending but report exists)
-                    // If report is Rejected/Submitted, we trust that status.
+
                 }
             } catch (err) {
                 console.error("Error verifying report status:", err);
@@ -82,42 +120,79 @@ export default function InspectorEventDetails({
         checkReportExistence();
     }, [event.id]);
 
-    // Reschedule Modal
+
     const [rescheduleOpen, setRescheduleOpen] = useState(false);
     const [rescheduleStart, setRescheduleStart] = useState(null);
     const [rescheduleEnd, setRescheduleEnd] = useState(null);
     const [rescheduleReason, setRescheduleReason] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Supervisor Reschedule Review States
     const [confirmRejectOpen, setConfirmRejectOpen] = useState(false);
     const [reviewReason, setReviewReason] = useState("");
 
-    // Dedicated Reschedule Approval Modal State
+    // Reschedule Approval Modal State
     const [approvalModalOpen, setApprovalModalOpen] = useState(false);
     const [approveStart, setApproveStart] = useState(null);
     const [approveEnd, setApproveEnd] = useState(null);
     const [approveInspector, setApproveInspector] = useState(null);
 
-    // Edit Modal (Standard Edit)
+
+    useEffect(() => {
+        if (pdfModalOpen && !reportData && event?.id) {
+            const loadReportForPdf = async () => {
+                try {
+                    console.log("Fetching report for PDF view...");
+                    const q = query(collection(db, "inspections"), where("planId", "==", event.id));
+                    const snap = await getDocs(q);
+                    if (!snap.empty) {
+                        const docSnap = snap.docs[0];
+                        setReportData({ id: docSnap.id, ...docSnap.data() });
+                    } else {
+                        console.error("No report found for PDF view");
+
+                    }
+                } catch (err) {
+                    console.error("Error loading report for PDF:", err);
+                }
+            };
+            loadReportForPdf();
+        }
+    }, [pdfModalOpen, reportData, event?.id]);
+
+
     const [editInitialData, setEditInitialData] = useState(event);
 
-    // Sync init data when event changes
+
     useEffect(() => {
         setEditInitialData(event);
+
+
+        let currentStatus = event.extendedProps?.status || "pending";
+
+
+        if (["PLANNED", "SCHEDULED"].includes(currentStatus.toUpperCase())) {
+            const endDateStr = event.end || event.extendedProps?.dueDate || event.extendedProps?.end;
+            if (endDateStr) {
+                const end = new Date(endDateStr);
+
+                end.setHours(23, 59, 59, 999);
+                const now = new Date();
+
+                if (now > end) {
+                    currentStatus = "OVERDUE";
+                }
+            }
+        }
+
+        setStatus(currentStatus);
     }, [event]);
 
-    // Missing State Re-added
+
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [draftModalOpen, setDraftModalOpen] = useState(false);
     const [previewImage, setPreviewImage] = useState(null);
 
-    // ... (rest of states) ...
-
-    // ... (rest of code) ...
-
-
-
-    {/* ... */ }
 
     {/* Edit Plan Modal */ }
     <Modal
@@ -129,7 +204,7 @@ export default function InspectorEventDetails({
         size="lg"
     >
         <CreateInspectionPlanForm
-            initialData={editInitialData} // Use dynamic data
+            initialData={editInitialData}
             onSaved={() => {
                 setEditModalOpen(false);
                 onClose();
@@ -141,16 +216,14 @@ export default function InspectorEventDetails({
         />
     </Modal>
 
-    // Permissions
 
-    // Check Assignment (Case insensitive safety)
     const isAssigned = currentUser && (
         (event.extendedProps?.inspectors && event.extendedProps.inspectors.some(i => i?.toLowerCase() === currentUser?.toLowerCase())) ||
         event.extendedProps?.inspector?.toLowerCase() === currentUser?.toLowerCase()
     );
 
     const canEditDetails = isSupervisor;
-    const canEditProgress = isSupervisor || isAssigned; // Supervisors can always edit, Inspectors only if assigned
+    const canEditProgress = isSupervisor || isAssigned;
 
     console.log("InspectorEventDetails Permissions:", {
         isSupervisor,
@@ -174,7 +247,7 @@ export default function InspectorEventDetails({
     };
     const { start: planStart, end: planEnd } = getPlanDates();
 
-    // Helper: Calculate Progress
+    // Calculate Progress
     const calculateProgress = (currentTasks) => {
         if (currentTasks.length === 0) return 0;
         const completedCount = currentTasks.filter(t => t.status === 'completed').length;
@@ -239,18 +312,16 @@ export default function InspectorEventDetails({
     const updateEventState = (updatedTasks, updatedStatus) => {
         const newProgress = calculateProgress(updatedTasks);
         setProgress(newProgress);
-        // Note: We don't call onUpdate immediately for every keystroke to avoid spamming DB, 
-        // but for local state it's fine. The "Save" button triggers the db update usually, 
-        // except strict status buttons which do it immediately.
+
     };
 
-    // --- Status Actions ---
+
     const handleStart = async () => {
         const newStatus = "IN_PROGRESS";
         setStatus(newStatus);
 
-        // Immediate Update
-        await inspectionService.updateInspectionStatus(event.id, newStatus, "inspector", "current_inspector");
+
+        await inspectionService.updateInspectionStatus(event.id, newStatus, "inspector", userFullName || "current_inspector");
         onUpdate({ ...event, extendedProps: { ...event.extendedProps, status: newStatus } });
     };
 
@@ -266,15 +337,13 @@ export default function InspectorEventDetails({
 
             // Update Outcome + Status
             await inspectionService.updateInspectionPlan(event.id, { outcome });
-            await inspectionService.updateInspectionStatus(event.id, newStatus, "inspector", "current_inspector");
+            await inspectionService.updateInspectionStatus(event.id, newStatus, "inspector", userFullName || "current_inspector");
 
             onUpdate({ ...event, extendedProps: { ...event.extendedProps, status: newStatus, outcome } });
         }
     };
 
-    // --- Reschedule Actions ---
-    // --- Approve Actions (Supervisor) ---
-    // Handle Reschedule Approval
+
     const handleConfirmApproval = async () => {
         if (!approveStart || !approveEnd || !approveInspector) {
             alert("Please provide Start Date, End Date, and Inspector.");
@@ -285,20 +354,32 @@ export default function InspectorEventDetails({
             const sDateISO = (approveStart instanceof Date ? approveStart : new Date(approveStart)).toISOString();
             const eDateISO = (approveEnd instanceof Date ? approveEnd : new Date(approveEnd)).toISOString();
 
-            // 1. Update the Plan itself
-            await inspectionService.updateInspectionPlan(event.id, {
-                start: sDateISO.split("T")[0],
-                end: eDateISO.split("T")[0],
-                inspector: approveInspector,
-                inspectors: [approveInspector] // Maintain array format
-            });
 
-            // 2. Mark Reschedule as Approved
-            // We pass explicit dates to ensure the notification is accurate, though updateInspectionPlan did the heavy lifting.
-            await inspectionService.approveReschedule(event.id, true, null, sDateISO.split("T")[0], eDateISO.split("T")[0], false);
+            const isReassigning = approveInspector && (approveInspector !== event.extendedProps?.inspector);
+
+            await inspectionService.approveReschedule(
+                event.id,
+                true, // isApproved
+                null, // reason
+                sDateISO.split("T")[0],
+                eDateISO.split("T")[0],
+                false, // usePlanDates
+                !isReassigning
+            );
+
+
+            if (approveInspector) {
+                await inspectionService.updateInspectionPlan(event.id, {
+                    inspector: approveInspector,
+                    inspectors: [approveInspector],
+                    "extendedProps.inspector": approveInspector,
+                    "extendedProps.inspectors": [approveInspector]
+                });
+            }
 
             setApprovalModalOpen(false);
             onClose();
+
             window.location.reload();
         } catch (e) {
             console.error("Approval Failed:", e);
@@ -306,8 +387,9 @@ export default function InspectorEventDetails({
         }
     };
 
-    // --- Reschedule Actions ---
+
     const handleSubmitReschedule = async () => {
+        if (isSubmitting) return;
         if (!event?.id) {
             alert("Error: Missing event ID");
             return;
@@ -319,16 +401,16 @@ export default function InspectorEventDetails({
 
 
         try {
-            // Ensure they are date objects or iso strings
+            setIsSubmitting(true);
             const startDateISO = (rescheduleStart instanceof Date ? rescheduleStart : new Date(rescheduleStart)).toISOString();
             const endDateISO = (rescheduleEnd instanceof Date ? rescheduleEnd : new Date(rescheduleEnd)).toISOString();
 
-            await inspectionService.requestReschedule(event.id, startDateISO, rescheduleReason, currentUser || "Inspector", endDateISO);
+            await inspectionService.requestReschedule(event.id, startDateISO, endDateISO, rescheduleReason, userFullName || currentUser || "Inspector");
             alert("Reschedule request submitted to Supervisor.");
 
-            // Optimistic Update
+
             const newReq = {
-                requestedDate: startDateISO, // Fallback for old code
+                requestedDate: startDateISO,
                 startDate: startDateISO,
                 endDate: endDateISO,
                 reason: rescheduleReason,
@@ -345,20 +427,41 @@ export default function InspectorEventDetails({
             }
 
             setRescheduleOpen(false);
-            // Don't close the main modal, let them see the pending state
+
         } catch (e) {
             console.error("Reschedule Error:", e);
             alert("Failed to submit request: " + e.message);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
-    // --- Approve Actions (Supervisor) ---
+
     const handleApprove = async () => {
         try {
-            await inspectionService.updateInspectionStatus(event.id, "APPROVED", "supervisor", "current_supervisor");
+            await inspectionService.updateInspectionStatus(event.id, "APPROVED", "supervisor", userFullName || "current_supervisor");
             onUpdate({ ...event, extendedProps: { ...event.extendedProps, status: "APPROVED" } });
         } catch (e) { alert(e.message); }
     };
+
+
+    const getInspectorName = (usernameOrEmail) => {
+        if (!usernameOrEmail) return "Unassigned";
+
+        if (!inspectors || inspectors.length === 0) return usernameOrEmail;
+
+        const found = inspectors.find(u =>
+            u.username === usernameOrEmail || u.email === usernameOrEmail
+        );
+        if (found) {
+            const first = found.firstName || "";
+            const last = found.lastName || "";
+            return (first && last) ? `${first} ${last}` : (found.fullName || usernameOrEmail);
+        }
+        return usernameOrEmail;
+    };
+
+
 
     return (
         <>
@@ -372,7 +475,8 @@ export default function InspectorEventDetails({
                                     status === "Rejected" ? "red" :
                                         status === "Submitted" ? "cyan" :
                                             status === "COMPLETED" ? "green" :
-                                                status === "IN_PROGRESS" ? "orange" : "blue"
+                                                status === "IN_PROGRESS" ? "orange" :
+                                                    status === "OVERDUE" ? "red" : "blue"
                             }>
                                 {status === "Submitted" ? "Pending Review" : status}
                             </Badge>
@@ -392,7 +496,7 @@ export default function InspectorEventDetails({
                         </Text>
                     </Box>
                     <Group>
-                        {isSupervisor && (
+                        {isSupervisor && (status?.toUpperCase() === "PLANNED" || status?.toUpperCase() === "SCHEDULED" || status?.toUpperCase() === "OVERDUE") && (
                             <>
                                 <ActionIcon title="Edit Plan" variant="light" color="blue" onClick={() => setEditModalOpen(true)}>
                                     <IconPencil size={18} />
@@ -408,51 +512,49 @@ export default function InspectorEventDetails({
                     </Group>
                 </Group>
 
-                {/* REMOVED TABS - SINGLE VIEW LAYOUT */}
+
                 <Stack gap="md" mt="md">
 
-                    {/* 1. DETAILS & SCOPE SECTION */}
-                    <Paper withBorder p="sm" radius="md" bg="gray.0">
+
+                    <Paper withBorder p="sm" radius="md">
                         <Stack gap="xs">
-
-
                             <Text fw={600} size="sm">Description</Text>
                             <Text size="sm">{event.extendedProps?.description || "No description provided."}</Text>
                         </Stack>
                     </Paper>
 
-                    {/* 2. READ ONLY INFO */}
+
                     <Group grow>
-                        <TextInput label="Equipment" value={equipmentList.find(e => e.id === event.extendedProps?.equipmentId)?.name || event.extendedProps?.equipmentId} readOnly />
                         <TextInput label="Assigned Inspectors" value={
                             Array.from(new Set([
                                 ...(event.extendedProps?.inspectors || []),
                                 event.extendedProps?.inspector
-                            ].filter(Boolean))).join(", ")
+                            ].filter(Boolean))).map(id => getInspectorName(id)).join(", ") || "Unassigned"
                         } readOnly />
                     </Group>
 
-                    {/* 3. RESCHEDULE REQUEST (If applicable) */}
-                    {/* INSPECTOR VIEW: REJECTION FEEDBACK */}
-                    {event.rescheduleRequest?.status === 'rejected' && (
-                        <Paper withBorder p="sm" radius="md" bg="red.0" mb="sm">
-                            <Text size="sm" fw={700} c="red">Reschedule Rejected</Text>
-                            <Text size="xs" mt={4}>Reason: {event.rescheduleRequest.rejectionReason}</Text>
-                            <Group mt="xs">
-                                <Button size="xs" variant="light" onClick={() => setRescheduleOpen(true)}>Try Different Date</Button>
-                                <Button size="xs" variant="subtle" color="gray" onClick={async () => {
-                                    if (confirm("Keep the original schedule?")) {
-                                        await inspectionService.cancelRescheduleRequest(event.id);
-                                        onUpdate({ ...event, rescheduleRequest: null });
-                                    }
-                                }}>Accept Schedule</Button>
-                            </Group>
-                        </Paper>
-                    )}
 
-                    {/* SUPERVISOR VIEW: PENDING REQUEST ACTION */}
+                    {
+
+                        !isSupervisor && event.rescheduleRequest?.status === 'rejected' && (
+                            <Paper withBorder p="sm" radius="md" mb="sm">
+                                <Text size="sm" fw={700} c="red">Reschedule Rejected</Text>
+                                <Text size="xs" mt={4}>Reason: {event.rescheduleRequest.rejectionReason}</Text>
+                                <Group mt="xs">
+                                    <Button size="xs" variant="light" onClick={() => setRescheduleOpen(true)}>Try Different Date</Button>
+                                    <Button size="xs" variant="subtle" color="gray" onClick={async () => {
+                                        if (confirm("Keep the original schedule?")) {
+                                            await inspectionService.cancelRescheduleRequest(event.id);
+                                            onUpdate({ ...event, rescheduleRequest: null });
+                                        }
+                                    }}>Accept Schedule</Button>
+                                </Group>
+                            </Paper>
+                        )}
+
+
                     {event.rescheduleRequest?.status === 'pending' && (
-                        <Paper withBorder p="sm" radius="md" bg="orange.0">
+                        <Paper withBorder p="sm" radius="md">
                             <Text size="sm" fw={500}>Pending Reschedule Request</Text>
                             <Text size="xs">
                                 Requested: {event.rescheduleRequest.startDate
@@ -462,7 +564,8 @@ export default function InspectorEventDetails({
                             </Text>
                             <Text size="xs">Reason: {event.rescheduleRequest.reason}</Text>
 
-                            {isSupervisor && (
+
+                            {isSupervisor && event.rescheduleRequest.status === 'pending' && (
                                 <Box mt="sm">
                                     {!confirmRejectOpen ? (
                                         <Group>
@@ -474,7 +577,7 @@ export default function InspectorEventDetails({
                                                 setApproveStart(new Date(reqStart));
                                                 setApproveEnd(new Date(reqEnd));
 
-                                                // Default to current assigned inspector
+
                                                 const currentInspector = event.extendedProps?.inspector || event.extendedProps?.inspectors?.[0] || "";
                                                 setApproveInspector(currentInspector);
 
@@ -493,8 +596,14 @@ export default function InspectorEventDetails({
                                             <Group>
                                                 <Button size="xs" color="red" onClick={async () => {
                                                     if (!reviewReason) return alert("Please provide a reason");
-                                                    await inspectionService.approveReschedule(event.id, false, reviewReason);
-                                                    onClose();
+                                                    try {
+                                                        await inspectionService.approveReschedule(event.id, false, reviewReason);
+                                                        setApprovalModalOpen(false); // Close parent usage too if applicable
+                                                        onClose();
+                                                        window.location.reload();
+                                                    } catch (e) {
+                                                        alert("Rejection Failed: " + e.message);
+                                                    }
                                                 }}>Confirm Reject</Button>
                                                 <Button size="xs" variant="default" onClick={() => setConfirmRejectOpen(false)}>Cancel</Button>
                                             </Group>
@@ -502,10 +611,34 @@ export default function InspectorEventDetails({
                                     )}
                                 </Box>
                             )}
+
+                            {event.rescheduleRequest.status === 'rejected' && (
+                                <>
+
+                                    {!isSupervisor && (
+                                        <Box mt="sm" p="xs" bg="red.1" style={{ borderRadius: 4 }}>
+                                            <Text size="sm" fw={600} c="red">Reschedule Rejected</Text>
+                                            <Text size="xs" mt={4}>Reason: {event.rescheduleRequest.rejectionReason || "No reason provided"}</Text>
+                                            <Button size="xs" variant="white" color="red" compact mt="sm" onClick={() => setRescheduleOpen(true)}>
+                                                Try Different Date
+                                            </Button>
+                                        </Box>
+                                    )}
+
+
+                                    {isSupervisor && (
+                                        <Box mt="xs">
+                                            <Text size="xs" c="dimmed" fs="italic">
+                                                Last Request Rejected: {event.rescheduleRequest.rejectionReason || "No reason provided"}
+                                            </Text>
+                                        </Box>
+                                    )}
+                                </>
+                            )}
                         </Paper>
                     )}
 
-                    {!isSupervisor && (status === "PLANNED" || status === "SCHEDULED") && !event.rescheduleRequest && (
+                    {!isSupervisor && (status === "PLANNED" || status === "SCHEDULED") && (!event.rescheduleRequest || (event.rescheduleRequest.status !== 'pending' && event.rescheduleRequest.status !== 'rejected')) && (
                         <Button
                             variant="subtle" color="orange" compact="true"
                             leftSection={<IconCalendarTime size={16} />}
@@ -518,7 +651,7 @@ export default function InspectorEventDetails({
 
                     <Divider />
 
-                    {/* 4. PRE-INSPECTION CHECKLIST (Plan) */}
+
                     <Box>
                         <Group justify="space-between" mb="sm">
                             <Text fw={600}>Pre-Inspection Checklist</Text>
@@ -556,36 +689,36 @@ export default function InspectorEventDetails({
 
                     <Divider />
 
-                    {/* 5. FIELD DRAFT / FINDINGS (Link to View) */}
-                    {(["IN_PROGRESS", "COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || hasReport || event.extendedProps?.executionNotes || (event.extendedProps?.fieldPhotos && event.extendedProps.fieldPhotos.length > 0)) && (
+
+                    {(["IN_PROGRESS", "SUBMITTED", "COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || hasReport || event.extendedProps?.executionNotes || (event.extendedProps?.fieldPhotos && event.extendedProps.fieldPhotos.length > 0)) && (
                         <Box mt="md">
                             <Text fw={600} mb="xs">
-                                {(["COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || hasReport) ? "Report" : "Field Findings"}
+                                {(["SUBMITTED", "COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || hasReport) ? "Report" : "Field Findings"}
                             </Text>
                             <Button
                                 variant="light"
-                                color={(["COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || hasReport) ? "blue" : "orange"}
+                                color={(["SUBMITTED", "COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || hasReport) ? "blue" : "orange"}
                                 fullWidth
-                                // Hide "View Report" button for Supervisors if Pending Review (Submitted)
+
                                 display={isSupervisor && status?.toLowerCase() === "submitted" ? "none" : "block"}
                                 leftSection={<IconFileText size={18} />}
                                 onClick={() => {
-                                    if (["COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || hasReport) {
-                                        // window.location.href = `/report-generation?planId=${event.id}`;
+                                    if (["SUBMITTED", "COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || hasReport) {
+
                                         setPdfModalOpen(true);
                                     } else {
                                         setDraftModalOpen(true);
                                     }
                                 }}
                             >
-                                {(["COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || hasReport) ? "View Report" : "View Draft Progress"}
+                                {(["SUBMITTED", "COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || hasReport) ? "View Report" : "View Draft Progress"}
                             </Button>
 
                             {!isSupervisor && (
                                 <Button
                                     fullWidth
-                                    // Hide if Completed/Approved OR hasReport
-                                    display={(["COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || hasReport) ? "none" : "block"}
+
+                                    display={(["SUBMITTED", "COMPLETED", "APPROVED"].includes(status?.toUpperCase())) ? "none" : "block"}
                                     color="green"
                                     variant="filled"
                                     mt="md"
@@ -600,15 +733,14 @@ export default function InspectorEventDetails({
                     )}
 
 
-                    {/* 6. ACTIONS & NAVIGATION */}
-                    {/* Supervisor Actions */}
+
                     {isSupervisor && (status === "COMPLETED" || status?.toLowerCase() === "submitted") && (
                         <Button fullWidth color="teal" size="md" mt="md" onClick={() => navigate('/supervisor-review')}>
                             Review and Approval
                         </Button>
                     )}
 
-                    {/* Inspector Action: START ONLY (If In Progress, use top button) */}
+
                     {(!isSupervisor || isAssigned) && (status === "PLANNED" || status === "SCHEDULED" || status === "OVERDUE") && (
                         <Button
                             fullWidth
@@ -621,20 +753,24 @@ export default function InspectorEventDetails({
                                 try {
                                     console.log("Starting inspection for:", event.id);
                                     const role = isSupervisor ? "supervisor" : "inspector";
-                                    const user = currentUser || "current_user";
+                                    const user = userFullName || currentUser || "current_user";
+
+
+                                    await inspectionService.updateInspectionPlan(event.id, { rescheduleRequest: null });
 
                                     await inspectionService.updateInspectionStatus(event.id, "IN_PROGRESS", role, user);
 
-                                    // Small delay to ensure DB propagation before nav
+
                                     await new Promise(r => setTimeout(r, 500));
 
                                     if (onUpdate) onUpdate({
                                         ...event,
-                                        status: "IN_PROGRESS", // Update root
+                                        status: "IN_PROGRESS",
+                                        rescheduleRequest: null,
                                         extendedProps: { ...event.extendedProps, status: "IN_PROGRESS" }
                                     });
 
-                                    // Navigate to EXECUTION page immediately on start
+
                                     console.log("Navigating to execution page...");
                                     navigate(`/inspection-execution/${event.id}`);
                                     onClose();
@@ -652,7 +788,7 @@ export default function InspectorEventDetails({
                 </Stack>
             </Box>
 
-            {/* Draft Preview Modal */}
+
             <Modal
                 opened={draftModalOpen}
                 onClose={() => setDraftModalOpen(false)}
@@ -708,11 +844,11 @@ export default function InspectorEventDetails({
                         value={rescheduleReason}
                         onChange={(e) => setRescheduleReason(e.target.value)}
                     />
-                    <Button onClick={handleSubmitReschedule}>Submit Request</Button>
+                    <Button onClick={handleSubmitReschedule} loading={isSubmitting}>Submit Request</Button>
                 </Stack>
             </Modal>
 
-            {/* Dedicated Approval Modal */}
+            {/* Approval Modal */}
             <Modal
                 opened={approvalModalOpen}
                 onClose={() => setApprovalModalOpen(false)}
@@ -733,10 +869,16 @@ export default function InspectorEventDetails({
                         onChange={(e) => setApproveEnd(e.currentTarget.value ? new Date(e.currentTarget.value) : null)}
                     />
                     <Select
-                        label="Assign Inspector"
+                        label="Assign New Inspector (if applicable)"
                         data={inspectors
                             .filter(i => i.username || i.email)
-                            .map(i => ({ value: i.username || i.email, label: i.username || i.email }))}
+                            .map(i => {
+                                const first = i.firstName || "";
+                                const last = i.lastName || "";
+                                const full = (first && last) ? `${first} ${last}` : (first || last || "");
+                                const label = full || i.fullName || i.username || i.email;
+                                return { value: i.username || i.email, label: label };
+                            })}
                         value={approveInspector}
                         onChange={setApproveInspector}
                         searchable

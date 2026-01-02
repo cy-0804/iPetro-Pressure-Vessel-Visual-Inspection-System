@@ -14,10 +14,10 @@ export default function InspectionDraftPreview({ inspectionId, isReadonlyProp, o
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
 
-    // Determine ID: Prop (Modal) > Param (Route)
+
     const id = inspectionId || params.id;
 
-    // Determine Readonly: Prop (Modal) > Query Param (Route)
+
     const isReadonly = isReadonlyProp !== undefined ? isReadonlyProp : (searchParams.get('readonly') === 'true');
 
     const [loading, setLoading] = useState(true);
@@ -28,14 +28,14 @@ export default function InspectionDraftPreview({ inspectionId, isReadonlyProp, o
         const load = async () => {
             if (!id) return;
             try {
-                // 1. Try Loading Finalized Report
+
                 const q = query(collection(db, "inspections"), where("planId", "==", id));
                 const reportSnap = await getDocs(q);
 
                 if (!reportSnap.empty) {
                     const report = reportSnap.docs[0].data();
 
-                    // Transform Final Report to Preview Format
+
                     const reportPhotos = (report.photoReport || []).flatMap(row =>
                         (row.photoUrls || []).map(url => ({ url, folder: 'Report Photos' }))
                     );
@@ -48,18 +48,20 @@ export default function InspectionDraftPreview({ inspectionId, isReadonlyProp, o
                             executionNotes: report.condition || "See detailed photo report.",
                             fieldPhotos: reportPhotos
                         },
-                        isFinal: true
+
+                        isFinal: ["Submitted", "Approved", "Rejected", "FIELD_COMPLETED", "COMPLETED"].includes(report.status),
+                        status: report.status
                     });
                     setFolders(['Report Photos']);
                 } else {
-                    // 2. Fallback to Draft (Plan)
+
                     const docRef = doc(db, "inspection_plans", id);
                     const snap = await getDoc(docRef);
                     if (snap.exists()) {
                         const data = { id: snap.id, ...snap.data() };
                         setInspection(data);
 
-                        // Process Folders
+
                         const photos = data.extendedProps?.fieldPhotos || [];
                         const uniqueFolders = new Set(['General']);
                         if (data.extendedProps?.folders) {
@@ -117,11 +119,11 @@ export default function InspectionDraftPreview({ inspectionId, isReadonlyProp, o
                     </Group>
                 </Group>
             ) : (
-                /* Modal Mode: Show only Edit button if needed, aligned right */
+
                 !isReadonly && !inspection.isFinal && (
                     <Group justify="flex-end" mb="md">
                         <Button
-                            variant="filled" // distinct from blue to indicate "Go to full page"
+                            variant="filled"
                             color="blue"
                             leftSection={<IconFileText size={18} />}
                             onClick={() => {
@@ -140,7 +142,7 @@ export default function InspectionDraftPreview({ inspectionId, isReadonlyProp, o
                     <Title order={4} mb="md">Field Notes</Title>
                     {notes ? (
                         <Box
-                            className="tiptap" // Apply Tiptap styles if globally available, or use TypographyStylesProvider
+                            className="tiptap"
                             p="xs"
                             style={{ border: '1px solid #eee', borderRadius: '4px', minHeight: '100px' }}
                         >

@@ -20,9 +20,10 @@ import {
   Tabs,
 } from "@mantine/core";
 import { inspectionService } from "../services/inspectionService";
+import { notificationService } from "../services/notificationService";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconCheck, IconEye, IconX, IconSearch, IconAlertCircle, IconClock } from "@tabler/icons-react";
+import { IconCheck, IconEye, IconX, IconSearch, IconAlertCircle, IconClock, IconPrinter, IconArrowLeft } from "@tabler/icons-react";
 import {
   collection,
   query,
@@ -56,19 +57,18 @@ export default function SupervisorReview() {
   const fetchReports = async () => {
     setLoading(true);
     try {
-      // Fetch relevant statuses for supervisor review
-      // We want: Submitted (Pending), Rejected (History), Approved (History)
+
       const q = query(
         collection(db, "inspections"),
         where("status", "in", [
-          "Submitted", "Rejected", "Approved", // Standard
-          "APPROVED", "REJECTED", "SUBMITTED"  // Legacy/Uppercase
+          "Submitted", "Rejected", "Approved",
+          "APPROVED", "REJECTED", "SUBMITTED"
         ])
       );
       const snap = await getDocs(q);
       const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-      // Fetch plan titles for reports that have planId
+
       const planIds = [...new Set(list.filter(r => r.planId).map(r => r.planId))];
       const planTitles = {};
 
@@ -85,13 +85,13 @@ export default function SupervisorReview() {
         }
       }
 
-      // Enrich data with plan titles
+
       const enrichedList = list.map(report => ({
         ...report,
         planTitle: report.planId ? (planTitles[report.planId] || "-") : "-"
       }));
 
-      // Sort by date descending (newest first)
+
       enrichedList.sort((a, b) => {
         const dateA = a.updatedAt?.seconds || 0;
         const dateB = b.updatedAt?.seconds || 0;
@@ -117,13 +117,12 @@ export default function SupervisorReview() {
 
   const handleOpenReview = (report) => {
     setSelectedReport(report);
-    open();
   };
 
   const handleReject = async () => {
     if (!selectedReport) return;
 
-    // If input not shown, show it first
+
     if (!showRejectInput) {
       setShowRejectInput(true);
       return;
@@ -137,20 +136,69 @@ export default function SupervisorReview() {
     setProcessing(true);
     try {
       const user = auth.currentUser;
-      const supervisorName = user?.displayName || user?.email || "Unknown Supervisor";
+      let supervisorName = user?.displayName || user?.email || "Unknown Supervisor";
+
+
+      if (user?.email) {
+        try {
+          const usersQ = query(collection(db, "users"), where("email", "==", user.email));
+          const usersSnap = await getDocs(usersQ);
+          if (!usersSnap.empty) {
+            const uData = usersSnap.docs[0].data();
+            if (uData.firstName && uData.lastName) {
+              supervisorName = `${uData.firstName} ${uData.lastName}`;
+            } else if (uData.fullName) {
+              supervisorName = uData.fullName;
+            }
+          }
+        } catch (e) {
+          console.error("Error fetching supervisor name:", e);
+        }
+      }
 
       const docRef = doc(db, "inspections", selectedReport.id);
       await updateDoc(docRef, {
         status: "Rejected",
         rejectionReason: rejectReason,
-        reviewedBy: supervisorName, // Save who rejected it
+        reviewedBy: supervisorName,
         reviewedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
 
-      // SYNC PLAN STATUS
+
       if (selectedReport.planId) {
-        await inspectionService.updateInspectionStatus(selectedReport.planId, "Rejected", "supervisor", supervisorName);
+        await inspectionService.updateInspectionStatus(selectedReport.planId, "Rejected", "supervisor", supervisorName, false);
+      }
+
+
+      try {
+        let inspectorUsername = selectedReport.createdBy;
+
+
+        if (!inspectorUsername && selectedReport.inspectorName) {
+          usersSnap.forEach(u => {
+            const uData = u.data();
+            const fullName = uData.firstName && uData.lastName ? `${uData.firstName} ${uData.lastName}` : (uData.fullName || uData.username);
+            if (fullName === selectedReport.inspectorName) {
+              inspectorUsername = uData.username || uData.email;
+            }
+          });
+          console.log("Resolved Inspector Username from Name:", selectedReport.inspectorName, "->", inspectorUsername);
+        }
+
+
+        if (!inspectorUsername) inspectorUsername = selectedReport.inspectorName;
+
+        if (inspectorUsername) {
+          const title = "Report Rejected";
+          const message = `Your report ${selectedReport.reportNo || "Unknown"} has been rejected. Reason: ${rejectReason}`;
+          const link = "/report-submission"; // Link to inspector's report submission page
+
+          await notificationService.addNotification(inspectorUsername, title, message, "alert", link);
+          console.log("Rejection notification sent to inspector:", inspectorUsername);
+        }
+      } catch (notifErr) {
+        console.error("Failed to send rejection notification:", notifErr);
       }
 
       notifications.show({
@@ -159,14 +207,13 @@ export default function SupervisorReview() {
         color: "orange",
       });
 
-      // Reset state before refreshing
+
       setSelectedReport(null);
       close();
       setShowRejectInput(false);
       setRejectReason("");
       setProcessing(false);
 
-      // Refresh list with delay for Firestore propagation
       setTimeout(async () => {
         await fetchReports();
       }, 500);
@@ -186,8 +233,25 @@ export default function SupervisorReview() {
     setProcessing(true);
     try {
       const user = auth.currentUser;
-      const supervisorName =
-        user?.displayName || user?.email || "Unknown Supervisor";
+      let supervisorName = user?.displayName || user?.email || "Unknown Supervisor";
+
+
+      if (user?.email) {
+        try {
+          const usersQ = query(collection(db, "users"), where("email", "==", user.email));
+          const usersSnap = await getDocs(usersQ);
+          if (!usersSnap.empty) {
+            const uData = usersSnap.docs[0].data();
+            if (uData.firstName && uData.lastName) {
+              supervisorName = `${uData.firstName} ${uData.lastName}`;
+            } else if (uData.fullName) {
+              supervisorName = uData.fullName;
+            }
+          }
+        } catch (e) {
+          console.error("Error fetching supervisor name:", e);
+        }
+      }
 
       const docRef = doc(db, "inspections", selectedReport.id);
       await updateDoc(docRef, {
@@ -197,9 +261,40 @@ export default function SupervisorReview() {
         updatedAt: serverTimestamp(),
       });
 
-      // SYNC PLAN STATUS
+
       if (selectedReport.planId) {
-        await inspectionService.updateInspectionStatus(selectedReport.planId, "Approved", "supervisor", supervisorName);
+        await inspectionService.updateInspectionStatus(selectedReport.planId, "Approved", "supervisor", supervisorName, false);
+      }
+
+
+      try {
+        let inspectorUsername = selectedReport.createdBy;
+
+
+        if (!inspectorUsername && selectedReport.inspectorName) {
+          const usersSnap = await getDocs(collection(db, "users"));
+          usersSnap.forEach(u => {
+            const uData = u.data();
+            const fullName = uData.firstName && uData.lastName ? `${uData.firstName} ${uData.lastName}` : (uData.fullName || uData.username);
+            if (fullName === selectedReport.inspectorName) {
+              inspectorUsername = uData.username || uData.email;
+            }
+          });
+        }
+
+
+        if (!inspectorUsername) inspectorUsername = selectedReport.inspectorName;
+
+        if (inspectorUsername) {
+          const title = "Report Approved";
+          const message = `Your report ${selectedReport.reportNo || "Unknown"} has been approved by ${supervisorName}.`;
+          const link = "/report-submission"; // Link to inspector's report submission page
+
+          await notificationService.addNotification(inspectorUsername, title, message, "success", link);
+          console.log("Approval notification sent to inspector:", inspectorUsername);
+        }
+      } catch (notifErr) {
+        console.error("Failed to send approval notification:", notifErr);
       }
 
       notifications.show({
@@ -208,12 +303,11 @@ export default function SupervisorReview() {
         color: "green",
       });
 
-      // Reset state before refreshing
+
       setSelectedReport(null);
       close();
       setProcessing(false);
 
-      // Refresh list with delay for Firestore propagation
       setTimeout(async () => {
         await fetchReports();
       }, 500);
@@ -228,9 +322,9 @@ export default function SupervisorReview() {
     }
   };
 
-  // --- FILTER LOGIC ---
+
   const filteredReports = reports.filter(r => {
-    // 1. Text Search
+
     const query = searchQuery.toLowerCase();
     const matchText =
       (r.reportNo || "").toLowerCase().includes(query) ||
@@ -238,7 +332,7 @@ export default function SupervisorReview() {
       (r.inspectorName || "").toLowerCase().includes(query) ||
       (r.plantUnitArea || "").toLowerCase().includes(query);
 
-    // 2. Date Filter
+
     let matchDate = true;
     if (dateFilter) {
       try {
@@ -256,7 +350,7 @@ export default function SupervisorReview() {
     return matchText && matchDate;
   });
 
-  // Categorize
+
   const pendingReports = filteredReports.filter(r => r.status?.toLowerCase() === "submitted");
   const rejectedReports = filteredReports.filter(r => r.status?.toLowerCase() === "rejected");
   const approvedReports = filteredReports.filter(r => r.status?.toLowerCase() === "approved");
@@ -334,112 +428,24 @@ export default function SupervisorReview() {
 
   return (
     <Container size="xl" py="xl">
-      <Group justify="space-between" mb="lg">
-        <Title order={2}>Inspection Report Review</Title>
 
-      </Group>
+      {selectedReport ? (
+        <Box>
 
-      <Paper withBorder p="md" radius="md">
-        {/* FILTERS */}
-        <Group mb="md">
-          <TextInput
-            placeholder="Search Report No, Equipment, Inspector..."
-            leftSection={<IconSearch size={16} />}
-            style={{ flex: 1 }}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.currentTarget.value)}
-          />
-          <TextInput
-            type="date"
-            placeholder="Filter by Date"
-            leftSection={<IconClock size={16} />}
-            max={new Date().toISOString().split('T')[0]}
-            value={dateFilter ? new Date(dateFilter).toISOString().split('T')[0] : ''}
-            onChange={(e) => setDateFilter(e.currentTarget.value ? new Date(e.currentTarget.value) : null)}
-          />
-        </Group>
-
-        {loading ? (
-          <Loader />
-        ) : (
-          <Tabs value={activeTab} onChange={setActiveTab}>
-            <Tabs.List mb="md">
-              <Tabs.Tab value="pending" leftSection={<IconClock size={16} />}>
-                Pending Review ({pendingReports.length})
-              </Tabs.Tab>
-              <Tabs.Tab value="rejected" color="red" leftSection={<IconAlertCircle size={16} />}>
-                Rejected ({rejectedReports.length})
-              </Tabs.Tab>
-              <Tabs.Tab value="approved" color="green" leftSection={<IconCheck size={16} />}>
-                Approved ({approvedReports.length})
-              </Tabs.Tab>
-            </Tabs.List>
-
-            <Tabs.Panel value="pending">
-              {renderTable(pendingReports)}
-            </Tabs.Panel>
-            <Tabs.Panel value="rejected">
-              {renderTable(rejectedReports, true)}
-            </Tabs.Panel>
-            <Tabs.Panel value="approved">
-              {renderTable(approvedReports)}
-            </Tabs.Panel>
-          </Tabs>
-        )}
-      </Paper>
-
-      {/* Review Modal - Full Screen A4 View */}
-      <Modal
-        opened={opened}
-        onClose={close}
-        title={`Review Report: ${selectedReport?.equipmentId}`}
-        size="100%"
-        styles={{
-          body: { 
-            backgroundColor: isDark ? "#141517" : "#f0f0f0", 
-            padding: 0 
-          },
-          header: {
-            backgroundColor: isDark ? "#1a1b1e" : "#ffffff",
-            borderBottom: `1px solid ${isDark ? "#373a40" : "#e9ecef"}`,
-          },
-          title: {
-            color: isDark ? "#c1c2c5" : "#212529",
-          }
-        }}
-      >
-        {selectedReport && (
-          <Box>
-            {/* Scrollable Report Area */}
-            <Box
-              style={{
-                height: "calc(100vh - 140px)",
-                overflowY: "auto",
-                paddingTop: "20px",
+          <Group mb="md" className="no-print" justify="space-between">
+            <Button
+              variant="default"
+              leftSection={<IconArrowLeft size={16} />}
+              onClick={() => {
+                setSelectedReport(null);
+                close();
               }}
             >
-              <InspectionReportView data={selectedReport} />
-            </Box>
-
-            {/* Sticky Action Footer */}
-            {/* Only show Approve/Reject if it is PENDING (Submitted). If already approved/rejected, maybe just read only or allow revert? 
-                 For now, allow re-reviewing any report is useful, but typically 'Approved' is final. 
-                 Let's allow editing decision for flexibility. */}
-            <Group
-              justify="flex-end"
-              p="md"
-              style={{
-                borderTop: `1px solid ${isDark ? "#373a40" : "#ddd"}`,
-                backgroundColor: isDark ? "#1a1b1e" : "white",
-                position: "fixed",
-                bottom: 0,
-                left: 0,
-                right: 0,
-                zIndex: 100,
-              }}
-            >
-              <Button variant="default" onClick={close}>
-                Close
+              Back to List
+            </Button>
+            <Group>
+              <Button variant="default" leftSection={<IconPrinter size={16} />} onClick={() => window.print()}>
+                Print PDF
               </Button>
               {selectedReport.status === "Submitted" && (
                 <>
@@ -463,18 +469,12 @@ export default function SupervisorReview() {
                 </>
               )}
             </Group>
+          </Group>
 
-            {/* Rejection Reason Modal/Popover Overlay */}
+          <Paper withBorder p="md" radius="md">
+
             {showRejectInput && (
-              <Box
-                pos="fixed"
-                bottom={80}
-                left={0}
-                right={0}
-                p="md"
-                bg={isDark ? "#1a1b1e" : "white"}
-                style={{ borderTop: `1px solid ${isDark ? "#fa5252" : "red"}`, zIndex: 101 }}
-              >
+              <Paper withBorder p="md" mb="md" bg={isDark ? "#1a1b1e" : "white"} style={{ border: `1px solid ${isDark ? "#fa5252" : "red"}` }}>
                 <Text fw={600} mb="xs" c="red">Rejection Reason:</Text>
                 <Textarea
                   placeholder="Explain why this report is rejected..."
@@ -483,24 +483,75 @@ export default function SupervisorReview() {
                   autosize
                   minRows={2}
                   mb="sm"
-                  styles={{
-                    input: {
-                      backgroundColor: isDark ? "#25262b" : "#ffffff",
-                      color: isDark ? "#c1c2c5" : "#000000",
-                      borderColor: isDark ? "#373a40" : "#ced4da",
-                    }
-                  }}
                 />
                 <Group justify="flex-end">
-                  <Button variant="subtle" size="xs" onClick={() => setShowRejectInput(false)} color={isDark ? "gray" : undefined} >Cancel</Button>
+                  <Button variant="subtle" size="xs" onClick={() => setShowRejectInput(false)}>Cancel</Button>
                   <Button color="red" size="xs" onClick={handleReject} loading={processing}>Confirm Rejection</Button>
                 </Group>
-              </Box>
+              </Paper>
             )}
 
-          </Box>
-        )}
-      </Modal>
+            <InspectionReportView data={selectedReport} />
+          </Paper>
+        </Box>
+      ) : (
+        <React.Fragment>
+          <Group justify="space-between" mb="lg">
+            <Title order={2}>Inspection Report Review</Title>
+          </Group>
+
+          <Paper withBorder p="md" radius="md">
+            {/* FILTERS */}
+            <Group mb="md">
+              <TextInput
+                placeholder="Search Report No, Equipment, Inspector..."
+                leftSection={<IconSearch size={16} />}
+                style={{ flex: 1 }}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.currentTarget.value)}
+              />
+              <TextInput
+                type="date"
+                placeholder="Filter by Date"
+                leftSection={<IconClock size={16} />}
+                max={new Date().toISOString().split('T')[0]}
+                value={dateFilter ? new Date(dateFilter).toISOString().split('T')[0] : ''}
+                onChange={(e) => setDateFilter(e.currentTarget.value ? new Date(e.currentTarget.value) : null)}
+              />
+            </Group>
+
+            {loading ? (
+              <Loader />
+            ) : (
+              <Tabs value={activeTab} onChange={setActiveTab}>
+                <Tabs.List mb="md">
+                  <Tabs.Tab value="pending" leftSection={<IconClock size={16} />}>
+                    Pending Review ({pendingReports.length})
+                  </Tabs.Tab>
+                  <Tabs.Tab value="rejected" color="red" leftSection={<IconAlertCircle size={16} />}>
+                    Rejected ({rejectedReports.length})
+                  </Tabs.Tab>
+                  <Tabs.Tab value="approved" color="green" leftSection={<IconCheck size={16} />}>
+                    Approved ({approvedReports.length})
+                  </Tabs.Tab>
+                </Tabs.List>
+
+                <Tabs.Panel value="pending">
+                  {renderTable(pendingReports)}
+                </Tabs.Panel>
+                <Tabs.Panel value="rejected">
+                  {renderTable(rejectedReports, true)}
+                </Tabs.Panel>
+                <Tabs.Panel value="approved">
+                  {renderTable(approvedReports)}
+                </Tabs.Panel>
+              </Tabs>
+            )}
+          </Paper>
+        </React.Fragment>
+      )
+      }
+
     </Container >
   );
 }

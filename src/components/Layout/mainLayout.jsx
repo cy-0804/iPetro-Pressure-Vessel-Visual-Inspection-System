@@ -16,6 +16,9 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 
+// Import the new modal
+import { ProfileCompletionModal } from "../auth/ProfileCompletionModal";
+
 export function MainLayout() {
   const [opened, { toggle }] = useDisclosure();
   const { colorScheme } = useTheme();
@@ -56,6 +59,8 @@ export function MainLayout() {
           email: data.email || currentUser.email,
           role: data.role || "Inspector",
           avatar: currentUser.photoURL || null,
+          firstName: data.firstName, // Store raw data for check
+          lastName: data.lastName    // Store raw data for check
         });
       }
     });
@@ -80,6 +85,9 @@ export function MainLayout() {
     };
   }, [currentUser]);
 
+  // Derive if profile is incomplete
+  const isProfileIncomplete = userData && (!userData.firstName || !userData.lastName);
+
   return (
     <AppShell
       header={{ height: 64 }}
@@ -103,19 +111,28 @@ export function MainLayout() {
         <SideBar toggle={toggle} role={userData?.role} />
       </AppShell.Navbar>
 
-      <AppShell.Main style={{ 
-        display: 'flex', 
+      <AppShell.Main style={{
+        display: 'flex',
         flexDirection: 'column',
-        minHeight: '100vh'
+        minHeight: '100vh',
+        position: 'relative' // Ensure relative/z-index context if needed
       }}>
-        <div style={{ 
+
+        {/* Profile Completion Guard - Rendered at top of Main */}
+        <ProfileCompletionModal
+          opened={!!isProfileIncomplete}
+          userId={currentUser?.uid}
+          userEmail={currentUser?.email}
+        />
+
+        <div style={{
           flex: 1,
           padding: '30px',
           paddingBottom: '60px',
         }}>
           <Outlet />
         </div>
-        
+
         <FooterLinks />
       </AppShell.Main>
     </AppShell>

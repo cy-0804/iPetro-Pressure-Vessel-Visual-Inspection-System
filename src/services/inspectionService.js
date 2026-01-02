@@ -25,16 +25,16 @@ export const inspectionService = {
                 riskCategory: planData.riskCategory || "Medium",
                 inspectionType: planData.inspectionType || "Visual",
                 scope: planData.scope || "",
-                interval: planData.interval || 12, // Default 12 months
-                outcome: null, // Initial outcome
+                interval: planData.interval || 12,
+                outcome: null,
 
-                status: planData.status || "PLANNED", // Default status
+                status: planData.status || "PLANNED",
                 createdAt: new Date().toISOString(),
-                // Basic Due Date Logic (if interval provided)
+
                 dueDate: planData.dueDate || (planData.end ? new Date(planData.end).toISOString() : (planData.start ? new Date(planData.start).toISOString() : null))
             };
 
-            // Remove any potential undefined values from extendedProps
+
             if (cleanData.extendedProps) {
                 Object.keys(cleanData.extendedProps).forEach(key => {
                     if (cleanData.extendedProps[key] === undefined) {
@@ -45,20 +45,22 @@ export const inspectionService = {
 
             const docRef = await addDoc(collection(db, COLLECTION_NAME), cleanData);
 
-            // Trigger Notification (Non-blocking)
+
             if (planData.extendedProps?.inspector && planData.extendedProps.inspector !== "Unassigned") {
                 try {
                     await notificationService.addNotification(
                         planData.extendedProps.inspector,
                         "New Inspection Assigned",
-                        `You have been assigned to inspect ${planData.title} (${planData.start})`
+                        `You have been assigned to inspect ${planData.title} (${planData.start})`,
+                        "info",
+                        "/inspection-plan"
                     );
                 } catch (notifError) {
                     console.warn("Failed to send notification:", notifError);
                 }
             }
 
-            // Log Initial Creation
+
             await addDoc(collection(db, "inspection_status_log"), {
                 planId: docRef.id,
                 oldStatus: null,
@@ -74,20 +76,20 @@ export const inspectionService = {
         }
     },
 
-    // Read All (with optional filters - implemented as basic fetch for now)
+
     getInspectionPlans: async () => {
         try {
             // Basic query can be expanded later
             const q = query(
                 collection(db, COLLECTION_NAME)
-                // orderBy("start", "asc") // Optional: indexing required for this often
+
             );
 
             const querySnapshot = await getDocs(q);
             const plans = [];
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
-                // Sanitization: Handle Firestore Timestamps if present for start/end
+
                 if (data.start && typeof data.start.toDate === 'function') {
                     data.start = data.start.toDate().toISOString();
                 }
@@ -107,6 +109,49 @@ export const inspectionService = {
     updateInspectionPlan: async (id, updates) => {
         try {
             const docRef = doc(db, COLLECTION_NAME, id);
+
+
+            try {
+                // Fetch current state to compare inspector
+                const docSnap = await getDocs(query(collection(db, COLLECTION_NAME), where("__name__", "==", id)));
+                if (!docSnap.empty) {
+                    const currentData = docSnap.docs[0].data();
+                    const oldInspector = currentData.extendedProps?.inspector;
+
+                    const newInspector = updates.inspector || updates["extendedProps.inspector"];
+
+
+                    if (newInspector && newInspector !== oldInspector) {
+                        const planTitle = currentData.title || "Inspection Plan";
+
+
+                        if (oldInspector && oldInspector !== "Unassigned") {
+                            await notificationService.addNotification(
+                                oldInspector,
+                                "Inspection Unassigned",
+                                `You have been unassigned from inspection: "${planTitle}". It has been reassigned to ${newInspector}.`,
+                                "info",
+                                "/inspection-plan"
+                            );
+                        }
+
+
+                        if (newInspector !== "Unassigned") {
+                            await notificationService.addNotification(
+                                newInspector,
+                                "New Inspection Assigned",
+                                `You have been assigned to inspection: "${planTitle}" (Reassigned/Rescheduled).`,
+                                "info",
+                                "/inspection-plan"
+                            );
+                        }
+                    }
+                }
+            } catch (notifyErr) {
+                console.warn("Failed to process reassignment notifications:", notifyErr);
+            }
+
+
             await updateDoc(docRef, {
                 ...updates,
                 updatedAt: new Date().toISOString()
@@ -118,8 +163,29 @@ export const inspectionService = {
         }
     },
 
-    // Update Status with Role Checks & Logging
-    updateInspectionStatus: async (id, newStatus, userRole, changedBy) => {
+
+    getInspectionPlanById: async (id) => {
+        try {
+            const docRef = doc(db, COLLECTION_NAME, id);
+            const docSnap = await getDocs(query(collection(db, COLLECTION_NAME), where("__name__", "==", id)));
+            if (docSnap.empty) return null;
+            const data = docSnap.docs[0].data();
+
+            if (data.start && typeof data.start.toDate === 'function') {
+                data.start = data.start.toDate().toISOString();
+            }
+            if (data.end && typeof data.end.toDate === 'function') {
+                data.end = data.end.toDate().toISOString();
+            }
+            return { id: docSnap.docs[0].id, ...data };
+        } catch (error) {
+            console.error("Error fetching plain details:", error);
+            return null;
+        }
+    },
+
+
+    updateInspectionStatus: async (id, newStatus, userRole, changedBy, notify = true) => {
         try {
             const docRef = doc(db, COLLECTION_NAME, id);
             const docSnap = await getDocs(query(collection(db, COLLECTION_NAME), where("__name__", "==", id)));
@@ -128,34 +194,30 @@ export const inspectionService = {
             const currentData = docSnap.docs[0].data();
             const currentStatus = currentData.status || "PLANNED";
 
-            // 1. Strict Transition Rules (supports both Plan and Report statuses)
+
             const validTransitions = {
-                // Plan Statuses (uppercase)
-                "PLANNED": ["SCHEDULED", "IN_PROGRESS", "COMPLETED"], // Supervisor/Inspector
+
+                "PLANNED": ["SCHEDULED", "IN_PROGRESS", "COMPLETED"],
                 "SCHEDULED": ["IN_PROGRESS", "PLANNED", "COMPLETED"],
-                "IN_PROGRESS": ["COMPLETED", "Submitted"], // Inspector can complete or submit report
-                "COMPLETED": ["APPROVED", "IN_PROGRESS", "Submitted"], // Supervisor or Inspector
-                "APPROVED": [], // Terminal
-                "REJECTED": ["IN_PROGRESS", "Submitted"], // Allow resubmission after rejection
-                "OVERDUE": ["IN_PROGRESS", "COMPLETED"], // Recovery
-                // Report Statuses (Title Case) - Mapped to match UI actions
+                "IN_PROGRESS": ["COMPLETED", "Submitted"],
+                "COMPLETED": ["APPROVED", "IN_PROGRESS", "Submitted"],
+                "APPROVED": [],
+                "REJECTED": ["IN_PROGRESS", "Submitted"],
+                "OVERDUE": ["IN_PROGRESS", "COMPLETED"],
+
                 "Draft": ["Submitted", "Draft"],
-                "Submitted": ["Approved", "Rejected", "IN_PROGRESS"], // Supervisor actions
-                "Approved": [], // Terminal
-                "Rejected": ["Submitted", "IN_PROGRESS"] // Re-work
+                "Submitted": ["Approved", "Rejected", "IN_PROGRESS"],
+                "Approved": [],
+                "Rejected": ["Submitted", "IN_PROGRESS"]
             };
 
             const allowed = validTransitions[currentStatus] || [];
-            // Allow same-status updates (idempotency) and case-insensitive check
+
             const normalizedNew = newStatus;
 
-            // Bypass validation for simple updates or if strictly matching
-            // Note: We are relaxing strict transitions for now to allow Report -> Plan sync without errors
-            // if (!allowed.includes(newStatus) && currentStatus !== newStatus) {
-            //    console.warn(`Warning: Invalid status transition ${currentStatus} -> ${newStatus}`);
-            // }
 
-            // 2. Role Validation
+
+
             if ((newStatus === "APPROVED" || newStatus === "Approved") && userRole !== "supervisor") {
                 throw new Error("Only Supervisors can approve inspections.");
             }
@@ -163,14 +225,14 @@ export const inspectionService = {
                 throw new Error("Only Supervisors can reject inspections.");
             }
 
-            // 3. Update Doc
+
             await updateDoc(docRef, {
                 status: newStatus,
-                "extendedProps.status": newStatus, // Keep strictly in sync
+                "extendedProps.status": newStatus,
                 updatedAt: new Date().toISOString()
             });
 
-            // 4. Log Change
+
             await addDoc(collection(db, "inspection_status_log"), {
                 planId: id,
                 oldStatus: currentStatus,
@@ -179,36 +241,41 @@ export const inspectionService = {
                 timestamp: serverTimestamp()
             });
 
-            // 5. Notify
+
             const inspector = currentData.extendedProps?.inspector;
-            if (inspector && inspector !== "Unassigned") {
+            if (notify && inspector && inspector !== "Unassigned") {
                 if (newStatus === "APPROVED" || newStatus === "Approved") {
                     await notificationService.addNotification(
                         inspector,
                         "Report Approved",
-                        `Your inspection report for ${currentData.title} has been approved by ${changedBy}.`,
-                        "success"
+                        `Your inspection report for ${currentData.title} has been approved by ${changedBy || "a Supervisor"}.`,
+                        "success",
+                        "/report-submission"
                     );
                 } else if (newStatus === "REJECTED" || newStatus === "Rejected") {
                     await notificationService.addNotification(
                         inspector,
                         "Report Rejected",
-                        `Your inspection report for ${currentData.title} was rejected by ${changedBy}. Please review the feedback and resubmit.`,
-                        "alert"
+                        `Your inspection report for ${currentData.title} was rejected by ${changedBy || "a Supervisor"}. Please review the feedback and resubmit.`,
+                        "alert",
+                        "/report-submission"
                     );
                 } else if (newStatus === "Submitted") {
-                    // Notify supervisors when report is submitted
+
                     try {
                         const q = query(collection(db, "users"), where("role", "==", "supervisor"));
                         const snapshot = await getDocs(q);
                         const supervisors = snapshot.docs.map(d => d.data().username || d.data().email);
+                        const uniqueSupervisors = [...new Set(supervisors)];
 
-                        supervisors.forEach(async (s) => {
+                        uniqueSupervisors.forEach(async (s) => {
+                            const submitterName = changedBy || inspector || "An inspector";
                             await notificationService.addNotification(
                                 s,
                                 "Report Pending Review",
-                                `${inspector} submitted an inspection report for ${currentData.title}. Please review.`,
-                                "info"
+                                `${submitterName} submitted an inspection report for ${currentData.title}. Please review.`,
+                                "info",
+                                "/supervisor-review" // Link to supervisor review page
                             );
                         });
                     } catch (nErr) {
@@ -224,19 +291,94 @@ export const inspectionService = {
         }
     },
 
-    // Check for Overdue Items (Client-side trigger for MVP)
+
     checkOverdueStatus: async () => {
         try {
-            const now = new Date().toISOString();
+            const now = new Date();
+
             const q = query(
                 collection(db, COLLECTION_NAME),
-                where("status", "in", ["PLANNED", "SCHEDULED"]),
-                where("dueDate", "<", now)
+                where("status", "in", ["PLANNED", "SCHEDULED", "OVERDUE"])
             );
             const snapshot = await getDocs(q);
 
+
+            let userMap = new Map();
+            try {
+                const userSnap = await getDocs(collection(db, "users"));
+                userSnap.forEach(doc => {
+                    const u = doc.data();
+                    const key = u.username || u.email;
+                    const name = (u.firstName && u.lastName) ? `${u.firstName} ${u.lastName}` : (u.fullName || key);
+                    if (key) userMap.set(key, name);
+                });
+            } catch (uErr) {
+                console.warn("Failed to fetch user map for names:", uErr);
+            }
+
             const updates = snapshot.docs.map(async (d) => {
-                await updateDoc(doc(db, COLLECTION_NAME, d.id), { status: "OVERDUE" });
+                const data = d.data();
+                const endDateStr = data.end || data.dueDate;
+                if (!endDateStr) return;
+
+                const endDate = new Date(endDateStr);
+
+                const endOfDay = new Date(endDate);
+                endOfDay.setHours(23, 59, 59, 999);
+
+
+                const currentStatus = (data.status || "").toUpperCase();
+
+
+                if (now > endOfDay && ["PLANNED", "SCHEDULED"].includes(currentStatus)) {
+                    console.log(`Marking ${d.id} as OVERDUE (Now > ${endOfDay.toISOString()})`);
+                    await updateDoc(doc(db, COLLECTION_NAME, d.id), {
+                        status: "OVERDUE",
+                        "extendedProps.status": "OVERDUE"
+                    });
+
+
+                    const inspectorUsername = data.extendedProps?.inspector;
+                    const inspectorName = (inspectorUsername && inspectorUsername !== "Unassigned")
+                        ? (userMap.get(inspectorUsername) || inspectorUsername)
+                        : "Unassigned";
+
+
+                    if (inspectorUsername && inspectorUsername !== "Unassigned") {
+                        try {
+                            await notificationService.addNotification(
+                                inspectorUsername,
+                                "Inspection Overdue",
+                                `The inspection "${data.title}" assigned to you is overdue.`,
+                                "alert",
+                                "/inspection-plan"
+                            );
+                        } catch (nErr) {
+                            console.warn("Overdue notification error:", nErr);
+                        }
+                    }
+
+
+                    try {
+                        const message = `The inspection ${data.title} assigned to ${inspectorName} is overdue.`;
+                        await notificationService.notifyRole(
+                            "supervisor",
+                            "Inspection Overdue",
+                            message,
+                            "alert",
+                            "/inspection-plan"
+                        );
+                    } catch (sErr) {
+                        console.warn("Overdue supervisor notification error:", sErr);
+                    }
+                }
+
+
+                if (now <= endOfDay && currentStatus === "OVERDUE") {
+
+                    const newStatus = "PLANNED";
+                    await updateDoc(doc(db, COLLECTION_NAME, d.id), { status: newStatus });
+                }
             });
             await Promise.all(updates);
         } catch (error) {
@@ -245,12 +387,12 @@ export const inspectionService = {
     },
 
 
-    // Reschedule Request Workflow
+
     requestReschedule: async (id, startDate, endDate, reason, requestedBy) => {
         try {
             const docRef = doc(db, COLLECTION_NAME, id);
 
-            // Get Plan Title for context
+
             const docSnap = await getDocs(query(collection(db, COLLECTION_NAME), where("__name__", "==", id)));
             const planTitle = !docSnap.empty ? docSnap.docs[0].data().title : "Inspection Plan";
 
@@ -258,7 +400,6 @@ export const inspectionService = {
                 rescheduleRequest: {
                     startDate,
                     endDate,
-                    // Legacy support or just omit requestedDate? Omit.
                     reason,
                     requestedBy,
                     status: "pending",
@@ -266,18 +407,21 @@ export const inspectionService = {
                 }
             });
 
-            // Notify Supervisors
+
             try {
-                // Determine supervisors to notify. 
+
                 const q = query(collection(db, "users"), where("role", "==", "supervisor"));
                 const snapshot = await getDocs(q);
                 const supervisors = snapshot.docs.map(d => d.data().username || d.data().email);
+                const uniqueSupervisors = [...new Set(supervisors)];
 
-                supervisors.forEach(async (s) => {
+                uniqueSupervisors.forEach(async (s) => {
                     await notificationService.addNotification(
                         s,
                         "Reschedule Requested",
-                        `${requestedBy} requested reschedule for "${planTitle}" to ${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}. Reason: ${reason}`
+                        `${requestedBy} requested reschedule for "${planTitle}" to ${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}. Reason: ${reason}`,
+                        "info",
+                        "/inspection-plan" // Link to calendar/schedule
                     );
                 });
             } catch (nErr) {
@@ -291,7 +435,7 @@ export const inspectionService = {
         }
     },
 
-    approveReschedule: async (id, isApproved, rejectionReason = null, approvedStartDate = null, approvedEndDate = null, usePlanDates = false) => {
+    approveReschedule: async (id, isApproved, rejectionReason = null, approvedStartDate = null, approvedEndDate = null, usePlanDates = false, notify = true) => {
         try {
             const docRef = doc(db, COLLECTION_NAME, id);
             const docSnap = await getDocs(query(collection(db, COLLECTION_NAME), where("__name__", "==", id)));
@@ -305,30 +449,28 @@ export const inspectionService = {
             }
 
             if (isApproved) {
-                // Determine final dates safely
+
                 let finalStartISO, finalEndISO;
 
                 if (usePlanDates) {
-                    // Use the CURRENT plan dates (assumed to be updated by Supervisor before calling this)
+
                     finalStartISO = data.start;
                     finalEndISO = data.end;
                 } else {
-                    // Use provided dates or fallback to requested dates
 
-                    // Start Date
                     if (approvedStartDate) {
                         finalStartISO = (approvedStartDate instanceof Date ? approvedStartDate : new Date(approvedStartDate)).toISOString();
                     } else {
                         finalStartISO = (request.startDate ? new Date(request.startDate) : new Date(request.requestedDate)).toISOString();
                     }
 
-                    // End Date
+
                     if (approvedEndDate) {
                         finalEndISO = (approvedEndDate instanceof Date ? approvedEndDate : new Date(approvedEndDate)).toISOString();
                     } else if (request.endDate) {
                         finalEndISO = new Date(request.endDate).toISOString();
                     } else {
-                        // Fallback to start date if no end date
+
                         finalEndISO = finalStartISO;
                     }
                 }
@@ -336,8 +478,11 @@ export const inspectionService = {
                 await updateDoc(docRef, {
                     start: finalStartISO,
                     end: finalEndISO,
-                    dueDate: finalEndISO, // Set due date to new end date
-                    status: "SCHEDULED", // Reset status to scheduled
+                    start: finalStartISO,
+                    end: finalEndISO,
+                    dueDate: finalEndISO,
+                    status: "PLANNED",
+                    "extendedProps.status": "PLANNED",
                     rescheduleRequest: {
                         ...request,
                         status: "approved",
@@ -348,18 +493,25 @@ export const inspectionService = {
                     lastRescheduledBy: "Supervisor"
                 });
 
-                // Notify Inspector
-                if (request.requestedBy) {
-                    await notificationService.addNotification(
-                        request.requestedBy,
-                        "Reschedule Approved",
-                        `Your reschedule request for "${data.title}" was approved. New Dates: ${new Date(finalStartISO).toLocaleDateString()} - ${new Date(finalEndISO).toLocaleDateString()}`,
-                        "success"
-                    );
+                if (notify) {
+                    try {
+
+                        if (request.requestedBy) {
+                            await notificationService.addNotification(
+                                request.requestedBy,
+                                "Reschedule Approved",
+                                `Your reschedule request for "${data.title}" was approved. New Dates: ${new Date(finalStartISO).toLocaleDateString()} - ${new Date(finalEndISO).toLocaleDateString()}`,
+                                "success",
+                                "/inspection-plan" // Link to calendar
+                            );
+                        }
+                    } catch (nErr) {
+                        console.warn("Notification error:", nErr);
+                    }
                 }
 
             } else {
-                // Reject
+
                 await updateDoc(docRef, {
                     rescheduleRequest: {
                         ...request,
@@ -369,13 +521,14 @@ export const inspectionService = {
                     }
                 });
 
-                // Notify Inspector
+
                 if (request.requestedBy) {
                     await notificationService.addNotification(
                         request.requestedBy,
                         "Reschedule Rejected",
                         `Your reschedule request for "${data.title}" was rejected. Reason: ${rejectionReason}`,
-                        "alert"
+                        "alert",
+                        "/inspection-plan" // Link to calendar
                     );
                 }
             }
@@ -385,7 +538,7 @@ export const inspectionService = {
         }
     },
 
-    // Inspector accepts the rejection (clears the request)
+
     cancelRescheduleRequest: async (id) => {
         try {
             const docRef = doc(db, COLLECTION_NAME, id);
@@ -399,9 +552,17 @@ export const inspectionService = {
         }
     },
 
-    // Delete
+
     deleteInspectionPlan: async (id) => {
         try {
+
+            try {
+                await updateDoc(doc(db, COLLECTION_NAME, id), { status: "PLANNED" });
+            } catch (updateErr) {
+
+                console.warn("Could not revert status before delete (might be fine):", updateErr);
+            }
+
             await deleteDoc(doc(db, COLLECTION_NAME, id));
             return id;
         } catch (error) {
@@ -410,29 +571,29 @@ export const inspectionService = {
         }
     },
 
-    // --- SYNC TOOL (One-off fix) ---
+
     syncPlanStatusesWithReports: async () => {
         try {
             console.log("Starting Sync...");
-            // 1. Get All Plans
+
             const plansSnap = await getDocs(collection(db, "inspection_plans"));
             const plans = plansSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-            // 2. Get All Reports
+
             const reportsSnap = await getDocs(collection(db, "inspections"));
             const reports = reportsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
             let updatedCount = 0;
 
             for (const plan of plans) {
-                // Find matching report
+
                 const report = reports.find(r => r.planId === plan.id);
                 if (report) {
-                    // Normalize statuses
+
                     const planStatus = (plan.status || "").toUpperCase();
                     const reportStatus = (report.status || "").toUpperCase();
 
-                    // Expected Plan Status based on Report
+
                     let expectedStatus = planStatus;
                     if (reportStatus === "APPROVED") expectedStatus = "APPROVED";
                     else if (reportStatus === "REJECTED") expectedStatus = "REJECTED";
@@ -441,7 +602,7 @@ export const inspectionService = {
                     if (planStatus !== expectedStatus) {
                         console.log(`Syncing Plan ${plan.id}: ${planStatus} -> ${expectedStatus}`);
                         await updateDoc(doc(db, "inspection_plans", plan.id), {
-                            status: report.status, // Use original casing from report
+                            status: report.status,
                             "extendedProps.status": report.status,
                             updatedAt: new Date().toISOString()
                         });

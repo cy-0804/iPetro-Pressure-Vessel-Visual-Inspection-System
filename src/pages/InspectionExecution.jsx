@@ -11,7 +11,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import { useParams, useNavigate } from 'react-router-dom';
 import { inspectionService } from '../services/inspectionService';
-import { storage, db } from '../firebase';
+import { storage, db, auth } from '../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import {
@@ -24,15 +24,22 @@ import { openConfirmModal } from '@mantine/modals';
 export default function InspectionExecution() {
     const { id } = useParams();
     const navigate = useNavigate();
+    const [inspectorName, setInspectorName] = useState("Inspector");
+
+    useEffect(() => {
+        if (auth.currentUser) {
+            setInspectorName(auth.currentUser.displayName || auth.currentUser.email || "Inspector");
+        }
+    }, []);
 
     // State
     const [loading, setLoading] = useState(true);
     const [inspection, setInspection] = useState(null);
     const [notes, setNotes] = useState("");
-    const [photos, setPhotos] = useState([]); // Array of { url, folder }
+    const [photos, setPhotos] = useState([]);
     const [folders, setFolders] = useState(['General']); // List of folder names
 
-    // Readonly logic (defined early for editor)
+
     const status = inspection?.status || "PLANNED";
     const isReadonly = status === "APPROVED";
 
@@ -46,7 +53,7 @@ export default function InspectionExecution() {
         editable: !isReadonly,
     });
 
-    // Update editor content when notes loaded (only once)
+
     useEffect(() => {
         if (editor && notes && editor.getHTML() !== notes && !editor.isFocused) {
             editor.commands.setContent(notes);
@@ -73,7 +80,7 @@ export default function InspectionExecution() {
                     const photosWithFolders = loadedPhotos.map(p => ({ ...p, folder: p.folder || 'General' }));
                     setPhotos(photosWithFolders);
 
-                    // Extract unique folders from photos if any new ones exist, merge with default
+
                     const existingFolders = new Set(['General']);
                     if (data.extendedProps?.folders) {
                         data.extendedProps.folders.forEach(f => existingFolders.add(f));
@@ -106,7 +113,7 @@ export default function InspectionExecution() {
                     title: 'Success',
                     children: <Text size="sm">Draft progress saved successfully.</Text>,
                     labels: { confirm: 'OK', cancel: "View Report" },
-                    cancelProps: { style: { display: 'none' } }, // Hide cancel button to make it an info modal
+                    cancelProps: { style: { display: 'none' } },
                     onConfirm: () => { },
                     confirmProps: { color: 'green' }
                 });
@@ -133,13 +140,7 @@ export default function InspectionExecution() {
             setPhotos(prev => [...prev, ...uploadedPhotos]);
             notifications.show({ title: 'Success', message: `Photos uploaded to ${folderName}`, color: 'green' });
 
-            // Auto-save progress to persist URLs
-            // We can't use handleSaveProgress directly cleanly here if it depends on state that might be stale, 
-            // but setPhotos updates state. We should ideally save *after* state update, but for now user will click save.
-            // Or better: update doc directly here?
-            // Let's rely on user clicking "Save Progress" or auto-save later. 
-            // Actually, if they leave page, photos are lost if not saved to doc.
-            // Let's just notify success.
+
         } catch (e) {
             console.error(e);
             notifications.show({ title: 'Error', message: 'Upload failed', color: 'red' });
@@ -182,9 +183,9 @@ export default function InspectionExecution() {
 
     const handleStart = async () => {
         if (!inspection) return;
-        setLoading(true); // Add loading
+        setLoading(true);
         try {
-            await inspectionService.updateInspectionStatus(inspection.id, "IN_PROGRESS", "inspector", "current");
+            await inspectionService.updateInspectionStatus(inspection.id, "IN_PROGRESS", "inspector", inspectorName);
             setInspection(prev => ({ ...prev, status: "IN_PROGRESS" }));
         } catch (e) {
             console.error(e);

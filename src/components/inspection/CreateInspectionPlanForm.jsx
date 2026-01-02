@@ -47,12 +47,19 @@ export default function CreateInspectionPlanForm({ onSaved, onCancel, initialDat
             const usrs = await userService.getInspectors();
             setEquipmentList(eqs.map(e => ({ value: e.tagNumber, label: e.tagNumber })));
 
-            // Deduplicate inspectors by their unique identifier (username || email)
+            // Filter by role 'inspector'
+            const inspectorUsers = usrs.filter(u => u.role === 'inspector');
+
             const uniqueInspectors = new Map();
-            usrs.forEach(u => {
+            inspectorUsers.forEach(u => {
                 const val = u.username || u.email;
                 if (val && !uniqueInspectors.has(val)) {
-                    uniqueInspectors.set(val, { value: val, label: val });
+                    uniqueInspectors.set(val, {
+                        value: val,
+                        label: (u.firstName && u.lastName)
+                            ? `${u.firstName} ${u.lastName}`
+                            : (u.fullName || u.username || u.email)
+                    });
                 }
             });
             setInspectors(Array.from(uniqueInspectors.values()));
@@ -61,8 +68,8 @@ export default function CreateInspectionPlanForm({ onSaved, onCancel, initialDat
     }, []);
 
     const handleSubmit = async () => {
-        if (!asset || !windowStart || !windowEnd || !title) {
-            alert("Please fill in required fields: Asset, Title, Start Date, End Date");
+        if (!asset || !windowStart || !windowEnd || !title || !location || !selectedInspector) {
+            alert("Please fill in required fields: Asset, Title, Location, Start Date, End Date, Inspector");
             return;
         }
 
@@ -155,6 +162,7 @@ export default function CreateInspectionPlanForm({ onSaved, onCancel, initialDat
                 placeholder="e.g. Building A, Floor 2"
                 value={location}
                 onChange={(e) => setLocation(e.currentTarget.value)}
+                required
             />
 
             <Group grow>
@@ -174,7 +182,7 @@ export default function CreateInspectionPlanForm({ onSaved, onCancel, initialDat
                     placeholder="Plan start"
                     value={windowStart ? new Date(windowStart).toISOString().split('T')[0] : ''}
                     onChange={(e) => setWindowStart(e.currentTarget.value ? new Date(e.currentTarget.value) : null)}
-                    min={new Date().toISOString().split('T')[0]}
+                    // min={new Date().toISOString().split('T')[0]}
                     required
                 />
                 <TextInput
@@ -183,7 +191,7 @@ export default function CreateInspectionPlanForm({ onSaved, onCancel, initialDat
                     placeholder="Plan end"
                     value={windowEnd ? new Date(windowEnd).toISOString().split('T')[0] : ''}
                     onChange={(e) => setWindowEnd(e.currentTarget.value ? new Date(e.currentTarget.value) : null)}
-                    min={windowStart ? new Date(windowStart).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
+                    // min={windowStart ? new Date(windowStart).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
                     required
                 />
             </Group>
@@ -194,8 +202,8 @@ export default function CreateInspectionPlanForm({ onSaved, onCancel, initialDat
                 data={Array.from(new Map(inspectors.map(i => [i.value, i])).values())}
                 value={selectedInspector}
                 onChange={setSelectedInspector}
-                clearable
                 searchable
+                required
             />
 
             <Textarea

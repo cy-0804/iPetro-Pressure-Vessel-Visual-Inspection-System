@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   Group,
   Burger,
@@ -10,6 +11,7 @@ import {
   Text,
   rem,
   Avatar,
+  ScrollArea,
 } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
 import {
@@ -18,12 +20,14 @@ import {
   IconUser,
   IconSettings,
   IconChevronDown,
+  IconSend,
 } from "@tabler/icons-react";
 import { signOut } from "firebase/auth";
 import { auth } from "../../firebase";
 import { useTheme } from "../context/ThemeContext";
 import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
+import { notificationService } from "../../services/notificationService";
 
 export function Header({ opened, toggle, userInfo }) {
   const navigate = useNavigate();
@@ -36,6 +40,22 @@ export function Header({ opened, toggle, userInfo }) {
     role: "Inspector",
     avatar: null,
   };
+
+  const [userNotifications, setUserNotifications] = useState([]);
+
+  useEffect(() => {
+    // Determine targets (listen to both username and email to be safe)
+    const targets = [currentUser.username, currentUser.email].filter(Boolean);
+
+    if (targets.length > 0) {
+      const unsubscribe = notificationService.subscribeToUserNotifications(targets, (notifs) => {
+        setUserNotifications(notifs);
+      });
+      return () => unsubscribe();
+    }
+  }, [currentUser.username, currentUser.email]);
+
+  const unreadCount = userNotifications.filter(n => !n.read).length;
 
   const getInitials = (name) => {
     return name
@@ -138,7 +158,8 @@ export function Header({ opened, toggle, userInfo }) {
                 >
                   <Indicator
                     inline
-                    label="3"
+                    label={unreadCount > 0 ? unreadCount : null}
+                    disabled={unreadCount === 0}
                     size={16}
                     offset={7}
                     color="red"
@@ -154,77 +175,54 @@ export function Header({ opened, toggle, userInfo }) {
 
               <Menu.Dropdown>
                 <Box p="xs">
-                  <Text size="sm" fw={700} mb="xs">
-                    Notifications
-                  </Text>
+                  <Group justify="space-between" mb="xs">
+                    <Text size="sm" fw={700}>
+                      Notifications
+                    </Text>
+
+                  </Group>
                 </Box>
                 <Menu.Divider />
-
-                <Menu.Item
-                  py="sm"
-                  leftSection={
-                    <Box
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: "50%",
-                        backgroundColor: "#228be6",
-                      }}
-                    />
-                  }
-                >
-                  <Box>
-                    <Text size="sm" fw={600}>
-                      New Inspection Assigned
-                    </Text>
-                    <Text size="xs" c="dimmed" mt={2}>
-                      PV-101 needs visual check
-                    </Text>
-                    <Text size="xs" c="dimmed" mt={2}>
-                      2 hours ago
-                    </Text>
-                  </Box>
-                </Menu.Item>
-
-                <Menu.Item
-                  py="sm"
-                  leftSection={
-                    <Box
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: "50%",
-                        backgroundColor: "#fa5252",
-                      }}
-                    />
-                  }
-                >
-                  <Box>
-                    <Text size="sm" fw={600}>
-                      Report Overdue
-                    </Text>
-                    <Text size="xs" c="dimmed" mt={2}>
-                      HX-220 report was due yesterday
-                    </Text>
-                    <Text size="xs" c="dimmed" mt={2}>
-                      1 day ago
-                    </Text>
-                  </Box>
-                </Menu.Item>
-
-                <Menu.Item py="sm">
-                  <Box>
-                    <Text size="sm" fw={600}>
-                      System Update
-                    </Text>
-                    <Text size="xs" c="dimmed" mt={2}>
-                      Maintenance scheduled for 12 AM
-                    </Text>
-                    <Text size="xs" c="dimmed" mt={2}>
-                      3 days ago
-                    </Text>
-                  </Box>
-                </Menu.Item>
+                <ScrollArea h={250} type="always" offsetScrollbars>
+                  {userNotifications.length === 0 ? (
+                    <Box p="sm"><Text size="sm" c="dimmed">No notifications</Text></Box>
+                  ) : (
+                    userNotifications.map(notif => (
+                      <Menu.Item
+                        key={notif.id}
+                        py="sm"
+                        onClick={() => {
+                          notificationService.markAsRead(notif.id);
+                          if (notif.link) {
+                            if (window.location.pathname === notif.link) {
+                              window.location.reload();
+                            } else {
+                              navigate(notif.link);
+                            }
+                          }
+                        }}
+                        leftSection={
+                          <Box
+                            style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: "50%",
+                              backgroundColor: notif.read ? "#adb5bd" : (notif.type === 'alert' ? '#fa5252' : '#228be6'),
+                            }}
+                          />
+                        }
+                      >
+                        <Box>
+                          <Text size="sm" fw={600}>{notif.title}</Text>
+                          <Text size="xs" c="dimmed" mt={2} style={{ whiteSpace: 'normal' }}>{notif.message}</Text>
+                          <Text size="xs" c="dimmed" mt={2}>
+                            {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </Text>
+                        </Box>
+                      </Menu.Item>
+                    ))
+                  )}
+                </ScrollArea>
 
                 <Menu.Divider />
                 <Menu.Item

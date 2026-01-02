@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   Container,
   Title,
@@ -19,6 +19,7 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useDisclosure } from "@mantine/hooks";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   IconSearch,
   IconArrowRight,
@@ -28,23 +29,90 @@ import {
   IconArrowsDiff,
   IconUser,
   IconX,
+  IconTrash,
 } from "@tabler/icons-react";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { InspectionReportView } from "../components/InspectionReportView";
+import { ReportEditor } from "./ReportGeneration";
+import { userService } from "../services/userService";
+import { getEquipments } from "../services/equipmentService";
+import JSZip from "jszip";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+import { saveAs } from "file-saver";
 
 export default function InspectionReportHistory() {
   const [history, setHistory] = useState([]);
   const [groupedHistory, setGroupedHistory] = useState({});
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState(null);
 
-  // View State
-  const [selectedTag, setSelectedTag] = useState(null); // 'PV-101'
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const user = await userService.getCurrentUserProfile();
+        setUserRole(user?.role);
+      } catch (e) {
+        console.error("Failed to load user", e);
+      }
+    };
+    loadUser();
+  }, []);
+
+  const handleDeleteReport = async (reportId) => {
+    if (!window.confirm("Are you sure you want to delete this report? This action cannot be undone.")) return;
+    try {
+      await deleteDoc(doc(db, "inspections", reportId));
+      notifications.show({ title: "Success", message: "Report deleted", color: "green" });
+      setHistory(prev => prev.filter(h => h.id !== reportId));
+      setSelectedReportIds(prev => prev.filter(id => id !== reportId));
+    } catch (err) {
+      console.error("Delete error", err);
+      notifications.show({ title: "Error", message: "Failed to delete report", color: "red" });
+    }
+  };
+
+
+  const [selectedTag, setSelectedTag] = useState(null);
   const [search, setSearch] = useState("");
 
-  // Modal State
+
   const [opened, { open, close }] = useDisclosure(false);
+  const [compareModalOpen, { open: openCompare, close: closeCompare }] = useDisclosure(false);
   const [selectedReport, setSelectedReport] = useState(null);
+
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [selectedReportIds, setSelectedReportIds] = useState([]);
+  const [exportReports, setExportReports] = useState([]);
+  const reportEditorRef = useRef(null);
+
+
+  const [equipmentMap, setEquipmentMap] = useState({});
+  const [equipmentTypes, setEquipmentTypes] = useState([]);
+  const [filterEquipmentType, setFilterEquipmentType] = useState("all");
+
+  // Fetch Equipment
+  useEffect(() => {
+    const fetchEquipments = async () => {
+      const equips = await getEquipments();
+      const map = {};
+      const types = new Set();
+      equips.forEach((eq) => {
+
+        const key = eq.tagNumber || eq.id;
+        map[key] = {
+          type: eq.type || "Unknown",
+          description: eq.description || eq.equipmentDescription || ""
+        };
+        if (eq.type) types.add(eq.type);
+      });
+      setEquipmentMap(map);
+      setEquipmentTypes(Array.from(types));
+    };
+    fetchEquipments();
+  }, []);
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -85,12 +153,12 @@ export default function InspectionReportHistory() {
           equipmentDescription: item.equipmentDescription,
           plantUnitArea: item.plantUnitArea,
           reports: [],
-          latestDate: item.inspectionDate, // Initial assumption
+          latestDate: item.inspectionDate,
         };
       }
       groups[item.equipmentId].reports.push(item);
 
-      // Update latest date if current item is newer (though list is already sorted)
+
       const currentLatest = new Date(groups[item.equipmentId].latestDate);
       const itemDate = new Date(item.inspectionDate);
       if (itemDate > currentLatest) {
@@ -100,9 +168,21 @@ export default function InspectionReportHistory() {
     setGroupedHistory(groups);
   }, [history]);
 
-  const filteredTags = Object.keys(groupedHistory).filter((tag) =>
-    tag.toLowerCase().includes(search.toLowerCase())
-  );
+
+  useEffect(() => {
+    if (location.state?.selectedTag) {
+      setSelectedTag(location.state.selectedTag);
+    }
+  }, [location.state]);
+
+  const filteredTags = Object.keys(groupedHistory).filter((tag) => {
+    const group = groupedHistory[tag];
+    const matchSearch = tag.toLowerCase().includes(search.toLowerCase()) ||
+      (group.equipmentDescription || equipmentMap[tag]?.description || "").toLowerCase().includes(search.toLowerCase());
+    const type = equipmentMap[tag]?.type; // Access type from object
+    const matchType = filterEquipmentType === "all" || type === filterEquipmentType;
+    return matchSearch && matchType;
+  });
 
   const handleJsonOpen = (report) => {
     setSelectedReport(report);
@@ -115,8 +195,27 @@ export default function InspectionReportHistory() {
   const renderEquipmentGrid = () => (
     <>
       <Title order={2} mb="lg">
-        Select Equipment
+        Inspection History
       </Title>
+
+      {/* FILTERS FOR GRID VIEW */}
+      <Group mb="lg">
+        <TextInput
+          placeholder="Search Tag No..."
+          leftSection={<IconSearch size={14} />}
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+        />
+        <Select
+          placeholder="Filter by Type"
+          data={[{ value: 'all', label: 'All Types' }, ...equipmentTypes.map(t => ({ value: t, label: t }))]}
+          value={filterEquipmentType}
+          onChange={setFilterEquipmentType}
+          searchable
+          clearable
+        />
+      </Group>
+
       <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="lg">
         {filteredTags.map((tag) => {
           const group = groupedHistory[tag];
@@ -161,7 +260,7 @@ export default function InspectionReportHistory() {
   // 2. Detail View (Report List)
   const [filterSearch, setFilterSearch] = useState("");
   const [filterType, setFilterType] = useState("all");
-  // const [filterStatus, setFilterStatus] = useState("all"); // All here are Approved anyway
+
 
   const renderDetailView = () => {
     const group = groupedHistory[selectedTag];
@@ -190,9 +289,14 @@ export default function InspectionReportHistory() {
             variant="subtle"
             leftSection={<IconArrowLeft size={16} />}
             onClick={() => {
-              setSelectedTag(null);
-              setFilterSearch(""); // Reset filters on back
-              setFilterType("all");
+              if (location.state?.fromEquipmentDetails) {
+                navigate(-1);
+              } else {
+                setSelectedTag(null);
+                setFilterSearch("");
+                setFilterType("all");
+                setSelectedReportIds([]);
+              }
             }}
             pl={0}
           >
@@ -217,13 +321,22 @@ export default function InspectionReportHistory() {
             onChange={(e) => setFilterSearch(e.currentTarget.value)}
           />
           <Group>
-            <Button variant="subtle" leftSection={<IconDownload size={16} />}>
-              Export
+            <Button
+              variant="subtle"
+              leftSection={<IconDownload size={16} />}
+              disabled={selectedReportIds.length === 0}
+              onClick={() => {
+                const selected = history.filter(h => selectedReportIds.includes(h.id));
+                setExportReports(selected);
+              }}
+            >
+              Export PDF
             </Button>
             <Button
               variant="default"
               leftSection={<IconArrowsDiff size={16} />}
-              disabled
+              disabled={selectedReportIds.length !== 2}
+              onClick={openCompare}
             >
               Compare
             </Button>
@@ -264,15 +377,35 @@ export default function InspectionReportHistory() {
               >
                 <Group justify="space-between">
                   <Group>
-                    {/* <Checkbox color="gray" /> */}
+                    <Checkbox
+                      checked={selectedReportIds.includes(report.id)}
+                      onChange={(e) => {
+                        if (e.currentTarget.checked) {
+                          setSelectedReportIds(prev => [...prev, report.id]);
+                        } else {
+                          setSelectedReportIds(prev => prev.filter(id => id !== report.id));
+                        }
+                      }}
+                    />
                     <div>
-                      <Text
-                        fw={600}
-                        size="sm"
-                        style={{ fontFamily: "monospace" }}
-                      >
-                        {report.reportNo || "No Report ID"}
-                      </Text>
+                      <Group gap="xs">
+                        <Text
+                          fw={600}
+                          size="sm"
+                          style={{ fontFamily: "monospace" }}
+                        >
+                          {report.reportNo || "No Report ID"}
+                        </Text>
+                        <Badge size="sm" variant="light" color="blue">
+                          {{
+                            VI: "Visual",
+                            UT: "Ultrasonic",
+                            RT: "Radiographic",
+                            PT: "Penetrant",
+                            MT: "Magnetic"
+                          }[report.inspectionType] || report.inspectionType || "Visual"}
+                        </Badge>
+                      </Group>
                       <Group gap="xs" mt={4}>
                         <Badge size="xs" color="blue" variant="outline">
                           {report.inspectionType || "VI"}
@@ -291,14 +424,21 @@ export default function InspectionReportHistory() {
                     </div>
                   </Group>
 
-                  <Button
-                    size="xs"
-                    radius="xl"
-                    variant="outline"
-                    onClick={() => handleJsonOpen(report)}
-                  >
-                    VISUAL
-                  </Button>
+                  <Group>
+                    {userRole === 'supervisor' && (
+                      <ActionIcon color="red" variant="subtle" onClick={() => handleDeleteReport(report.id)} title="Delete Report">
+                        <IconTrash size={18} />
+                      </ActionIcon>
+                    )}
+                    <Button
+                      size="xs"
+                      radius="xl"
+                      variant="outline"
+                      onClick={() => handleJsonOpen(report)}
+                    >
+                      View
+                    </Button>
+                  </Group>
                 </Group>
               </Card>
             ))
@@ -307,6 +447,14 @@ export default function InspectionReportHistory() {
       </>
     );
   };
+
+  if (loading) {
+    return (
+      <Container size="xl" py="xl">
+        <Text ta="center" size="lg" c="dimmed" mt="xl">Loading inspection history...</Text>
+      </Container>
+    );
+  }
 
   return (
     <Container size="xl" py="xl">
@@ -339,6 +487,104 @@ export default function InspectionReportHistory() {
           </Box>
         )}
       </Modal>
+
+      {/* Compare Modal */}
+      <Modal
+        opened={compareModalOpen}
+        onClose={closeCompare}
+        title="Compare Reports"
+        size="100%"
+        styles={{ body: { backgroundColor: "#f0f0f0", padding: 0 } }}
+        closeButtonProps={{ icon: <IconX size={20} /> }}
+      >
+        <SimpleGrid cols={2} spacing={0}>
+          {selectedReportIds.map(id => {
+
+            const reportData = history.find(r => r.id === id);
+            return (
+              <Box key={id} style={{ height: "calc(100vh - 80px)", overflowY: "auto", borderRight: "1px solid #ccc" }}>
+                {reportData ? <InspectionReportView data={reportData} /> : <Text>Report not found</Text>}
+              </Box>
+            );
+          })}
+        </SimpleGrid>
+      </Modal>
+
+      {/* Hidden Report Editor for Zip Generation */}
+      {exportReports.length > 0 && (
+        <div style={{ position: 'fixed', top: 0, left: 10000, width: '210mm' }}>
+          <ReportEditor
+            ref={reportEditorRef}
+            reports={exportReports}
+            onMount={async () => {
+              try {
+                const id = notifications.show({ title: 'Exporting', message: 'Generating PDFs...', loading: true, autoClose: false });
+
+                if (!reportEditorRef.current) return;
+
+                const isSingle = exportReports.length === 1;
+                const zip = isSingle ? null : new JSZip();
+
+
+                const sections = reportEditorRef.current.querySelectorAll('.report-section');
+
+                for (let i = 0; i < sections.length; i++) {
+                  const section = sections[i];
+                  const reportData = exportReports[i];
+                  const reportNo = reportData?.reportNo || `report_${i + 1}`;
+                  const safeName = reportNo.replace(/[^a-z0-9_-]/gi, '_');
+
+                  const fileName = `${safeName}_${i + 1}.pdf`;
+
+                  const pdf = new jsPDF('p', 'mm', 'a4');
+                  const pages = section.querySelectorAll('.a4-page');
+
+                  for (let j = 0; j < pages.length; j++) {
+                    const page = pages[j];
+                    if (j > 0) pdf.addPage();
+
+                    const canvas = await html2canvas(page, {
+                      scale: 2,
+                      useCORS: true,
+                      logging: false,
+                      windowWidth: 1200
+                    });
+
+                    const imgData = canvas.toDataURL('image/jpeg', 0.8);
+                    const pdfWidth = pdf.internal.pageSize.getWidth();
+
+
+                    const imgProps = pdf.getImageProperties(imgData);
+                    const ratio = imgProps.width / imgProps.height;
+                    const renderedHeight = pdfWidth / ratio;
+
+                    pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, renderedHeight);
+                  }
+
+                  if (isSingle) {
+                    pdf.save(fileName);
+                  } else {
+                    zip.file(fileName, pdf.output('blob'));
+                  }
+                }
+
+                if (!isSingle) {
+                  const content = await zip.generateAsync({ type: "blob" });
+                  saveAs(content, `reports_export_${new Date().toISOString().slice(0, 10)}.zip`);
+                }
+
+                notifications.update({ id, title: 'Success', message: isSingle ? 'PDF downloaded.' : 'ZIP file downloaded.', color: 'green', loading: false, autoClose: 2000 });
+              } catch (err) {
+                console.error("Zip Error", err);
+                notifications.show({ title: 'Error', message: 'Failed to generate ZIP.', color: 'red' });
+              } finally {
+                setExportReports([]);
+              }
+            }}
+            hideBackButton={true}
+          />
+        </div>
+      )}
     </Container>
   );
 }
