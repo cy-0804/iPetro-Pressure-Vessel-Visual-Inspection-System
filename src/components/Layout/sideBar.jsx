@@ -60,6 +60,7 @@ const menuSections = [
         link: "/report-submission",
         label: "Report Submission",
         icon: IconReportMedical,
+        roles: ["admin", "inspector"],
       },
       {
         link: "/inspection-history",

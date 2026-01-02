@@ -13,11 +13,10 @@ import { inspectionService } from "../services/inspectionService";
 import { userService } from "../services/userService";
 import { getEquipments } from "../services/equipmentService";
 import "../components/calendar/calendar.css";
-import { auth } from "../firebase"; // Import auth directly if needed, but using userService is cleaner
-
+import { auth } from "../firebase";
 const getEventColor = (status) => {
   switch (status) {
-    case "PLANNED": return "gray";
+    case "PLANNED": return "#228be6"; // mantine blue-6 (Unified)
     case "SCHEDULED": return "#228be6"; // mantine blue-6
     case "IN_PROGRESS": return "#fd7e14"; // mantine orange-6
     case "COMPLETED": return "#40c057"; // mantine green-6
@@ -31,15 +30,16 @@ const getEventColor = (status) => {
 
 export default function InspectionCalendar() {
   const calendarRef = useRef(null);
-  const containerRef = useRef(null); // Ref for the wrapper
+  const containerRef = useRef(null);
   const navigate = useNavigate();
   const [view, setView] = useState("dayGridMonth");
   const [currentTitle, setCurrentTitle] = useState("");
 
   // --- Real Auth Logic ---
   const [loadingUser, setLoadingUser] = useState(true);
-  const [viewMode, setViewMode] = useState("inspector"); // Default safe
-  const [currentUser, setCurrentUser] = useState(null); // Will hold username/email
+  const [viewMode, setViewMode] = useState("inspector");
+  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUserProfile, setCurrentUserProfile] = useState(null);
 
   // --- Popover Logic (Google Style) ---
   const [popoverOpened, setPopoverOpened] = useState(false);
@@ -58,6 +58,7 @@ export default function InspectionCalendar() {
 
   // --- Data for Dropdowns ---
   const [inspectorList, setInspectorList] = useState([]);
+  const [allUsers, setAllUsers] = useState([]); // For name resolution of supervisors/admins too
   const [equipmentList, setEquipmentList] = useState([]);
 
   // --- Filters ---
@@ -70,8 +71,9 @@ export default function InspectionCalendar() {
       const profile = await userService.getCurrentUserProfile();
       if (profile) {
         setViewMode(profile.role === 'supervisor' || profile.role === 'admin' ? 'supervisor' : 'inspector');
-        // Use username or display name or email as the 'currentUser' identifier
+
         setCurrentUser(profile.username || profile.email);
+        setCurrentUserProfile(profile);
       }
       setLoadingUser(false);
     };
@@ -82,13 +84,26 @@ export default function InspectionCalendar() {
   const fetchData = async () => {
     console.log("Fetching Inspection Data..."); // Debug Log
     try {
+
+      await inspectionService.checkOverdueStatus();
+
       const plans = await inspectionService.getInspectionPlans();
       console.log(" fetched plans:", plans.length); // Debug Log
       setUserEvents(plans);
 
       const users = await userService.getInspectors();
-      const uniqueUsers = Array.from(new Set(users.map(u => u.username || u.email))).filter(Boolean);
-      setInspectorList(uniqueUsers);
+
+      const inspectorUsers = users.filter(u => u.role === 'inspector');
+
+      const uniqueInspectorsMap = new Map();
+      inspectorUsers.forEach(u => {
+        const key = u.username || u.email;
+        if (key) uniqueInspectorsMap.set(key, u);
+      });
+      setInspectorList(Array.from(uniqueInspectorsMap.values()));
+
+
+      setAllUsers(users);
 
       const eqs = await getEquipments();
       setEquipmentList(eqs);
@@ -99,8 +114,15 @@ export default function InspectionCalendar() {
 
   useEffect(() => {
     fetchData();
-    // Add listener for focus? For now manual refresh is safest fallback if auto fails
+
   }, []);
+
+
+  useEffect(() => {
+    if (inspectorModalOpened) {
+      fetchData();
+    }
+  }, [inspectorModalOpened]);
 
   const allEvents = userEvents;
 
@@ -110,15 +132,13 @@ export default function InspectionCalendar() {
     return allEvents.filter(evt => {
       // 1. View Mode Filter
       if (viewMode === "inspector") {
-        // Only show events assigned to this user
-        // Note: Check if extendedProps exists. 
-        // Logic: if event inspector == currentUser
+
         if (evt.extendedProps?.inspector !== currentUser) return false;
       }
 
-      // 2. Toolbar Filters (Only apply in Supervisor mode)
+      // 2. Toolbar Filters 
       if (viewMode === "supervisor") {
-        // Filter by Inspector (Support Multiple)
+        // Filter by Inspector 
         if (inspectorFilter !== "all") {
           const primary = evt.extendedProps?.inspector;
           const list = evt.extendedProps?.inspectors || [];
@@ -127,7 +147,9 @@ export default function InspectionCalendar() {
           if (!match) return false;
         }
 
-        const ms = statusFilter === "all" || evt.extendedProps?.status === statusFilter;
+        const ms = statusFilter === "all" ||
+          evt.extendedProps?.status === statusFilter ||
+          (statusFilter === "PLANNED" && evt.extendedProps?.status === "SCHEDULED"); // Match both for Planned
         return ms;
       }
 
@@ -135,7 +157,7 @@ export default function InspectionCalendar() {
     });
   }, [allEvents, inspectorFilter, statusFilter, viewMode, currentUser]);
 
-  // --- Resize Observer for Dynamic Resizing ---
+
   useEffect(() => {
     if (!containerRef.current || !calendarRef.current) return;
     const resizeObserver = new ResizeObserver(() => {
@@ -158,7 +180,7 @@ export default function InspectionCalendar() {
     const { clientX, clientY } = info.jsEvent;
     setSelectedDateISO(info.dateStr);
     setClickPosition({ x: clientX, y: clientY });
-    openModal(); // Use Modal instead of Popover
+    openModal();
   };
 
   const handleEventClick = (info) => {
@@ -200,13 +222,15 @@ export default function InspectionCalendar() {
   };
 
   const handleDeleteEvent = async (id) => {
+    if (!id) return alert("Error: Event ID is missing during delete.");
     if (!window.confirm("Are you sure you want to delete this inspection plan?")) return;
     try {
       await inspectionService.deleteInspectionPlan(id);
       setUserEvents(prev => prev.filter(e => e.id !== id));
       closeInspectorModal();
     } catch (error) {
-      alert("Failed to delete event");
+      console.error("Delete failed:", error);
+      alert("Failed to delete event: " + (error.message || "Unknown error"));
     }
   }
 
@@ -242,7 +266,7 @@ export default function InspectionCalendar() {
           <option value="timeGridDay">Day</option>
         </select>
 
-        {/* Filters - Only visible in Supervisor Mode */}
+
         {viewMode === "supervisor" && (
           <>
             <select
@@ -251,9 +275,18 @@ export default function InspectionCalendar() {
               className="btn"
             >
               <option value="all">All Inspectors</option>
-              {inspectorList.map(inspector => (
-                <option key={inspector} value={inspector}>{inspector}</option>
-              ))}
+              {inspectorList.map(inspector => {
+
+                let displayName = inspector.username || inspector.email;
+                if (inspector.firstName && inspector.lastName) {
+                  displayName = `${inspector.firstName} ${inspector.lastName}`;
+                } else if (inspector.fullName) {
+                  displayName = inspector.fullName;
+                }
+
+                const value = inspector.username || inspector.email; // Keep using username/email as value for filtering
+                return <option key={inspector.id || value} value={value}>{displayName}</option>;
+              })}
             </select>
 
             <select
@@ -263,12 +296,11 @@ export default function InspectionCalendar() {
             >
               <option value="all">All Status</option>
               <option value="PLANNED">Planned</option>
-              <option value="SCHEDULED">Scheduled</option>
               <option value="IN_PROGRESS">In Progress</option>
-              <option value="COMPLETED">Completed (Field)</option>
               <option value="Submitted">Pending Review</option>
               <option value="Approved">Approved</option>
               <option value="Rejected">Rejected</option>
+              <option value="OVERDUE">Overdue</option>
             </select>
 
 
@@ -277,7 +309,7 @@ export default function InspectionCalendar() {
         )}
 
         <div style={{ marginLeft: "auto" }}>
-          {/* Create button only for Supervisor */}
+
           {viewMode === "supervisor" && (
             <Button onClick={() => { setSelectedDateISO(null); openModal(); }}>+ Create</Button>
           )}
@@ -293,7 +325,7 @@ export default function InspectionCalendar() {
           events={filteredEvents.map(e => ({
             ...e,
             allDay: true,
-            color: getEventColor(e.extendedProps?.status || e.status)
+            color: getEventColor(e.status || e.extendedProps?.status)
           }))}
           height="100%"
           dateClick={viewMode === "supervisor" ? handleDateClick : undefined}
@@ -315,8 +347,7 @@ export default function InspectionCalendar() {
           onCancel={closeModal}
           onSaved={() => {
             closeModal();
-            // Simple refresh: re-fetch or reload. To avoid prop drilling or large refactor, we can reload or try to fetch.
-            // We will try to rely on router or just reload for safety as the form is complex.
+
             window.location.reload();
           }}
           initialDate={selectedDateISO}
@@ -340,12 +371,14 @@ export default function InspectionCalendar() {
             onClose={closeInspectorModal}
             viewMode={viewMode}
             inspectors={inspectorList}
+            userMap={allUsers}
             equipmentList={equipmentList}
             currentUser={currentUser}
+            userProfile={currentUserProfile}
           />
         )}
       </Modal>
 
-    </div>
+    </div >
   );
 }

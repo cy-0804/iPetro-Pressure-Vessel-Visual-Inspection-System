@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { db, auth, storage } from "../firebase";
+import { notificationService } from "../services/notificationService";
 import {
   collection,
   doc,
@@ -57,10 +58,10 @@ import {
   IconFolder,
   IconNotebook,
   IconInfoCircle,
-  IconEye, // Added IconEye
+  IconEye,
   IconSend,
 } from "@tabler/icons-react";
-import { ReportEditor } from "./ReportGeneration"; // Import ReportEditor
+import { ReportEditor } from "./ReportGeneration";
 import { useTheme } from "../components/context/ThemeContext"
 
 // Standard report fields
@@ -86,8 +87,9 @@ const InspectionForm = () => {
   const [formData, setFormData] = useState(initialFormState);
   const [equipmentList, setEquipmentList] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { colorScheme } = useTheme(); 
+  const { colorScheme } = useTheme();
   const isDark = colorScheme === 'dark';
+  const submittingRef = React.useRef(false);
 
   // Step 2 State
   const [photoRows, setPhotoRows] = useState([]); // { id, file, preview, finding, recommendation }
@@ -109,22 +111,22 @@ const InspectionForm = () => {
   const [previewOpened, setPreviewOpened] = useState(false);
   const [previewData, setPreviewData] = useState(null);
 
-  // Track new draft ID to prevent duplicates on multiple saves
+
   const [newDocId, setNewDocId] = useState(null);
 
   // --- Initial Data Loading ---
   useEffect(() => {
-    // Check if we have incoming report data (Edit Mode)
+
     if (location.state && location.state.reportData) {
       const report = location.state.reportData;
       setEditingReportId(report.id);
 
-      // Update plan ID if present in report
+
       if (report.planId) {
         setCurrentPlanId(report.planId);
       }
 
-      // Populate Form Data
+
       setFormData({
         equipmentId: report.equipmentId || "",
         equipmentDescription: report.equipmentDescription || "",
@@ -142,7 +144,7 @@ const InspectionForm = () => {
         inspectionType: report.inspectionType || "VI",
       });
 
-      // Populate Photo Rows
+
       if (report.photoReport && report.photoReport.length > 0) {
         const rows = report.photoReport.map((item, index) => ({
           id: Date.now() + index,
@@ -159,13 +161,29 @@ const InspectionForm = () => {
         color: "blue",
       });
     } else {
-      // Auto-fill Date and Inspector (Only if NEW)
+
       const today = new Date().toISOString().split("T")[0];
 
-      // Use onAuthStateChanged to ensure we get the user even if auth is initializing
-      const unsubscribe = auth.onAuthStateChanged((user) => {
+
+      const unsubscribe = auth.onAuthStateChanged(async (user) => {
         if (user) {
-          const inspector = user.displayName || user.email || "Unknown Inspector";
+          let inspector = user.displayName || user.email || "Unknown Inspector";
+
+
+          try {
+            const userDoc = await getDoc(doc(db, "users", user.uid));
+            if (userDoc.exists()) {
+              const uData = userDoc.data();
+              if (uData.firstName && uData.lastName) {
+                inspector = `${uData.firstName} ${uData.lastName}`;
+              } else if (uData.fullName) {
+                inspector = uData.fullName;
+              }
+            }
+          } catch (err) {
+            console.warn("Failed to fetch user profile for inspector name:", err);
+          }
+
           setFormData((prev) => ({
             ...prev,
             inspectionDate: prev.inspectionDate || today,
@@ -177,7 +195,7 @@ const InspectionForm = () => {
     }
   }, [location.state]);
 
-  // Dedicated Effect for Loading Equipment List
+
   useEffect(() => {
     const fetchEquipment = async () => {
       console.log("Fetching Equipment List...");
@@ -196,9 +214,9 @@ const InspectionForm = () => {
       }
     };
     fetchEquipment();
-  }, []); // Run once on mount
+  }, []);
 
-  // New state to hold fetched plan data
+
   const [planData, setPlanData] = useState(null);
 
   // 1. Fetch Plan Data when ID changes
@@ -236,15 +254,15 @@ const InspectionForm = () => {
     }
 
     const exProps = planData.extendedProps || {};
-    // Try multiple fields for equipment ID just in case
+
     const eqTag = exProps.equipmentId || planData.equipmentId || "";
     console.log("Derived Equipment Tag from Plan:", eqTag);
 
     if (eqTag) {
-      // Try strict match first
+
       let fullEquipment = equipmentList.find(e => e.tagNumber === eqTag);
 
-      // If not found, try loose match (trim + case insensitive)
+
       if (!fullEquipment) {
         console.log("Strict match failed. Trying loose match...");
         fullEquipment = equipmentList.find(e =>
@@ -260,7 +278,7 @@ const InspectionForm = () => {
           doshNumber: fullEquipment.doshNumber || prev.doshNumber || "",
           plantUnitArea: fullEquipment.plantUnitArea || prev.plantUnitArea || "",
           equipmentDescription: fullEquipment.equipmentDescription || prev.equipmentDescription || "",
-          // Preserve inspector if already set
+
           inspectorName: prev.inspectorName
         }));
         console.log(`Data Loaded: Pre-filled details for ${eqTag}`);
@@ -286,6 +304,8 @@ const InspectionForm = () => {
     }
 
   }, [planData, equipmentList, location.state]);
+
+
 
   // --- Handlers: Step 1 (General Form) ---
   const handleChange = (name, value) => {
@@ -324,7 +344,7 @@ const InspectionForm = () => {
       return;
     }
 
-    // Auto-add first row if empty
+
     if (photoRows.length === 0) {
       setPhotoRows([
         {
@@ -383,7 +403,7 @@ const InspectionForm = () => {
 
   const handleDrop = (e, rowId) => {
     e.preventDefault();
-    e.stopPropagation(); // Stop bubbling
+    e.stopPropagation();
     const droppedData = e.dataTransfer.getData("text/plain");
 
     if (droppedData) {
@@ -437,19 +457,12 @@ const InspectionForm = () => {
       if (!confirm("Submit report without specific photos?")) return;
     }
 
-    // Construct Preview Data
-    // We need to simulate the structure expected by ReportEditor (which expects 'photoReport' array)
 
     const simulatedPhotoReport = photoRows.map(row => {
-      // Gather all 'visual' sources for this row:
-      // 1. Existing URLs (from Draft)
-      // 2. New Files (we need to show something - use the preview URLs)
 
       const draftUrls = row.existingUrls || [];
       const newFilePreviews = row.previews || [];
 
-      // Note: In real submission, we upload files then get URLs. 
-      // In preview, we just use the blob previews.
 
       const photos = row.photos || [];
       const allPhotoUrls = photos.map(p => p.preview);
@@ -464,7 +477,7 @@ const InspectionForm = () => {
       };
     }).filter(Boolean);
 
-    // Generate Report No for Preview
+
     const plant = formData.plantUnitArea
       ? formData.plantUnitArea.trim().toUpperCase().replace(/\s+/g, "")
       : "PLANT";
@@ -483,7 +496,7 @@ const InspectionForm = () => {
       inspectionDate: formData.inspectionDate || new Date().toISOString().split("T")[0],
       reportNo: previewReportNo,
       photoReport: simulatedPhotoReport,
-      // Calculated fields for display
+
       plantUnitArea: formData.plantUnitArea || "Plant 1",
       doshNumber: formData.doshNumber || "MK PMT 1002"
     };
@@ -493,7 +506,7 @@ const InspectionForm = () => {
   };
 
   const handleStep2Submit = async (status = "Submitted") => {
-    // 1. Prevent Double Submission
+
     if (isSubmitting) {
       console.warn(`Double submit detected! Ignoring call for status: ${status}`);
       return;
@@ -503,13 +516,7 @@ const InspectionForm = () => {
     setIsSubmitting(true);
 
     try {
-      // Create photo report data (wait for uploads if any)
 
-      // ...Generate new Document ID first (for Upload Path if needed)
-      // Reference priority: 
-      // 1. editingReportId (Refers to existing doc we are editing)
-      // 2. newDocId (Refers to a draft we just saved in this session)
-      // 3. New ID
       const targetDocId = editingReportId || newDocId || doc(collection(db, "inspections")).id;
 
       const uploadedPhotos = [];
@@ -542,45 +549,35 @@ const InspectionForm = () => {
         }
       }
 
-      // Generate Report No: PLANT/VI/TAG/TA2025
-      // Ensure plantUnitArea is clean (trimmed and stripped of spaces)
+
       const plant = formData.plantUnitArea
         ? formData.plantUnitArea.trim().toUpperCase().replace(/\s+/g, "")
         : "PLANT";
       // 1. Prepare Data
       const finalData = {
         ...previewData,
-        photoReport: uploadedPhotos, // Use the real uploaded URLs
-        status: status, // Use passed status (Draft or Submitted)
+        photoReport: uploadedPhotos,
+        status: status,
         updatedAt: serverTimestamp(),
         stepsCompleted: 2,
         planId: currentPlanId // PERSIST PLAN ID
       };
 
-      // 2. Save/Update Report
-      // Logic:
-      // - If we have state 'newDocId' (from previous draft save), update that.
-      // - If not, we use the 'targetDocId' we generated above for uploads.
 
-      // 2. Save/Update Report
-      // Logic:
-      // - If we have state 'newDocId' (from previous draft save), update that.
-      // - If not, we use the 'targetDocId' we generated above for uploads.
 
       const distinctId = editingReportId || newDocId || targetDocId;
 
-      // Always update state if it wasn't set (so subsequent saves update this doc)
+
       if (!newDocId && !editingReportId) {
         setNewDocId(distinctId);
       }
 
       const reportRef = doc(db, "inspections", distinctId);
 
-      // Use setDoc with merge:true to handle both Create (if new) and Update (if exists) 
-      // safely without 'No document to update' error.
+
       await setDoc(reportRef, finalData, { merge: true });
 
-      // Update Plan Status ONLY if Submitted
+
       if (currentPlanId && status === "Submitted") {
         const planRef = doc(db, "inspection_plans", currentPlanId);
         await updateDoc(planRef, {
@@ -591,6 +588,21 @@ const InspectionForm = () => {
         });
       }
 
+
+      if (status === "Submitted") {
+        try {
+          const inspectorName = formData.inspectorName || auth.currentUser?.displayName || "an Inspector";
+          const title = "Report Submitted";
+          const message = `Report ${finalData.reportNo || "Unknown"} has been submitted by ${inspectorName} for approval.`;
+          const link = "/supervisor-review"; // Link to supervisor review page
+
+          await notificationService.notifyRole("supervisor", title, message, "info", link);
+          console.log("Notification sent to supervisor (InspectionForm)");
+        } catch (notifErr) {
+          console.error("Failed to send notification:", notifErr);
+        }
+      }
+
       notifications.show({
         title: status === "Draft" ? "Draft Saved" : "Report Submitted",
         message: status === "Draft"
@@ -599,11 +611,11 @@ const InspectionForm = () => {
         color: "green",
       });
 
-      // Navigate based on action
+
       if (status === "Draft") {
-        navigate(`/report-submission`); // Go to list to see draft
+        navigate(`/report-submission`);
       } else {
-        navigate(`/report-submission?id=${distinctId}`); // Review submitted report
+        navigate(`/report-submission?id=${distinctId}`);
       }
 
     } catch (error) {
@@ -914,26 +926,26 @@ const InspectionForm = () => {
 
               {photoRows.map((row, index) => (
                 <Paper
-                      key={row.id}
-                      withBorder
-                      p="md"
-                      bg={isDark ? "#25262b" : "gray.0"}
-                      style={{ 
-                        transition: 'border-color 0.2s',
-                        borderColor: isDark ? "#373a40" : undefined
-                      }}
-                      onDragOver={(e) => { 
-                        e.preventDefault(); 
-                        e.currentTarget.style.borderColor = '#228be6'; 
-                      }}
-                      onDragLeave={(e) => { 
-                        e.currentTarget.style.borderColor = isDark ? '#373a40' : '#ced4da'; 
-                      }}
-                      onDrop={(e) => {
-                        e.currentTarget.style.borderColor = isDark ? '#373a40' : '#ced4da';
-                        handleDrop(e, row.id);
-                      }}
-                    >
+                  key={row.id}
+                  withBorder
+                  p="md"
+                  bg={isDark ? "#25262b" : "gray.0"}
+                  style={{
+                    transition: 'border-color 0.2s',
+                    borderColor: isDark ? "#373a40" : undefined
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.style.borderColor = '#228be6';
+                  }}
+                  onDragLeave={(e) => {
+                    e.currentTarget.style.borderColor = isDark ? '#373a40' : '#ced4da';
+                  }}
+                  onDrop={(e) => {
+                    e.currentTarget.style.borderColor = isDark ? '#373a40' : '#ced4da';
+                    handleDrop(e, row.id);
+                  }}
+                >
                   <Group align="flex-start" justify="space-between" mb="xs">
                     <Badge variant="filled" color="gray">
                       Photo #{index + 1}
@@ -959,7 +971,7 @@ const InspectionForm = () => {
                       }}
                       onDropCapture={(e) => {
                         console.log("Drop Capture Types:", e.dataTransfer.types);
-                        // Capture drop before Dropzone sees it
+
                         if (e.dataTransfer.types.includes("text/plain")) {
                           console.log("Is text/plain drop");
                           e.preventDefault();
@@ -1019,20 +1031,20 @@ const InspectionForm = () => {
                         accept={IMAGE_MIME_TYPE}
                         multiple={true}
                         style={{
-                            minHeight: 160,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            border: `1px dashed ${isDark ? "#373a40" : "#ced4da"}`,
-                            borderRadius: 8,
-                            cursor: "pointer",
-                            overflow: "hidden",
-                            backgroundColor:
-                              row.photos && row.photos.length > 0
-                                ? (isDark ? "#25262b" : "white")
-                                : "transparent",
-                            padding: 10,
-                          }}
+                          minHeight: 160,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: `1px dashed ${isDark ? "#373a40" : "#ced4da"}`,
+                          borderRadius: 8,
+                          cursor: "pointer",
+                          overflow: "hidden",
+                          backgroundColor:
+                            row.photos && row.photos.length > 0
+                              ? (isDark ? "#25262b" : "white")
+                              : "transparent",
+                          padding: 10,
+                        }}
                       >
                         {row.photos && row.photos.length > 0 ? (
                           <SimpleGrid
@@ -1116,7 +1128,7 @@ const InspectionForm = () => {
 
               <Divider my="lg" />
 
-              <Group justify="flex-end">
+              <Group justify="space-between">
                 <Button variant="default" onClick={() => setActiveStep(0)}>
                   Back to Details
                 </Button>
@@ -1139,13 +1151,13 @@ const InspectionForm = () => {
         onClose={() => setPreviewOpened(false)}
         fullScreen
         title="Report Preview"
-        styles={{ 
-            title: { fontWeight: 'bold' }, 
-            body: { 
-            backgroundColor: isDark ? '#1a1b1e' : '#f5f5f5', 
-            minHeight: '100vh', 
-            padding: 0 
-          } 
+        styles={{
+          title: { fontWeight: 'bold' },
+          body: {
+            backgroundColor: isDark ? '#1a1b1e' : '#f5f5f5',
+            minHeight: '100vh',
+            padding: 0
+          }
         }}
       >
         <Container size="xl" py="md">
@@ -1156,23 +1168,23 @@ const InspectionForm = () => {
               ActionButtons={
                 <Group>
                   <Button
-                    type="button" // Prevent default submit
+                    type="button"
                     variant="default"
                     size="md"
                     loading={isSubmitting}
                     leftSection={<IconDeviceFloppy size={16} />}
                     onClick={async (e) => {
-                      e.preventDefault(); // Extra safety
+                      e.preventDefault();
                       e.stopPropagation();
-                      // setPreviewOpened(false); // Don't close immediately
+
                       await handleStep2Submit("Draft");
-                      setPreviewOpened(false); // Close after success/failure
+                      setPreviewOpened(false);
                     }}
                   >
                     Save as Draft
                   </Button>
                   <Button
-                    type="button" // Prevent default submit
+                    type="button"
                     color="green"
                     size="md"
                     loading={isSubmitting}
@@ -1180,9 +1192,19 @@ const InspectionForm = () => {
                     onClick={async (e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      // setPreviewOpened(false); 
-                      await handleStep2Submit("Submitted");
-                      setPreviewOpened(false);
+
+
+                      if (submittingRef.current) return;
+                      submittingRef.current = true;
+
+                      try {
+                        await handleStep2Submit("Submitted");
+                        setPreviewOpened(false);
+                      } catch (err) {
+                        console.error("Submission failed:", err);
+                      } finally {
+                        submittingRef.current = false;
+                      }
                     }}
                   >
                     Confirm & Submit
@@ -1247,7 +1269,7 @@ const InspectionForm = () => {
   );
 };
 
-// --- Helper Components ---
+
 
 function EquipmentSearchModal({ opened, onClose, equipmentList, onPick, isDark }) {
   const [query, setQuery] = useState("");
@@ -1300,17 +1322,17 @@ function EquipmentSearchModal({ opened, onClose, equipmentList, onPick, isDark }
             withBorder
             p="sm"
             onClick={() => onPick(eq)}
-            style={{ 
-                  cursor: "pointer", 
-                  transition: "background-color 0.2s",
-                  borderColor: isDark ? "#373a40" : undefined
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.backgroundColor = isDark ? "#25262b" : "#f1f3f5")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.backgroundColor = "transparent")
-                }
+            style={{
+              cursor: "pointer",
+              transition: "background-color 0.2s",
+              borderColor: isDark ? "#373a40" : undefined
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.backgroundColor = isDark ? "#25262b" : "#f1f3f5")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.backgroundColor = "transparent")
+            }
           >
             <Group wrap="nowrap">
               <Image
@@ -1469,7 +1491,7 @@ function DraftPhotoGallery({ photos }) {
                           radius="md"
                           h={100}
                           fit="cover"
-                          style={{ pointerEvents: 'none' }} // prevent image from hijacking drag
+                          style={{ pointerEvents: 'none' }}
                         />
                         {isSelected && (
                           <Box pos="absolute" top={5} right={5} bg="blue" style={{ borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

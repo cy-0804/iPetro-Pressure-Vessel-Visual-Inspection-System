@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     Container, Paper, Title, TextInput, Select, Group, Button,
     Stack, Text, SimpleGrid, Table, ActionIcon, Badge, Modal, Image, Grid
@@ -7,7 +8,7 @@ import { useForm } from '@mantine/form';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
-import { IconPencil, IconTrash, IconPlus, IconArrowLeft, IconSearch } from '@tabler/icons-react';
+import { IconPencil, IconTrash, IconPlus, IconArrowLeft, IconSearch, IconHistory } from '@tabler/icons-react';
 import {
     addEquipment,
     updateEquipment,
@@ -23,8 +24,9 @@ export default function EquipmentRegistration() {
     const [equipmentList, setEquipmentList] = useState([]);
     const [selectedItem, setSelectedItem] = useState(null); // For Detail/Edit
     const [submitting, setSubmitting] = useState(false);
+    const navigate = useNavigate();
 
-    // Dynamic Options State
+
     const [dropdownOptions, setDropdownOptions] = useState({});
 
     // Initial Data Load
@@ -39,7 +41,7 @@ export default function EquipmentRegistration() {
         setDropdownOptions(options);
     };
 
-    // Inline Management Handlers
+
     const handleCreateOption = async (category, value) => {
         setDropdownOptions(prev => ({ ...prev, [category]: [...(prev[category] || []), value] }));
         try {
@@ -143,8 +145,6 @@ export default function EquipmentRegistration() {
         return matchSearch && matchType && matchStatus;
     });
 
-    // --- VIEWS ---
-
     const renderList = () => (
         <Paper p="xl" withBorder>
             <Group justify="space-between" mb="md">
@@ -188,6 +188,7 @@ export default function EquipmentRegistration() {
                 <Group justify="space-between" mt="md" mb="xl">
                     <Title order={2}>{selectedItem.tagNumber}</Title>
                     <Group>
+                        <Button variant="light" leftSection={<IconHistory size={16} />} onClick={() => navigate('/inspection-history', { state: { selectedTag: selectedItem.tagNumber, fromEquipmentDetails: true } })}>History</Button>
                         <Button variant="light" leftSection={<IconPencil size={16} />} onClick={handleEditFromDetail}>Edit</Button>
                         <Button color="red" variant="light" leftSection={<IconTrash size={16} />} onClick={() => handleDeleteItem(selectedItem.id)}>Delete</Button>
                     </Group>

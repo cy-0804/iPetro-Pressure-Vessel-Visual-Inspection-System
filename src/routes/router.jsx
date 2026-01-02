@@ -21,6 +21,7 @@ import EquipmentRegistration from "../pages/EquipmentRegistration.jsx";
 import InspectionForm from "../pages/InspectionForm.jsx";
 import EditInspectionForm from "../pages/EditInspectionForm.jsx";
 import ReportSubmission from "../pages/ReportSubmission.jsx";
+import ReportGeneration from "../pages/ReportGeneration.jsx";
 import InspectionExecution from "../pages/InspectionExecution.jsx";
 import InspectionDraftPreview from "../pages/InspectionDraftPreview.jsx";
 
@@ -71,6 +72,10 @@ export const router = createBrowserRouter([
             path: "/report-submission",
             element: <ReportSubmission />,
           }, // "Generate Report"
+          {
+            path: "/report-generation",
+            element: <ReportGeneration />,
+          },
           { path: "/inspection-history", element: <InspectionReportHistory /> }, // "History"
 
           // New Execution Flows

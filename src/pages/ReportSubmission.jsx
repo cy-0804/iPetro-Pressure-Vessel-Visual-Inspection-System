@@ -17,15 +17,16 @@ import {
   Title,
   Text,
   Paper,
+  Textarea,
+  TextInput,
+  Modal,
   Table,
   Button,
   Group,
   Badge,
   Box,
   Image,
-  Loader,
-  Textarea,
-  TextInput,
+  Loader, // Restored imports
 } from "@mantine/core";
 import {
   IconPrinter,
@@ -43,6 +44,8 @@ import {
 import { notifications } from "@mantine/notifications";
 import { Tabs } from "@mantine/core";
 import { inspectionService } from "../services/inspectionService";
+import { notificationService } from "../services/notificationService";
+import { InspectionReportView } from "../components/InspectionReportView"; // Import View component
 
 const ReportSubmission = () => {
   const [searchParams] = useSearchParams();
@@ -55,11 +58,10 @@ const ReportSubmission = () => {
   const [selectedReport, setSelectedReport] = useState(null);
   const [activeTab, setActiveTab] = useState("pending");
 
-  // Search & Filter State
+
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFilter, setDateFilter] = useState(null);
 
-  // 1. If ID is present in URL, fetch it directly
   useEffect(() => {
     if (reportId) {
       const fetchSingle = async () => {
@@ -88,12 +90,28 @@ const ReportSubmission = () => {
         try {
           if (!currentUser) return; // Wait for auth
 
-          const inspectorName = currentUser.displayName || currentUser.email;
 
-          // Fetch Drafts (for editing) and Completed/Submitted (for printing)
+          let inspectorName = currentUser.displayName || currentUser.email;
+          try {
+            const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+            if (userDoc.exists()) {
+              const uData = userDoc.data();
+              if (uData.firstName && uData.lastName) {
+                inspectorName = `${uData.firstName} ${uData.lastName}`;
+              } else if (uData.fullName) {
+                inspectorName = uData.fullName;
+              }
+            }
+          } catch (err) {
+            console.warn("Error fetching user profile for report filter:", err);
+          }
+
+          console.log("Filtering reports for Inspector:", inspectorName);
+
+
           const q = query(
             collection(db, "inspections"),
-            where("inspectorName", "==", inspectorName) // Filter by Inspector
+            where("inspectorName", "==", inspectorName)
           );
 
           const snapshot = await getDocs(q);
@@ -102,7 +120,6 @@ const ReportSubmission = () => {
             ...doc.data(),
           }));
 
-          // Fetch plan titles for reports that have planId
           const planIds = [...new Set(data.filter(r => r.planId).map(r => r.planId))];
           console.log("DEBUG: Plan IDs found:", planIds);
           console.log("DEBUG: Sample report:", data[0]);
@@ -127,13 +144,12 @@ const ReportSubmission = () => {
             console.log("DEBUG: No planIds found in reports");
           }
 
-          // Enrich data with plan titles
           const enrichedData = data.map(report => ({
             ...report,
             planTitle: report.planId ? (planTitles[report.planId] || "-") : "-"
           }));
 
-          // Sort by updated descending
+
           enrichedData.sort((a, b) => {
             const timeA = a.updatedAt?.seconds || 0;
             const timeB = b.updatedAt?.seconds || 0;
@@ -161,23 +177,23 @@ const ReportSubmission = () => {
     );
   }
 
-  // If a report is selected (either via URL or list click), show Editor/Viewer
+
   if (selectedReport) {
     return (
       <ReportEditor
         report={selectedReport}
         onBack={() => {
           setSelectedReport(null);
-          navigate("/report-submission"); // Clear ID from URL
+          navigate("/report-submission");
         }}
         isDraft={["Draft", "Rejected", "FIELD_COMPLETED", "COMPLETED"].includes(selectedReport.status)}
       />
     );
   }
 
-  // --- FILTER LOGIC ---
+
   const filteredReports = reports.filter(r => {
-    // 1. Text Search (Report No, Equipment, Description)
+
     const query = searchQuery.toLowerCase();
     const matchText =
       (r.reportNo || "").toLowerCase().includes(query) ||
@@ -205,17 +221,49 @@ const ReportSubmission = () => {
   });
 
 
-  // Categorize Reports based on User Definitions
-  // 1. Pending: Draft state, not submitted (includes field completion)
+  const handleDeleteReport = async (id) => {
+    if (!confirm("Are you sure you want to delete this draft? This cannot be undone.")) return;
+
+    try {
+      const reportToDelete = reports.find(r => r.id === id);
+      if (reportToDelete && reportToDelete.planId) {
+
+        console.log("Reverting plan status to IN_PROGRESS for plan:", reportToDelete.planId);
+        try {
+          await inspectionService.updateInspectionStatus(reportToDelete.planId, "IN_PROGRESS", "inspector", "System", false);
+        } catch (updateErr) {
+          console.error("Failed to revert plan status:", updateErr);
+        }
+      }
+
+      await deleteDoc(doc(db, "inspections", id));
+      notifications.show({
+        title: "Deleted",
+        message: "Draft report deleted successfully.",
+        color: "blue",
+      });
+
+      setReports(prev => prev.filter(r => r.id !== id));
+    } catch (err) {
+      console.error(err);
+      notifications.show({
+        title: "Error",
+        message: "Failed to delete report",
+        color: "red",
+      });
+    }
+  };
+
+
   const pendingReports = filteredReports.filter(r => ["Draft", "FIELD_COMPLETED", "COMPLETED"].includes(r.status));
 
-  // 2. Completed (User Term): Submitted to SV, pending approval
+
   const submittedReports = filteredReports.filter(r => r.status === "Submitted");
 
-  // 3. Rejected: Rejected by SV
+
   const rejectedReports = filteredReports.filter(r => r.status === "Rejected");
 
-  // 4. Approved: Approved by SV
+
   const approvedReports = filteredReports.filter(r => r.status === "Approved");
 
   const renderTable = (data, showReason = false, supervisorLabel = null) => (
@@ -227,7 +275,7 @@ const ReportSubmission = () => {
           <Table.Th>Tag No / Equipment</Table.Th>
           {showReason && <Table.Th>Rejection Reason</Table.Th>}
           {supervisorLabel && <Table.Th>{supervisorLabel}</Table.Th>}
-          {/* REMOVED INSPECTOR COLUMN */}
+
           <Table.Th>Date</Table.Th>
           <Table.Th style={{ whiteSpace: 'nowrap' }}>Status</Table.Th>
           <Table.Th>Actions</Table.Th>
@@ -267,7 +315,7 @@ const ReportSubmission = () => {
             {supervisorLabel && (
               <Table.Td fw={500}>{r.reviewedBy || "-"}</Table.Td>
             )}
-            {/* REMOVED INSPECTOR CELL */}
+
             <Table.Td>{r.inspectionDate}</Table.Td>
             <Table.Td style={{ whiteSpace: 'nowrap' }}>
               <Badge
@@ -285,30 +333,28 @@ const ReportSubmission = () => {
               </Badge>
             </Table.Td>
             <Table.Td>
-              <Button
-                size="xs"
-                variant="light"
-                leftSection={<IconFileText size={14} />}
-                onClick={() => {
-                  if (["Draft", "Rejected", "FIELD_COMPLETED", "COMPLETED"].includes(r.status)) {
-                    // Navigate to Form for Editing
-                    navigate("/inspection-form", { state: { reportData: r } });
-                  } else {
-                    // Show Preview
+
+              <Group gap="xs">
+
+                <Button
+                  size="xs"
+                  variant="light"
+                  leftSection={<IconFileText size={14} />}
+                  onClick={() => {
                     setSelectedReport(r);
-                  }
-                }}
-              >
-                {["Draft", "Rejected", "FIELD_COMPLETED", "COMPLETED"].includes(r.status) ? "Edit / Submit" : "View / Print"}
-              </Button>
+                  }}
+                >
+                  {["Draft", "Rejected", "FIELD_COMPLETED", "COMPLETED"].includes(r.status) ? "Edit / Submit" : "View"}
+                </Button>
+              </Group>
             </Table.Td>
           </Table.Tr>
         ))}
       </Table.Tbody>
-    </Table>
+    </Table >
   );
 
-  // List View
+
   return (
     <Container size="xl" py="xl">
       <Group justify="space-between" mb="lg">
@@ -372,33 +418,74 @@ const ReportSubmission = () => {
   );
 };
 
-// --- A4 Editor Component (Merged with Edit/Submit Logic) ---
-import { InspectionReportView } from "../components/InspectionReportView";
+
+
+
 
 const ReportEditor = ({ report, onBack, isDraft }) => {
   const [data, setData] = useState(report);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = React.useRef(false);
   const navigate = useNavigate();
   const handlePrint = () => {
     window.print();
   };
 
   const handleSave = async (status) => {
+
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
+
     try {
       const docRef = doc(db, "inspections", data.id);
       await updateDoc(docRef, {
-        recommendation: data.recommendation, // Save edited recommendation
+        recommendation: data.recommendation,
         status: status,
         updatedAt: serverTimestamp(),
       });
 
-      // SYNC PLAN STATUS
+
+      const inspectorName = data.inspectorName || auth.currentUser?.displayName || "an Inspector";
+
+
       if (data.planId && status === "Submitted") {
-        await inspectionService.updateInspectionStatus(data.planId, "Submitted", "inspector", "current");
+        try {
+          console.log("Syncing plan status to Submitted...");
+
+          await inspectionService.updateInspectionStatus(data.planId, "Submitted", "inspector", inspectorName);
+          console.log("Plan synced successfully.");
+        } catch (planErr) {
+          console.error("Error syncing plan status:", planErr);
+
+        }
       }
 
 
+      if (status === "Submitted" && !data.planId) {
+        console.log("Triggering Notification Logic for status=Submitted (Ad-hoc Report)");
+        try {
+
+          const isResubmission = data.status === "Rejected";
+          const title = isResubmission ? "Report Re-submitted" : "Report Submitted";
+          const message = `Report ${data.reportNo || "Unknown"} has been ${isResubmission ? "re-submitted" : "submitted"} by ${inspectorName} for review.`;
+          const link = "/supervisor-review";
+          console.log(`Sending notification to supervisor. Title: ${title}, Message: ${message}`);
+
+          await notificationService.notifyRole(
+            "supervisor",
+            title,
+            message,
+            "info",
+            link
+          );
+          console.log("Notification sent to role: supervisor (success)");
+        } catch (notifErr) {
+          console.error("FAILED to send supervisor notification:", notifErr);
+        }
+      } else {
+        console.log(`Skipping notification. Status: ${status}`);
+      }
 
       notifications.show({
         title: status === "Submitted" ? "Report Submitted" : "Draft Saved",
@@ -421,6 +508,7 @@ const ReportEditor = ({ report, onBack, isDraft }) => {
       });
     } finally {
       setSubmitting(false);
+      submittingRef.current = false;
     }
   };
 
@@ -441,7 +529,7 @@ const ReportEditor = ({ report, onBack, isDraft }) => {
         color: "blue",
       });
       navigate("/report-submission");
-      // Force refresh or let the parent component handle re-mount
+
       window.location.reload();
     } catch (err) {
       console.error(err);
@@ -457,7 +545,7 @@ const ReportEditor = ({ report, onBack, isDraft }) => {
 
   return (
     <Box>
-      {/* Toolbar */}
+
       <Group mb="md" className="no-print" justify="space-between">
         <Button
           variant="default"
@@ -470,15 +558,17 @@ const ReportEditor = ({ report, onBack, isDraft }) => {
         <Group>
           {isDraft && (
             <>
-              <Button
-                color="red"
-                variant="outline"
-                leftSection={<IconTrash size={16} />}
-                loading={submitting}
-                onClick={handleDelete}
-              >
-                Delete
-              </Button>
+              {data.status !== "Rejected" && (
+                <Button
+                  color="red"
+                  variant="outline"
+                  leftSection={<IconTrash size={16} />}
+                  loading={submitting}
+                  onClick={handleDelete}
+                >
+                  Delete
+                </Button>
+              )}
               <Button
                 variant="outline"
                 leftSection={<IconEdit size={16} />}

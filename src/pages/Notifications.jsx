@@ -17,8 +17,10 @@ import { IconBell, IconCheck, IconClock, IconInfoCircle, IconAlertTriangle, Icon
 import { notificationService } from "../services/notificationService";
 import { auth, db } from "../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
 
 export default function NotificationsPage() {
+    const navigate = useNavigate();
     const [notifications, setNotifications] = useState([]);
     const [activeTab, setActiveTab] = useState("all");
     const [loading, setLoading] = useState(true);
@@ -37,7 +39,7 @@ export default function NotificationsPage() {
             }
 
             try {
-                // Try to find the user in 'users' collection by email to get their 'username'
+
                 const { email } = auth.currentUser;
                 const q = query(collection(db, "users"), where("email", "==", email));
                 const snapshot = await getDocs(q);
@@ -48,7 +50,7 @@ export default function NotificationsPage() {
                     console.log("Logged in as:", email, "| Resolved Username:", properUsername);
                     setResolvedUsername(properUsername);
                 } else {
-                    // Fallback if not found in DB
+
                     const fallback = auth.currentUser.displayName || email;
                     console.log("User not found in DB, using fallback:", fallback);
                     setResolvedUsername(fallback);
@@ -59,9 +61,9 @@ export default function NotificationsPage() {
             }
         };
         resolveUser();
-    }, []); // Run once on mount
+    }, []);
 
-    // 2. Fetch Notifications once user is resolved
+
     useEffect(() => {
         const fetchNotifications = async () => {
             if (!resolvedUsername) return;
@@ -118,7 +120,7 @@ export default function NotificationsPage() {
         return "blue";
     };
 
-    // Calculate relative time (basic)
+
     const getTimeAgo = (isoString) => {
         if (!isoString) return "";
         const date = new Date(isoString);
@@ -174,10 +176,18 @@ export default function NotificationsPage() {
                                 p="md"
                                 radius="md"
                                 withBorder
-                                style={{
-                                    backgroundColor: notification.read ? 'white' : '#f0f9ff',
-                                    borderColor: notification.read ? '#e5e7eb' : '#bfdbfe'
+                                bg={notification.read ? undefined : "var(--mantine-color-blue-light)"}
+                                onClick={() => {
+                                    markAsRead(notification.id);
+                                    if (notification.link) {
+                                        if (window.location.pathname === notification.link) {
+                                            window.location.reload();
+                                        } else {
+                                            navigate(notification.link);
+                                        }
+                                    }
                                 }}
+                                style={{ cursor: notification.link ? 'pointer' : 'default' }}
                             >
                                 <Group justify="space-between" align="start" wrap="nowrap">
                                     <Group wrap="nowrap">
@@ -201,7 +211,10 @@ export default function NotificationsPage() {
                                             <ActionIcon
                                                 variant="subtle"
                                                 color="blue"
-                                                onClick={() => markAsRead(notification.id)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    markAsRead(notification.id);
+                                                }}
                                                 title="Mark as read"
                                             >
                                                 <IconCheck size={18} />
@@ -210,7 +223,10 @@ export default function NotificationsPage() {
                                         <ActionIcon
                                             variant="subtle"
                                             color="gray"
-                                            onClick={() => deleteNotification(notification.id)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                deleteNotification(notification.id);
+                                            }}
                                             title="Delete"
                                         >
                                             <IconTrash size={18} />
