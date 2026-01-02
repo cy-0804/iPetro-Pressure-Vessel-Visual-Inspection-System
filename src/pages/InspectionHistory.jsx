@@ -264,7 +264,36 @@ export default function InspectionReportHistory() {
 
   const renderDetailView = () => {
     const group = groupedHistory[selectedTag];
-    if (!group) return <Text>Error: Equipment data not found.</Text>;
+    if (!group) {
+      return (
+        <>
+          <Group mb="md">
+            <Button
+              variant="subtle"
+              leftSection={<IconArrowLeft size={16} />}
+              onClick={() => {
+                if (location.state?.fromEquipmentDetails) {
+                  navigate(-1);
+                } else {
+                  setSelectedTag(null);
+                  setFilterSearch("");
+                  setFilterType("all");
+                  setSelectedReportIds([]);
+                }
+              }}
+              pl={0}
+            >
+              Back
+            </Button>
+          </Group>
+          <Container>
+            <Text c="dimmed" ta="center" mt="xl" size="lg" fs="italic">
+              No inspection history for this equipment.
+            </Text>
+          </Container>
+        </>
+      );
+    }
 
     // Filter Logic
     const filteredReports = group.reports.filter((r) => {
