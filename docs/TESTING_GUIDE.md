@@ -92,3 +92,36 @@ A simple guide to test the session management features.
 
 - Check if user shows green dot (online)
 - Force Logout only works on online users
+
+---
+
+## 🔧 Developer: Tweaking Timeout for Testing
+
+Don't want to wait 15 minutes to test? Change these values:
+
+### File: `src/hooks/useIdleTimer.js`
+
+```javascript
+// Line 6 - Main timeout (default 15 min)
+timeout = 1000 * 60 * 15,  // Change to: 1000 * 30 (30 seconds)
+
+// Line 10 - Warning before timeout (default 1 min)
+promptBeforeIdle = 1000 * 60 * 1,  // Change to: 1000 * 10 (10 seconds)
+```
+
+### Quick Test Values:
+
+| Setting            | Normal           | For Testing          |
+| ------------------ | ---------------- | -------------------- |
+| `timeout`          | `1000 * 60 * 15` | `1000 * 30` (30 sec) |
+| `promptBeforeIdle` | `1000 * 60 * 1`  | `1000 * 10` (10 sec) |
+
+### File: `src/components/Layout/mainLayout.jsx`
+
+Also check if there's a `SESSION_TIMEOUT` constant used for session validation.
+
+### File: `src/auth/login.jsx`
+
+Look for `SESSION_TIMEOUT` constant around line 70-80.
+
+> ⚠️ **Remember to revert these values before committing!**
