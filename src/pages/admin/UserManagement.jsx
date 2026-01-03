@@ -21,6 +21,7 @@ import {
   Paper,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { modals } from "@mantine/modals";
 import {
   IconTrash,
   IconPencil,
@@ -29,11 +30,20 @@ import {
   IconKey,
   IconSearch,
   IconFilter,
+  IconLogout,
+  IconUserCheck,
+  IconUserX,
 } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { userService } from "../../services/userService";
+import { auditService } from "../../services/auditService";
+import { auth } from "../../firebase";
+import { useCurrentUser } from "../../hooks/useCurrentUser";
 
 export default function UserManagement() {
+  // Current admin user for audit logging
+  const { userData: currentAdmin } = useCurrentUser();
+
   // State
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -42,6 +52,7 @@ export default function UserManagement() {
   // Filter & Search State
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all"); // NEW: Status filter
 
   // Modal State
   const [opened, { open, close }] = useDisclosure(false);
@@ -50,8 +61,8 @@ export default function UserManagement() {
     { open: openDeleteModal, close: closeDeleteModal },
   ] = useDisclosure(false);
 
-  const [editingUserId, setEditingUserId] = useState(null); // ID of user being edited, null if adding
-  const [userToDelete, setUserToDelete] = useState(null); // User object to delete
+  const [editingUserId, setEditingUserId] = useState(null);
+  const [userToDelete, setUserToDelete] = useState(null);
 
   // Form State
   const initialFormState = {
@@ -62,21 +73,27 @@ export default function UserManagement() {
     isActive: true,
   };
   const [formData, setFormData] = useState(initialFormState);
+  const [originalIsActive, setOriginalIsActive] = useState(true); // Track original status for audit
 
   const isEditing = !!editingUserId;
 
   // Real-time Subscription
   useEffect(() => {
     setLoading(true);
-    // Subscribe to real-time updates
     const unsubscribe = userService.subscribeToUsers((updatedUsers) => {
       setUsers(updatedUsers);
       setLoading(false);
     });
 
-    // Cleanup subscription on unmount
     return () => unsubscribe();
   }, []);
+
+  // Get current admin info for audit logging
+  const getAdminInfo = () => ({
+    uid: auth.currentUser?.uid || null,
+    username: currentAdmin?.username || "Admin",
+    email: auth.currentUser?.email || null,
+  });
 
   // Handlers
   const openAddModal = () => {
@@ -87,10 +104,11 @@ export default function UserManagement() {
 
   const openEditModal = (user) => {
     setEditingUserId(user.id);
+    setOriginalIsActive(user.isActive);
     setFormData({
       username: user.username,
       email: user.email,
-      password: "", // Not needed for edit
+      password: "",
       role: user.role,
       isActive: user.isActive,
     });
@@ -98,7 +116,6 @@ export default function UserManagement() {
   };
 
   const handleSaveUser = async () => {
-    // Validation
     if (
       !formData.username ||
       (!isEditing && !formData.email) ||
@@ -115,12 +132,42 @@ export default function UserManagement() {
     setSubmitLoading(true);
     try {
       if (isEditing) {
-        // Update Logic
+        // Find user for audit
+        const targetUser = users.find((u) => u.id === editingUserId);
+
         await userService.updateUser(editingUserId, {
           username: formData.username,
           role: formData.role,
           isActive: formData.isActive,
         });
+
+        // Log appropriate audit action
+        if (originalIsActive !== formData.isActive) {
+          await auditService.logAction(
+            formData.isActive
+              ? auditService.ACTIONS.USER_ACTIVATED
+              : auditService.ACTIONS.USER_DEACTIVATED,
+            getAdminInfo(),
+            {
+              uid: editingUserId,
+              username: targetUser?.username,
+              email: targetUser?.email,
+            },
+            { previousStatus: originalIsActive, newStatus: formData.isActive }
+          );
+        } else {
+          await auditService.logAction(
+            auditService.ACTIONS.USER_UPDATED,
+            getAdminInfo(),
+            {
+              uid: editingUserId,
+              username: targetUser?.username,
+              email: targetUser?.email,
+            },
+            { changes: "role/username updated" }
+          );
+        }
+
         notifications.show({
           title: "Success",
           message: "User updated successfully",
@@ -128,7 +175,15 @@ export default function UserManagement() {
         });
       } else {
         // Create Logic
-        await userService.createUser(formData);
+        const newUid = await userService.createUser(formData);
+
+        await auditService.logAction(
+          auditService.ACTIONS.USER_CREATED,
+          getAdminInfo(),
+          { uid: newUid, username: formData.username, email: formData.email },
+          { role: formData.role }
+        );
+
         notifications.show({
           title: "Success",
           message: `User ${formData.username} created!`,
@@ -137,7 +192,6 @@ export default function UserManagement() {
       }
 
       close();
-      // No need to manually fetchUsers() - subscription handles it
     } catch (error) {
       let content = error.message;
       if (error.code === "auth/email-already-in-use")
@@ -149,41 +203,129 @@ export default function UserManagement() {
     }
   };
 
-  // Prepares deletion
+  // Quick toggle status with confirmation
+  const handleToggleStatus = (user) => {
+    const newStatus = !user.isActive;
+    const actionText = newStatus ? "activate" : "deactivate";
+
+    modals.openConfirmModal({
+      title: `${newStatus ? "Activate" : "Deactivate"} User`,
+      children: (
+        <Text size="sm">
+          Are you sure you want to {actionText} <strong>{user.username}</strong>
+          ?
+          {!newStatus && (
+            <Text size="xs" c="dimmed" mt="xs">
+              Deactivated users will not be able to log in.
+            </Text>
+          )}
+        </Text>
+      ),
+      labels: {
+        confirm: newStatus ? "Activate" : "Deactivate",
+        cancel: "Cancel",
+      },
+      confirmProps: { color: newStatus ? "green" : "orange" },
+      onConfirm: async () => {
+        try {
+          // If deactivating, also clear session to force logout
+          const updateData = { isActive: newStatus };
+          if (!newStatus) {
+            // Clear session to force immediate logout
+            updateData.sessionToken = null;
+            updateData.lastActivity = null;
+            updateData.lastSeen = null;
+          }
+
+          await userService.updateUser(user.id, updateData);
+
+          await auditService.logAction(
+            newStatus
+              ? auditService.ACTIONS.USER_ACTIVATED
+              : auditService.ACTIONS.USER_DEACTIVATED,
+            getAdminInfo(),
+            { uid: user.id, username: user.username, email: user.email },
+            {
+              previousStatus: user.isActive,
+              newStatus,
+              forcedLogout: !newStatus,
+            }
+          );
+
+          notifications.show({
+            title: "Success",
+            message: `User ${user.username} has been ${actionText}d.${
+              !newStatus ? " They have been logged out." : ""
+            }`,
+            color: "green",
+          });
+        } catch (error) {
+          notifications.show({
+            title: "Error",
+            message: `Failed to ${actionText} user.`,
+            color: "red",
+          });
+        }
+      },
+    });
+  };
+
+  // Delete user - only allowed for inactive users
   const handleDeleteUserClick = (user) => {
+    if (user.isActive) {
+      notifications.show({
+        title: "Cannot Delete",
+        message: "Please deactivate the user before deleting.",
+        color: "orange",
+      });
+      return;
+    }
     setUserToDelete(user);
     openDeleteModal();
   };
 
-  // Executes deletion
   const confirmDeleteUser = async () => {
     if (!userToDelete) return;
 
     try {
-      await userService.deleteUser(userToDelete.id);
+      // Call Cloud Function to delete user completely (Auth + Firestore + related data)
+      const result = await userService.deleteUserComplete(userToDelete.id);
+
+      // Audit logging is now handled by the Cloud Function itself
+      // but we can log locally as well for immediate feedback
       notifications.show({
-        title: "Deleted",
-        message: "User record removed",
-        color: "blue",
+        title: "User Deleted Completely",
+        message: result.deletedItems
+          ? `Deleted: ${result.deletedItems.join(", ")}`
+          : "User and all related data removed.",
+        color: "green",
       });
-      // No need to manually fetchUsers()
       closeDeleteModal();
       setUserToDelete(null);
     } catch (error) {
+      console.error("Delete error:", error);
       notifications.show({
         title: "Error",
-        message: "Failed to delete",
+        message: error.message || "Failed to delete user.",
         color: "red",
       });
     }
   };
 
-  const handleSendResetEmail = async (email) => {
+  const handleSendResetEmail = async (user) => {
     try {
-      await userService.sendPasswordReset(email);
+      await userService.sendPasswordReset(user.email);
+
+      await auditService.logAction(
+        auditService.ACTIONS.PASSWORD_RESET_SENT,
+        getAdminInfo(),
+        { uid: user.id, username: user.username, email: user.email },
+        {}
+      );
+
       notifications.show({
         title: "Sent",
-        message: `Password reset sent to ${email}`,
+        message: `Password reset sent to ${user.email}`,
         color: "green",
       });
     } catch (error) {
@@ -195,20 +337,53 @@ export default function UserManagement() {
     }
   };
 
-  // Filter Logic
+  const handleForceLogout = async (user) => {
+    try {
+      await userService.updateUser(user.id, {
+        sessionToken: null,
+        lastActivity: null,
+        lastSeen: null,
+      });
+
+      await auditService.logAction(
+        auditService.ACTIONS.FORCE_LOGOUT,
+        getAdminInfo(),
+        { uid: user.id, username: user.username, email: user.email },
+        {}
+      );
+
+      notifications.show({
+        title: "Success",
+        message: `User ${user.username} has been logged out.`,
+        color: "green",
+      });
+    } catch (error) {
+      notifications.show({
+        title: "Error",
+        message: "Failed to force logout.",
+        color: "red",
+      });
+    }
+  };
+
+  // Filter Logic - now includes status filter
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
-      user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase());
+      user.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.email?.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesRole = roleFilter === "all" || user.role === roleFilter;
 
-    return matchesSearch && matchesRole;
+    const matchesStatus =
+      statusFilter === "all" ||
+      (statusFilter === "active" && user.isActive) ||
+      (statusFilter === "inactive" && !user.isActive);
+
+    return matchesSearch && matchesRole && matchesStatus;
   });
 
   // Render Rows
   const rows = filteredUsers.map((user) => {
-    // Online status check
     let isUserOnline = false;
     if (user.lastSeen) {
       const lastSeenDate = user.lastSeen.toDate
@@ -264,15 +439,27 @@ export default function UserManagement() {
           </Badge>
         </Table.Td>
         <Table.Td>
-          {user.isActive ? (
-            <Badge variant="dot" color="green">
-              Active
-            </Badge>
-          ) : (
-            <Badge variant="dot" color="gray">
-              Inactive
-            </Badge>
-          )}
+          {/* Quick toggle switch for status */}
+          <Tooltip
+            label={user.isActive ? "Click to deactivate" : "Click to activate"}
+          >
+            <Switch
+              checked={user.isActive}
+              onChange={() => handleToggleStatus(user)}
+              color={user.isActive ? "green" : "gray"}
+              size="sm"
+              thumbIcon={
+                user.isActive ? (
+                  <IconUserCheck
+                    size={12}
+                    color="var(--mantine-color-green-6)"
+                  />
+                ) : (
+                  <IconUserX size={12} color="var(--mantine-color-gray-6)" />
+                )
+              }
+            />
+          </Tooltip>
         </Table.Td>
         <Table.Td>
           {user.isFirstLogin && (
@@ -302,9 +489,18 @@ export default function UserManagement() {
                 <Menu.Label>Security</Menu.Label>
                 <Menu.Item
                   leftSection={<IconKey size={14} />}
-                  onClick={() => handleSendResetEmail(user.email)}
+                  onClick={() => handleSendResetEmail(user)}
                 >
                   Send Password Reset
+                </Menu.Item>
+
+                <Menu.Item
+                  color="orange"
+                  leftSection={<IconLogout size={14} />}
+                  onClick={() => handleForceLogout(user)}
+                  disabled={!isUserOnline}
+                >
+                  Force Logout
                 </Menu.Item>
 
                 <Menu.Divider />
@@ -313,10 +509,15 @@ export default function UserManagement() {
                 <Menu.Item
                   color="red"
                   leftSection={<IconTrash size={14} />}
-                  disabled={isUserOnline}
+                  disabled={user.isActive || isUserOnline}
                   onClick={() => handleDeleteUserClick(user)}
                 >
                   Delete User
+                  {user.isActive && (
+                    <Text size="xs" c="dimmed" ml="auto">
+                      (Deactivate first)
+                    </Text>
+                  )}
                 </Menu.Item>
               </Menu.Dropdown>
             </Menu>
@@ -355,6 +556,19 @@ export default function UserManagement() {
             ]}
             value={roleFilter}
             onChange={setRoleFilter}
+            allowDeselect={false}
+          />
+          {/* NEW: Status Filter */}
+          <Select
+            placeholder="Filter by Status"
+            leftSection={<IconUserCheck size={16} />}
+            data={[
+              { value: "all", label: "All Status" },
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" },
+            ]}
+            value={statusFilter}
+            onChange={setStatusFilter}
             allowDeselect={false}
           />
         </Group>
@@ -427,7 +641,7 @@ export default function UserManagement() {
             label="Email"
             placeholder="hello@example.com"
             required
-            disabled={isEditing} // Cannot change email in edit mode (without admin sdk)
+            disabled={isEditing}
             value={formData.email}
             onChange={(e) =>
               setFormData({ ...formData, email: e.target.value })
@@ -447,6 +661,9 @@ export default function UserManagement() {
 
           <Switch
             label="Active Account"
+            description={
+              formData.isActive ? "User can log in" : "User cannot log in"
+            }
             checked={formData.isActive}
             onChange={(e) =>
               setFormData({ ...formData, isActive: e.currentTarget.checked })
@@ -459,8 +676,7 @@ export default function UserManagement() {
 
           {isEditing && (
             <Text size="xs" c="dimmed" ta="center">
-              To change password, use the "Send Password Reset" option in the
-              menu.
+              To change password, use "Send Password Reset" in the menu.
             </Text>
           )}
         </Stack>
@@ -470,20 +686,23 @@ export default function UserManagement() {
       <Modal
         opened={deleteModalOpened}
         onClose={closeDeleteModal}
-        title="Confirm Deletion"
+        title="⚠️ Confirm Permanent Deletion"
         centered
       >
         <Text size="sm">
-          Are you sure you want to delete{" "}
-          <strong>{userToDelete?.username}</strong>? This action cannot be
-          undone.
+          Are you sure you want to <strong>permanently delete</strong>{" "}
+          <strong>{userToDelete?.username}</strong>?
+        </Text>
+        <Text size="xs" c="red" mt="xs">
+          This action cannot be undone. All user data will be lost. Consider
+          keeping the user deactivated instead.
         </Text>
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={closeDeleteModal}>
             Cancel
           </Button>
           <Button color="red" onClick={confirmDeleteUser}>
-            Delete User
+            Delete Permanently
           </Button>
         </Group>
       </Modal>

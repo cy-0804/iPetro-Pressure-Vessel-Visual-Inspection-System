@@ -18,6 +18,9 @@ import {
   RingProgress,
   Center,
   ThemeIcon,
+  Progress,
+  SimpleGrid,
+  Skeleton,
 } from "@mantine/core";
 import {
   IconCamera,
@@ -28,15 +31,32 @@ import {
   IconCheck,
   IconFileAnalytics,
   IconClock,
+  IconClipboardCheck,
+  IconClipboardX,
+  IconSend,
+  IconEdit,
+  IconUsers,
+  IconDeviceDesktop,
+  IconTool,
 } from "@tabler/icons-react";
 import { auth, db, storage } from "../firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  updateDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+} from "firebase/firestore";
 import { updateProfile } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { notifications } from "@mantine/notifications";
+import { getEquipments } from "../services/equipmentService";
 
 export default function UserProfile() {
   const [loading, setLoading] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(true);
 
   // Profile fields
   const [username, setUsername] = useState("");
@@ -47,6 +67,22 @@ export default function UserProfile() {
   const [role, setRole] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [createdAt, setCreatedAt] = useState("");
+
+  // Performance stats (role-specific)
+  const [performanceStats, setPerformanceStats] = useState({
+    drafts: 0,
+    submitted: 0,
+    approved: 0,
+    rejected: 0,
+    pendingReview: 0,
+    totalReviewed: 0,
+    totalUsers: 0,
+    totalInspections: 0,
+    totalEquipments: 0,
+  });
+
+  // Equipment type breakdown
+  const [equipmentBreakdown, setEquipmentBreakdown] = useState([]);
 
   // Fetch user data
   useEffect(() => {
@@ -81,6 +117,165 @@ export default function UserProfile() {
 
     fetchUserData();
   }, []);
+
+  // Fetch performance stats based on role
+  useEffect(() => {
+    const fetchPerformanceStats = async () => {
+      if (!role) return;
+
+      setStatsLoading(true);
+      try {
+        const user = auth.currentUser;
+        const inspectionsRef = collection(db, "inspections");
+
+        if (role === "inspector") {
+          // Fetch inspections for current inspector
+          const q = query(inspectionsRef, where("inspectorId", "==", user.uid));
+          const snapshot = await getDocs(q);
+          const inspections = snapshot.docs.map((d) => ({
+            id: d.id,
+            ...d.data(),
+          }));
+
+          // Count by status
+          let drafts = 0,
+            submitted = 0,
+            approved = 0,
+            rejected = 0;
+          const equipmentTypeCounts = {};
+
+          inspections.forEach((insp) => {
+            const status = insp.status?.toUpperCase();
+            if (status === "IN_PROGRESS" || status === "DRAFT") {
+              drafts++;
+            } else if (status === "COMPLETED" || status === "SUBMITTED") {
+              submitted++;
+            } else if (status === "APPROVED") {
+              approved++;
+            } else if (status === "REJECTED") {
+              rejected++;
+            }
+
+            // Count equipment types
+            const eqType = insp.equipmentType || "Other";
+            equipmentTypeCounts[eqType] =
+              (equipmentTypeCounts[eqType] || 0) + 1;
+          });
+
+          setPerformanceStats({ drafts, submitted, approved, rejected });
+
+          // Calculate equipment breakdown
+          const total = inspections.length || 1;
+          const breakdown = Object.entries(equipmentTypeCounts).map(
+            ([type, count]) => ({
+              type,
+              count,
+              percentage: Math.round((count / total) * 100),
+              color: getTypeColor(type),
+            })
+          );
+          setEquipmentBreakdown(breakdown);
+        } else if (role === "supervisor") {
+          // Fetch all inspections for supervisor review metrics
+          const snapshot = await getDocs(inspectionsRef);
+          const inspections = snapshot.docs.map((d) => ({
+            id: d.id,
+            ...d.data(),
+          }));
+
+          let pendingReview = 0,
+            approved = 0,
+            rejected = 0;
+          const equipmentTypeCounts = {};
+
+          inspections.forEach((insp) => {
+            const status = insp.status;
+            if (status === "Submitted" || status === "COMPLETED") {
+              pendingReview++;
+            } else if (status === "Approved" || status === "APPROVED") {
+              approved++;
+            } else if (status === "Rejected" || status === "REJECTED") {
+              rejected++;
+            }
+
+            // Count equipment types
+            const eqType = insp.equipmentType || "Other";
+            equipmentTypeCounts[eqType] =
+              (equipmentTypeCounts[eqType] || 0) + 1;
+          });
+
+          setPerformanceStats({
+            pendingReview,
+            approved,
+            rejected,
+            totalReviewed: approved + rejected,
+          });
+
+          // Calculate equipment breakdown
+          const total = inspections.length || 1;
+          const breakdown = Object.entries(equipmentTypeCounts).map(
+            ([type, count]) => ({
+              type,
+              count,
+              percentage: Math.round((count / total) * 100),
+              color: getTypeColor(type),
+            })
+          );
+          setEquipmentBreakdown(breakdown);
+        } else if (role === "admin") {
+          // Fetch system-wide stats
+          const inspSnapshot = await getDocs(inspectionsRef);
+          const usersSnapshot = await getDocs(collection(db, "users"));
+          const equipments = await getEquipments();
+
+          setPerformanceStats({
+            totalUsers: usersSnapshot.size,
+            totalInspections: inspSnapshot.size,
+            totalEquipments: equipments.length,
+          });
+
+          // Equipment type breakdown for admin
+          const equipmentTypeCounts = {};
+          equipments.forEach((eq) => {
+            const type = eq.type || "Unknown";
+            equipmentTypeCounts[type] = (equipmentTypeCounts[type] || 0) + 1;
+          });
+
+          const total = equipments.length || 1;
+          const breakdown = Object.entries(equipmentTypeCounts).map(
+            ([type, count]) => ({
+              type,
+              count,
+              percentage: Math.round((count / total) * 100),
+              color: getTypeColor(type),
+            })
+          );
+          setEquipmentBreakdown(breakdown);
+        }
+      } catch (error) {
+        console.error("Error fetching performance stats:", error);
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+
+    fetchPerformanceStats();
+  }, [role]);
+
+  // Helper function to get color for equipment type
+  const getTypeColor = (type) => {
+    const colors = {
+      Piping: "blue",
+      Vessel: "green",
+      Tank: "cyan",
+      "Heat Exchanger": "orange",
+      Pump: "grape",
+      Valve: "teal",
+      Other: "gray",
+      Unknown: "gray",
+    };
+    return colors[type] || "gray";
+  };
 
   // Handle profile picture upload
   const handleAvatarUpload = async (file) => {
@@ -189,15 +384,317 @@ export default function UserProfile() {
     return username || "User";
   };
 
-  // Mock stats data
-  const stats = {
-    total: 24,
-    completed: 18,
-    reports: 18,
-    pending: 6,
+  // Render Inspector Stats
+  const renderInspectorStats = () => {
+    const { drafts, submitted, approved, rejected } = performanceStats;
+    const total = drafts + submitted + approved + rejected || 1;
+    const completionRate = Math.round((approved / total) * 100);
+
+    return (
+      <>
+        <Stack gap="md" align="center">
+          <RingProgress
+            size={160}
+            thickness={16}
+            roundCaps
+            sections={[
+              { value: (approved / total) * 100, color: "green" },
+              { value: (submitted / total) * 100, color: "blue" },
+              { value: (drafts / total) * 100, color: "orange" },
+              { value: (rejected / total) * 100, color: "red" },
+            ]}
+            label={
+              <Center>
+                <Stack align="center" gap={0}>
+                  <Text fw={700} size="xl">
+                    {total}
+                  </Text>
+                  <Text c="dimmed" size="xs">
+                    Total
+                  </Text>
+                </Stack>
+              </Center>
+            }
+          />
+
+          <SimpleGrid cols={2} spacing="sm" w="100%">
+            <Card withBorder padding="xs" radius="md">
+              <Group gap="xs">
+                <ThemeIcon size={28} radius="xl" variant="light" color="orange">
+                  <IconEdit size={16} />
+                </ThemeIcon>
+                <div>
+                  <Text size="xs" c="dimmed">
+                    Drafts
+                  </Text>
+                  <Text fw={700}>{drafts}</Text>
+                </div>
+              </Group>
+            </Card>
+            <Card withBorder padding="xs" radius="md">
+              <Group gap="xs">
+                <ThemeIcon size={28} radius="xl" variant="light" color="blue">
+                  <IconSend size={16} />
+                </ThemeIcon>
+                <div>
+                  <Text size="xs" c="dimmed">
+                    Submitted
+                  </Text>
+                  <Text fw={700}>{submitted}</Text>
+                </div>
+              </Group>
+            </Card>
+            <Card withBorder padding="xs" radius="md">
+              <Group gap="xs">
+                <ThemeIcon size={28} radius="xl" variant="light" color="green">
+                  <IconClipboardCheck size={16} />
+                </ThemeIcon>
+                <div>
+                  <Text size="xs" c="dimmed">
+                    Approved
+                  </Text>
+                  <Text fw={700}>{approved}</Text>
+                </div>
+              </Group>
+            </Card>
+            <Card withBorder padding="xs" radius="md">
+              <Group gap="xs">
+                <ThemeIcon size={28} radius="xl" variant="light" color="red">
+                  <IconClipboardX size={16} />
+                </ThemeIcon>
+                <div>
+                  <Text size="xs" c="dimmed">
+                    Rejected
+                  </Text>
+                  <Text fw={700}>{rejected}</Text>
+                </div>
+              </Group>
+            </Card>
+          </SimpleGrid>
+        </Stack>
+      </>
+    );
   };
 
-  const completionRate = Math.round((stats.completed / stats.total) * 100);
+  // Render Supervisor Stats
+  const renderSupervisorStats = () => {
+    const { pendingReview, approved, rejected, totalReviewed } =
+      performanceStats;
+    const total = pendingReview + approved + rejected || 1;
+
+    return (
+      <>
+        <Stack gap="md" align="center">
+          <RingProgress
+            size={160}
+            thickness={16}
+            roundCaps
+            sections={[
+              { value: (approved / total) * 100, color: "green" },
+              { value: (rejected / total) * 100, color: "red" },
+              { value: (pendingReview / total) * 100, color: "orange" },
+            ]}
+            label={
+              <Center>
+                <Stack align="center" gap={0}>
+                  <Text fw={700} size="xl">
+                    {totalReviewed}
+                  </Text>
+                  <Text c="dimmed" size="xs">
+                    Reviewed
+                  </Text>
+                </Stack>
+              </Center>
+            }
+          />
+
+          <SimpleGrid cols={2} spacing="sm" w="100%">
+            <Card withBorder padding="xs" radius="md">
+              <Group gap="xs">
+                <ThemeIcon size={28} radius="xl" variant="light" color="orange">
+                  <IconClock size={16} />
+                </ThemeIcon>
+                <div>
+                  <Text size="xs" c="dimmed">
+                    Pending Review
+                  </Text>
+                  <Text fw={700}>{pendingReview}</Text>
+                </div>
+              </Group>
+            </Card>
+            <Card withBorder padding="xs" radius="md">
+              <Group gap="xs">
+                <ThemeIcon size={28} radius="xl" variant="light" color="green">
+                  <IconClipboardCheck size={16} />
+                </ThemeIcon>
+                <div>
+                  <Text size="xs" c="dimmed">
+                    Approved
+                  </Text>
+                  <Text fw={700}>{approved}</Text>
+                </div>
+              </Group>
+            </Card>
+            <Card withBorder padding="xs" radius="md">
+              <Group gap="xs">
+                <ThemeIcon size={28} radius="xl" variant="light" color="red">
+                  <IconClipboardX size={16} />
+                </ThemeIcon>
+                <div>
+                  <Text size="xs" c="dimmed">
+                    Rejected
+                  </Text>
+                  <Text fw={700}>{rejected}</Text>
+                </div>
+              </Group>
+            </Card>
+            <Card withBorder padding="xs" radius="md">
+              <Group gap="xs">
+                <ThemeIcon size={28} radius="xl" variant="light" color="blue">
+                  <IconFileAnalytics size={16} />
+                </ThemeIcon>
+                <div>
+                  <Text size="xs" c="dimmed">
+                    Total Reviewed
+                  </Text>
+                  <Text fw={700}>{totalReviewed}</Text>
+                </div>
+              </Group>
+            </Card>
+          </SimpleGrid>
+        </Stack>
+      </>
+    );
+  };
+
+  // Render Admin Stats
+  const renderAdminStats = () => {
+    const { totalUsers, totalInspections, totalEquipments } = performanceStats;
+
+    return (
+      <>
+        <Stack gap="md" align="center">
+          <SimpleGrid cols={3} spacing="sm" w="100%">
+            <Card withBorder padding="md" radius="md" ta="center">
+              <ThemeIcon
+                size={40}
+                radius="xl"
+                variant="light"
+                color="blue"
+                mx="auto"
+                mb="xs"
+              >
+                <IconUsers size={22} />
+              </ThemeIcon>
+              <Text size="xs" c="dimmed">
+                Total Users
+              </Text>
+              <Text fw={700} size="xl">
+                {totalUsers}
+              </Text>
+            </Card>
+            <Card withBorder padding="md" radius="md" ta="center">
+              <ThemeIcon
+                size={40}
+                radius="xl"
+                variant="light"
+                color="green"
+                mx="auto"
+                mb="xs"
+              >
+                <IconFileAnalytics size={22} />
+              </ThemeIcon>
+              <Text size="xs" c="dimmed">
+                Inspections
+              </Text>
+              <Text fw={700} size="xl">
+                {totalInspections}
+              </Text>
+            </Card>
+            <Card withBorder padding="md" radius="md" ta="center">
+              <ThemeIcon
+                size={40}
+                radius="xl"
+                variant="light"
+                color="cyan"
+                mx="auto"
+                mb="xs"
+              >
+                <IconTool size={22} />
+              </ThemeIcon>
+              <Text size="xs" c="dimmed">
+                Equipments
+              </Text>
+              <Text fw={700} size="xl">
+                {totalEquipments}
+              </Text>
+            </Card>
+          </SimpleGrid>
+        </Stack>
+      </>
+    );
+  };
+
+  // Render Equipment Type Breakdown
+  const renderEquipmentBreakdown = () => {
+    if (equipmentBreakdown.length === 0) {
+      return (
+        <Text size="sm" c="dimmed" ta="center">
+          No data available
+        </Text>
+      );
+    }
+
+    return (
+      <Stack gap="sm">
+        {equipmentBreakdown.map((item, index) => (
+          <Box key={index}>
+            <Group justify="space-between" mb={4}>
+              <Text size="sm" fw={500}>
+                {item.type}
+              </Text>
+              <Text size="sm" c="dimmed">
+                {item.count} ({item.percentage}%)
+              </Text>
+            </Group>
+            <Progress
+              value={item.percentage}
+              color={item.color}
+              size="md"
+              radius="xl"
+            />
+          </Box>
+        ))}
+      </Stack>
+    );
+  };
+
+  // Render role-specific performance section
+  const renderPerformanceSection = () => {
+    if (statsLoading) {
+      return (
+        <Stack gap="md">
+          <Skeleton height={160} circle mx="auto" />
+          <SimpleGrid cols={2} spacing="sm">
+            <Skeleton height={60} radius="md" />
+            <Skeleton height={60} radius="md" />
+            <Skeleton height={60} radius="md" />
+            <Skeleton height={60} radius="md" />
+          </SimpleGrid>
+        </Stack>
+      );
+    }
+
+    if (role === "inspector") {
+      return renderInspectorStats();
+    } else if (role === "supervisor") {
+      return renderSupervisorStats();
+    } else if (role === "admin") {
+      return renderAdminStats();
+    }
+
+    return null;
+  };
 
   return (
     <Container size="lg" py="xl">
@@ -208,232 +705,181 @@ export default function UserProfile() {
       <Grid gutter="lg">
         {/* Left Column - Profile Info */}
         <Grid.Col span={{ base: 12, md: 4 }}>
-          <Stack gap="lg">
-            <Card shadow="sm" padding="lg" radius="md" withBorder>
-              <Stack align="center" gap="md">
-                <Box style={{ position: "relative" }}>
-                  <Avatar src={avatarUrl} size={120} radius="xl" color="blue">
-                    {getInitials(getDisplayName())}
-                  </Avatar>
-                  <FileButton
-                    onChange={handleAvatarUpload}
-                    accept="image/png,image/jpeg"
-                  >
-                    {(props) => (
-                      <Button
-                        {...props}
-                        size="xs"
-                        radius="xl"
-                        style={{
-                          position: "absolute",
-                          bottom: 0,
-                          right: 0,
-                        }}
-                      >
-                        <IconCamera size={16} />
-                      </Button>
-                    )}
-                  </FileButton>
-                </Box>
-
-                <Box style={{ textAlign: "center" }}>
-                  <Text size="xl" fw={700}>
-                    {getDisplayName()}
-                  </Text>
-                  <Text size="sm" c="dimmed" mt={2}>
-                    @{username}
-                  </Text>
-                  <Badge color="blue" variant="light" size="lg" mt="xs">
-                    {role}
-                  </Badge>
-                </Box>
-
-                <Divider w="100%" />
-
-                <Stack gap="xs" w="100%">
-                  <Group gap="xs">
-                    <IconMail size={16} style={{ color: "#868e96" }} />
-                    <Text size="sm" c="dimmed">
-                      {email}
-                    </Text>
-                  </Group>
-                  {phoneNumber && (
-                    <Group gap="xs">
-                      <IconPhone size={16} style={{ color: "#868e96" }} />
-                      <Text size="sm" c="dimmed">
-                        {phoneNumber}
-                      </Text>
-                    </Group>
+          <Card shadow="sm" padding="lg" radius="md" withBorder>
+            <Stack align="center" gap="md">
+              <Box style={{ position: "relative" }}>
+                <Avatar src={avatarUrl} size={120} radius="xl" color="blue">
+                  {getInitials(getDisplayName())}
+                </Avatar>
+                <FileButton
+                  onChange={handleAvatarUpload}
+                  accept="image/png,image/jpeg"
+                >
+                  {(props) => (
+                    <Button
+                      {...props}
+                      size="xs"
+                      radius="xl"
+                      style={{
+                        position: "absolute",
+                        bottom: 0,
+                        right: 0,
+                      }}
+                    >
+                      <IconCamera size={16} />
+                    </Button>
                   )}
+                </FileButton>
+              </Box>
+
+              <Box style={{ textAlign: "center" }}>
+                <Text size="xl" fw={700}>
+                  {getDisplayName()}
+                </Text>
+                <Text size="sm" c="dimmed" mt={2}>
+                  @{username}
+                </Text>
+                <Badge
+                  color="blue"
+                  variant="light"
+                  size="lg"
+                  mt="xs"
+                  tt="capitalize"
+                >
+                  {role}
+                </Badge>
+              </Box>
+
+              <Divider w="100%" />
+
+              <Stack gap="xs" w="100%">
+                <Group gap="xs">
+                  <IconMail size={16} style={{ color: "#868e96" }} />
+                  <Text size="sm" c="dimmed">
+                    {email}
+                  </Text>
+                </Group>
+                {phoneNumber && (
                   <Group gap="xs">
-                    <IconCalendar size={16} style={{ color: "#868e96" }} />
+                    <IconPhone size={16} style={{ color: "#868e96" }} />
                     <Text size="sm" c="dimmed">
-                      Joined {createdAt}
+                      {phoneNumber}
                     </Text>
                   </Group>
-                </Stack>
+                )}
+                <Group gap="xs">
+                  <IconCalendar size={16} style={{ color: "#868e96" }} />
+                  <Text size="sm" c="dimmed">
+                    Joined {createdAt}
+                  </Text>
+                </Group>
               </Stack>
-            </Card>
+            </Stack>
+          </Card>
+        </Grid.Col>
 
-            {/* Performance Overview (Moved to Left Column) */}
+        {/* Right Column - Performance Dashboard */}
+        <Grid.Col span={{ base: 12, md: 8 }}>
+          <Stack gap="lg">
+            {/* Performance Overview */}
             <Paper shadow="sm" p="xl" radius="md" withBorder>
-              <Title order={3} mb="md" ta="center">
+              <Title order={3} mb="md">
                 Performance Overview
               </Title>
+              {renderPerformanceSection()}
+            </Paper>
 
-              <Stack gap="md" align="center">
-                <RingProgress
-                  size={160}
-                  thickness={16}
-                  roundCaps
-                  sections={[{ value: completionRate, color: "blue" }]}
-                  label={
-                    <Center>
-                      <Stack align="center" gap={0}>
-                        <Text fw={700} size="xl">
-                          {completionRate}%
-                        </Text>
-                        <Text c="dimmed" size="xs">
-                          Completed
-                        </Text>
-                      </Stack>
-                    </Center>
-                  }
-                />
-
-                <Stack gap="sm" w="100%">
-                  <Group justify="space-between" align="center">
-                    <Group gap="sm">
-                      <ThemeIcon
-                        size={32}
-                        radius="xl"
-                        variant="light"
-                        color="blue"
-                      >
-                        <IconCheck size={18} />
-                      </ThemeIcon>
-                      <Text size="sm" fw={500}>
-                        Completed
-                      </Text>
-                    </Group>
-                    <Text fw={700}>
-                      {stats.completed}/{stats.total}
-                    </Text>
-                  </Group>
-                  <Divider />
-                  <Group justify="space-between" align="center">
-                    <Group gap="sm">
-                      <ThemeIcon
-                        size={32}
-                        radius="xl"
-                        variant="light"
-                        color="orange"
-                      >
-                        <IconClock size={18} />
-                      </ThemeIcon>
-                      <Text size="sm" fw={500}>
-                        Pending
-                      </Text>
-                    </Group>
-                    <Text fw={700}>{stats.pending}</Text>
-                  </Group>
-                  <Divider />
-                  <Group justify="space-between" align="center">
-                    <Group gap="sm">
-                      <ThemeIcon
-                        size={32}
-                        radius="xl"
-                        variant="light"
-                        color="green"
-                      >
-                        <IconFileAnalytics size={18} />
-                      </ThemeIcon>
-                      <Text size="sm" fw={500}>
-                        Reports
-                      </Text>
-                    </Group>
-                    <Text fw={700}>{stats.reports}</Text>
-                  </Group>
+            {/* Equipment Type Breakdown */}
+            <Paper shadow="sm" p="xl" radius="md" withBorder>
+              <Title order={3} mb="md">
+                {role === "admin"
+                  ? "Equipment Distribution"
+                  : "Inspection by Equipment Type"}
+              </Title>
+              {statsLoading ? (
+                <Stack gap="sm">
+                  <Skeleton height={30} radius="xl" />
+                  <Skeleton height={30} radius="xl" />
+                  <Skeleton height={30} radius="xl" />
                 </Stack>
-              </Stack>
+              ) : (
+                renderEquipmentBreakdown()
+              )}
             </Paper>
           </Stack>
         </Grid.Col>
 
-        {/* Right Column - Edit Forms */}
-        <Grid.Col span={{ base: 12, md: 8 }}>
-          <Stack gap="lg">
-            {/* Edit Profile */}
-            <Paper shadow="sm" p="xl" radius="md" withBorder>
-              <Title order={3} mb="md">
-                Edit Profile
-              </Title>
+        {/* Bottom - Edit Profile (Full Width) */}
+        <Grid.Col span={12}>
+          <Paper shadow="sm" p="xl" radius="md" withBorder>
+            <Title order={3} mb="md">
+              Edit Profile
+            </Title>
 
-              <Stack gap="md">
-                <TextInput
-                  label="Username"
-                  value={username}
-                  disabled
-                  leftSection={<IconUser size={16} />}
-                  description="Username cannot be changed"
-                />
+            <Stack gap="md">
+              <TextInput
+                label="Username"
+                value={username}
+                disabled
+                leftSection={<IconUser size={16} />}
+                description="Username cannot be changed"
+              />
 
-                <Grid gutter="md">
-                  <Grid.Col span={{ base: 12, sm: 6 }}>
-                    <TextInput
-                      label="First Name"
-                      placeholder="Enter first name"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.currentTarget.value)}
-                      leftSection={<IconUser size={16} />}
-                      required
-                    />
-                  </Grid.Col>
+              <Grid gutter="md">
+                <Grid.Col span={{ base: 12, sm: 6 }}>
+                  <TextInput
+                    label="First Name"
+                    placeholder="Enter first name"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.currentTarget.value)}
+                    leftSection={<IconUser size={16} />}
+                    required
+                  />
+                </Grid.Col>
 
-                  <Grid.Col span={{ base: 12, sm: 6 }}>
-                    <TextInput
-                      label="Last Name"
-                      placeholder="Enter last name"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.currentTarget.value)}
-                      leftSection={<IconUser size={16} />}
-                      required
-                    />
-                  </Grid.Col>
-                </Grid>
+                <Grid.Col span={{ base: 12, sm: 6 }}>
+                  <TextInput
+                    label="Last Name"
+                    placeholder="Enter last name"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.currentTarget.value)}
+                    leftSection={<IconUser size={16} />}
+                    required
+                  />
+                </Grid.Col>
+              </Grid>
 
-                <TextInput
-                  label="Phone Number"
-                  placeholder="Enter phone number"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.currentTarget.value)}
-                  leftSection={<IconPhone size={16} />}
-                />
+              <TextInput
+                label="Phone Number"
+                placeholder="Enter phone number"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.currentTarget.value)}
+                leftSection={<IconPhone size={16} />}
+              />
 
-                <TextInput
-                  label="Email"
-                  value={email}
-                  disabled
-                  leftSection={<IconMail size={16} />}
-                  description="Email cannot be changed"
-                />
+              <TextInput
+                label="Email"
+                value={email}
+                disabled
+                leftSection={<IconMail size={16} />}
+                description="Email cannot be changed"
+              />
 
-                <TextInput
-                  label="Role"
-                  value={role}
-                  disabled
-                  description="Role is assigned by administrator"
-                  style={{ textTransform: "capitalize" }}
-                />
+              <TextInput
+                label="Role"
+                value={role}
+                disabled
+                description="Role is assigned by administrator"
+                style={{ textTransform: "capitalize" }}
+              />
 
-                <Group justify="flex-end">
-                  <Button onClick={handleUpdateProfile} loading={loading}>
-                    Save Changes
-                  </Button>
-                </Group>
-              </Stack>
-            </Paper>
-          </Stack>
+              <Group justify="flex-end">
+                <Button onClick={handleUpdateProfile} loading={loading}>
+                  Save Changes
+                </Button>
+              </Group>
+            </Stack>
+          </Paper>
         </Grid.Col>
       </Grid>
     </Container>

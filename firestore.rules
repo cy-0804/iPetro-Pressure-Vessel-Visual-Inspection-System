@@ -1,0 +1,53 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to get user role
+    function getRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // --- Users Collection ---
+    // Anyone signed in can read users (for assigning inspectors)
+    // Only Admin can write/create new users (conceptually) or users update themselves
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (isOwner(userId) || getRole() == 'admin');
+    }
+
+    // --- Inspection Plans ---
+    // Inspectors: Read assigned, Write status/notes
+    // Supervisors: Read all, Write all
+    match /inspection_plans/{planId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && (getRole() == 'supervisor' || getRole() == 'admin');
+      allow update: if isSignedIn(); // Refine this for strict field-level access if needed
+      allow delete: if isSignedIn() && getRole() == 'admin';
+    }
+
+    // --- Inspections (Reports) ---
+    match /inspections/{reportId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    
+    // --- Storage Metadata (if used) ---
+    match /storage_files/{fileId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    
+    // --- Default Deny ---
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
