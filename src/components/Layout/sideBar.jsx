@@ -7,6 +7,7 @@ import {
   IconReportMedical,
   IconUpload,
   IconClipboardText,
+  IconClipboardList,
   IconSettingsPlus,
   IconSettings,
   IconMessage2,
@@ -76,13 +77,19 @@ const menuSections = [
         link: "/user-management",
         label: "User Management",
         icon: IconUserCog,
+        roles: ["admin"],
+      },
+      {
+        link: "/audit-logs",
+        label: "Audit Logs",
+        icon: IconClipboardList,
+        roles: ["admin"],
       },
     ],
   },
   {
     title: "MANAGEMENT & REPORTING",
     items: [
-
       {
         link: "/supervisor-review",
         label: "Review Reports",
@@ -100,14 +107,13 @@ const menuSections = [
         label: "Storage",
         icon: IconCloudFog,
         roles: ["admin"],
-      }, // Only for admin
+      },
       { link: "/user-profile", label: "My Profile", icon: IconUser },
       {
         link: "/other-settings",
         label: "Other Settings",
         icon: IconSettings,
       },
-      { link: "/customer-feedback", label: "Feedback", icon: IconMessage2 },
     ],
   },
 ];

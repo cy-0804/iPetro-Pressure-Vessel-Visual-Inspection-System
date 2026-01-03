@@ -18,6 +18,7 @@ import {
   signOut as signOutSecondary,
   sendPasswordResetEmail,
 } from "firebase/auth";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 // --- FIREBASE CONFIG (Required for Secondary App) ---
 // Note: In a production app, these should preferably be in a shared config file or env vars
@@ -129,14 +130,29 @@ export const userService = {
   },
 
   /**
-   * Delete user from Firestore
-   * Note: This does NOT delete from Auth (requires Admin SDK)
+   * Delete user completely using Cloud Function
+   * Deletes: Firebase Auth + Firestore user doc + related data (inspections, notifications)
    */
-  deleteUser: async (uid) => {
+  deleteUserComplete: async (uid) => {
     try {
-      await deleteDoc(doc(db, "users", uid));
+      const functions = getFunctions();
+      const deleteUserFn = httpsCallable(functions, "deleteUserComplete");
+      const result = await deleteUserFn({ uid });
+      return result.data;
     } catch (error) {
-      console.error("Error deleting user:", error);
+      console.error("Error deleting user completely:", error);
+      // If Cloud Function not deployed yet, fall back to Firestore-only delete
+      if (error.code === "functions/not-found") {
+        console.warn(
+          "Cloud Function not deployed. Falling back to Firestore-only delete."
+        );
+        await deleteDoc(doc(db, "users", uid));
+        return {
+          success: true,
+          message:
+            "User doc deleted (Auth not deleted - deploy Cloud Functions)",
+        };
+      }
       throw error;
     }
   },
@@ -163,12 +179,15 @@ export const userService = {
       // const q = query(collection(db, "users"), where("role", "==", "inspector"));
 
       // Filter by roles: inspector and supervisor
-      const q = query(collection(db, "users"), where("role", "in", ["inspector", "supervisor"]));
+      const q = query(
+        collection(db, "users"),
+        where("role", "in", ["inspector", "supervisor"])
+      );
 
       const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({
+      return snapshot.docs.map((doc) => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }));
     } catch (error) {
       console.error("Error fetching inspectors:", error);
@@ -186,7 +205,9 @@ export const userService = {
 
       // Fetch from Firestore users collection
       const docRef = doc(db, "users", user.uid);
-      const docSnap = await import("firebase/firestore").then(mod => mod.getDoc(docRef));
+      const docSnap = await import("firebase/firestore").then((mod) =>
+        mod.getDoc(docRef)
+      );
 
       if (docSnap.exists()) {
         return { uid: user.uid, ...docSnap.data() };
@@ -197,5 +218,5 @@ export const userService = {
       console.error("Error fetching user profile:", error);
       return null;
     }
-  }
+  },
 };

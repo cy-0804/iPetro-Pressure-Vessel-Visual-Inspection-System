@@ -1,5 +1,6 @@
-import { AppShell } from "@mantine/core";
+import { AppShell, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { modals } from "@mantine/modals";
 import { Outlet } from "react-router-dom";
 import { SideBar } from "./sideBar.jsx";
 import { Header } from "./header.jsx";
@@ -18,6 +19,8 @@ import { auth, db } from "../../firebase";
 
 // Import the new modal
 import { ProfileCompletionModal } from "../auth/ProfileCompletionModal";
+// Import Session Timeout Component
+import SessionTimeout from "../Auth/SessionTimeout";
 
 export function MainLayout() {
   const [opened, { toggle }] = useDisclosure();
@@ -59,9 +62,40 @@ export function MainLayout() {
           email: data.email || currentUser.email,
           role: data.role || "Inspector",
           avatar: currentUser.photoURL || null,
-          firstName: data.firstName, // Store raw data for check
-          lastName: data.lastName    // Store raw data for check
+          firstName: data.firstName,
+          lastName: data.lastName,
         });
+
+        // --- SESSION TOKEN CHECK ---
+        // Check for force logout: admin cleared the token OR token mismatch
+        const currentToken = localStorage.getItem("sessionToken");
+        const firestoreToken = data.sessionToken;
+
+        // Kick out user if:
+        // 1. User has a local token but Firestore token is null (admin force logout)
+        // 2. Both tokens exist but don't match (logged in from another device)
+        const shouldForceLogout =
+          currentToken && (!firestoreToken || firestoreToken !== currentToken);
+
+        if (shouldForceLogout) {
+          console.warn("Session invalidated. Force logout detected.");
+          modals.closeAll();
+          auth.signOut();
+          localStorage.removeItem("sessionToken");
+
+          modals.open({
+            title: "Session Ended",
+            children: (
+              <Text size="sm">
+                You have been logged out by an administrator or your session was
+                ended from another device.
+              </Text>
+            ),
+            withCloseButton: true,
+            closeOnClickOutside: true,
+            onClose: () => (window.location.href = "/login"),
+          });
+        }
       }
     });
 
@@ -86,7 +120,8 @@ export function MainLayout() {
   }, [currentUser]);
 
   // Derive if profile is incomplete
-  const isProfileIncomplete = userData && (!userData.firstName || !userData.lastName);
+  const isProfileIncomplete =
+    userData && (!userData.firstName || !userData.lastName);
 
   return (
     <AppShell
@@ -111,25 +146,31 @@ export function MainLayout() {
         <SideBar toggle={toggle} role={userData?.role} />
       </AppShell.Navbar>
 
-      <AppShell.Main style={{
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: '100vh',
-        position: 'relative' // Ensure relative/z-index context if needed
-      }}>
+      <AppShell.Main
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          minHeight: "100vh",
+          position: "relative",
+        }}
+      >
+        {/* Session Timeout Watcher */}
+        <SessionTimeout />
 
-        {/* Profile Completion Guard - Rendered at top of Main */}
+        {/* Profile Completion Guard */}
         <ProfileCompletionModal
           opened={!!isProfileIncomplete}
           userId={currentUser?.uid}
           userEmail={currentUser?.email}
         />
 
-        <div style={{
-          flex: 1,
-          padding: '30px',
-          paddingBottom: '60px',
-        }}>
+        <div
+          style={{
+            flex: 1,
+            padding: "30px",
+            paddingBottom: "60px",
+          }}
+        >
           <Outlet />
         </div>
 
