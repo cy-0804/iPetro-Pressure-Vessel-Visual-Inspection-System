@@ -62,7 +62,7 @@ import {
   IconSend,
 } from "@tabler/icons-react";
 import { ReportEditor } from "./ReportGeneration";
-import { useTheme } from "../components/context/ThemeContext"
+import { useTheme } from "../components/context/ThemeContext";
 
 // Standard report fields
 const initialFormState = {
@@ -88,7 +88,7 @@ const InspectionForm = () => {
   const [equipmentList, setEquipmentList] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { colorScheme } = useTheme();
-  const isDark = colorScheme === 'dark';
+  const isDark = colorScheme === "dark";
   const submittingRef = React.useRef(false);
 
   // Step 2 State
@@ -99,7 +99,8 @@ const InspectionForm = () => {
 
   // Draft Data State (Restored)
   const [draftData, setDraftData] = useState({ notes: "", photos: [] });
-  const [drawerOpened, { open: openDrawer, close: closeDrawer }] = useDisclosure(false);
+  const [drawerOpened, { open: openDrawer, close: closeDrawer }] =
+    useDisclosure(false);
 
   const [searchParams] = useSearchParams();
   const urlPlanId = searchParams.get("planId");
@@ -111,21 +112,17 @@ const InspectionForm = () => {
   const [previewOpened, setPreviewOpened] = useState(false);
   const [previewData, setPreviewData] = useState(null);
 
-
   const [newDocId, setNewDocId] = useState(null);
 
   // --- Initial Data Loading ---
   useEffect(() => {
-
     if (location.state && location.state.reportData) {
       const report = location.state.reportData;
       setEditingReportId(report.id);
 
-
       if (report.planId) {
         setCurrentPlanId(report.planId);
       }
-
 
       setFormData({
         equipmentId: report.equipmentId || "",
@@ -144,11 +141,14 @@ const InspectionForm = () => {
         inspectionType: report.inspectionType || "VI",
       });
 
-
       if (report.photoReport && report.photoReport.length > 0) {
         const rows = report.photoReport.map((item, index) => ({
           id: Date.now() + index,
-          photos: (item.photoUrls || []).map(u => ({ type: 'url', url: u, preview: u })),
+          photos: (item.photoUrls || []).map((u) => ({
+            type: "url",
+            url: u,
+            preview: u,
+          })),
           finding: item.finding || "",
           recommendation: item.recommendation || "",
         }));
@@ -161,14 +161,11 @@ const InspectionForm = () => {
         color: "blue",
       });
     } else {
-
       const today = new Date().toISOString().split("T")[0];
-
 
       const unsubscribe = auth.onAuthStateChanged(async (user) => {
         if (user) {
           let inspector = user.displayName || user.email || "Unknown Inspector";
-
 
           try {
             const userDoc = await getDoc(doc(db, "users", user.uid));
@@ -181,7 +178,10 @@ const InspectionForm = () => {
               }
             }
           } catch (err) {
-            console.warn("Failed to fetch user profile for inspector name:", err);
+            console.warn(
+              "Failed to fetch user profile for inspector name:",
+              err
+            );
           }
 
           setFormData((prev) => ({
@@ -194,7 +194,6 @@ const InspectionForm = () => {
       return () => unsubscribe();
     }
   }, [location.state]);
-
 
   useEffect(() => {
     const fetchEquipment = async () => {
@@ -215,7 +214,6 @@ const InspectionForm = () => {
     };
     fetchEquipment();
   }, []);
-
 
   const [planData, setPlanData] = useState(null);
 
@@ -247,7 +245,8 @@ const InspectionForm = () => {
       const reasons = [];
       if (!planData) reasons.push("Plan Data not loaded");
       if (equipmentList.length === 0) reasons.push("Equipment List empty");
-      if (location.state?.reportData) reasons.push("Report Data exists (Edit Mode)");
+      if (location.state?.reportData)
+        reasons.push("Report Data exists (Edit Mode)");
 
       console.log(`Skipping Auto-fill: ${reasons.join(", ")}`);
       return;
@@ -259,27 +258,30 @@ const InspectionForm = () => {
     console.log("Derived Equipment Tag from Plan:", eqTag);
 
     if (eqTag) {
-
-      let fullEquipment = equipmentList.find(e => e.tagNumber === eqTag);
-
+      let fullEquipment = equipmentList.find((e) => e.tagNumber === eqTag);
 
       if (!fullEquipment) {
         console.log("Strict match failed. Trying loose match...");
-        fullEquipment = equipmentList.find(e =>
-          e.tagNumber?.trim().toLowerCase() === eqTag.trim().toLowerCase()
+        fullEquipment = equipmentList.find(
+          (e) =>
+            e.tagNumber?.trim().toLowerCase() === eqTag.trim().toLowerCase()
         );
       }
 
       if (fullEquipment) {
         console.log("Match Found:", fullEquipment);
-        setFormData(prev => ({
+        setFormData((prev) => ({
           ...prev,
           equipmentId: eqTag,
           doshNumber: fullEquipment.doshNumber || prev.doshNumber || "",
-          plantUnitArea: fullEquipment.plantUnitArea || prev.plantUnitArea || "",
-          equipmentDescription: fullEquipment.equipmentDescription || prev.equipmentDescription || "",
+          plantUnitArea:
+            fullEquipment.plantUnitArea || prev.plantUnitArea || "",
+          equipmentDescription:
+            fullEquipment.equipmentDescription ||
+            prev.equipmentDescription ||
+            "",
 
-          inspectorName: prev.inspectorName
+          inspectorName: prev.inspectorName,
         }));
         console.log(`Data Loaded: Pre-filled details for ${eqTag}`);
       } else {
@@ -287,7 +289,7 @@ const InspectionForm = () => {
         notifications.show({
           title: "Equipment Mismatch",
           message: `Could not find equipment details for tag: ${eqTag}`,
-          color: "orange"
+          color: "orange",
         });
       }
     } else {
@@ -298,14 +300,11 @@ const InspectionForm = () => {
     if (exProps.fieldPhotos || exProps.executionNotes) {
       setDraftData({
         notes: exProps.executionNotes || "",
-        photos: exProps.fieldPhotos || []
+        photos: exProps.fieldPhotos || [],
       });
       console.log("Draft Data Found: Field notes and photos applied.");
     }
-
   }, [planData, equipmentList, location.state]);
-
-
 
   // --- Handlers: Step 1 (General Form) ---
   const handleChange = (name, value) => {
@@ -343,7 +342,6 @@ const InspectionForm = () => {
       });
       return;
     }
-
 
     if (photoRows.length === 0) {
       setPhotoRows([
@@ -421,7 +419,11 @@ const InspectionForm = () => {
           if (row.id === rowId) {
             const currentCount = row.photos?.length || 0;
             if (currentCount >= 5) {
-              notifications.show({ title: "Limit Reached", message: "Max 5 photos.", color: "red" });
+              notifications.show({
+                title: "Limit Reached",
+                message: "Max 5 photos.",
+                color: "red",
+              });
               return row;
             }
 
@@ -429,20 +431,28 @@ const InspectionForm = () => {
             const finalAdditions = urlsToAdd.slice(0, remaining);
 
             if (finalAdditions.length < urlsToAdd.length) {
-              notifications.show({ title: "Partial Add", message: `Added ${finalAdditions.length} photos. Limit is 5.`, color: "orange" });
+              notifications.show({
+                title: "Partial Add",
+                message: `Added ${finalAdditions.length} photos. Limit is 5.`,
+                color: "orange",
+              });
             } else {
-              notifications.show({ title: "Photo(s) Added", message: `${finalAdditions.length} photos inserted.`, color: "green" });
+              notifications.show({
+                title: "Photo(s) Added",
+                message: `${finalAdditions.length} photos inserted.`,
+                color: "green",
+              });
             }
 
-            const newPhotoObjects = finalAdditions.map(url => ({
-              type: 'url',
+            const newPhotoObjects = finalAdditions.map((url) => ({
+              type: "url",
               url: url,
-              preview: url
+              preview: url,
             }));
 
             return {
               ...row,
-              photos: [...(row.photos || []), ...newPhotoObjects]
+              photos: [...(row.photos || []), ...newPhotoObjects],
             };
           }
           return row;
@@ -457,26 +467,25 @@ const InspectionForm = () => {
       if (!confirm("Submit report without specific photos?")) return;
     }
 
+    const simulatedPhotoReport = photoRows
+      .map((row) => {
+        const draftUrls = row.existingUrls || [];
+        const newFilePreviews = row.previews || [];
 
-    const simulatedPhotoReport = photoRows.map(row => {
+        const photos = row.photos || [];
+        const allPhotoUrls = photos.map((p) => p.preview);
 
-      const draftUrls = row.existingUrls || [];
-      const newFilePreviews = row.previews || [];
+        if (allPhotoUrls.length === 0 && !row.finding && !row.recommendation)
+          return null;
 
-
-      const photos = row.photos || [];
-      const allPhotoUrls = photos.map(p => p.preview);
-
-      if (allPhotoUrls.length === 0 && !row.finding && !row.recommendation) return null;
-
-      return {
-        finding: row.finding,
-        recommendation: row.recommendation,
-        photoUrls: allPhotoUrls,
-        timestamp: new Date().toISOString()
-      };
-    }).filter(Boolean);
-
+        return {
+          finding: row.finding,
+          recommendation: row.recommendation,
+          photoUrls: allPhotoUrls,
+          timestamp: new Date().toISOString(),
+        };
+      })
+      .filter(Boolean);
 
     const plant = formData.plantUnitArea
       ? formData.plantUnitArea.trim().toUpperCase().replace(/\s+/g, "")
@@ -493,12 +502,13 @@ const InspectionForm = () => {
 
     const mockReport = {
       ...formData,
-      inspectionDate: formData.inspectionDate || new Date().toISOString().split("T")[0],
+      inspectionDate:
+        formData.inspectionDate || new Date().toISOString().split("T")[0],
       reportNo: previewReportNo,
       photoReport: simulatedPhotoReport,
 
       plantUnitArea: formData.plantUnitArea || "Plant 1",
-      doshNumber: formData.doshNumber || "MK PMT 1002"
+      doshNumber: formData.doshNumber || "MK PMT 1002",
     };
 
     setPreviewData(mockReport);
@@ -506,9 +516,10 @@ const InspectionForm = () => {
   };
 
   const handleStep2Submit = async (status = "Submitted") => {
-
     if (isSubmitting) {
-      console.warn(`Double submit detected! Ignoring call for status: ${status}`);
+      console.warn(
+        `Double submit detected! Ignoring call for status: ${status}`
+      );
       return;
     }
 
@@ -516,16 +527,20 @@ const InspectionForm = () => {
     setIsSubmitting(true);
 
     try {
-
-      const targetDocId = editingReportId || newDocId || doc(collection(db, "inspections")).id;
+      const targetDocId =
+        editingReportId || newDocId || doc(collection(db, "inspections")).id;
 
       const uploadedPhotos = [];
 
       for (const row of photoRows) {
         const photos = row.photos || [];
-        const rowUrls = photos.filter(p => p.type === 'url').map(p => p.url);
+        const rowUrls = photos
+          .filter((p) => p.type === "url")
+          .map((p) => p.url);
 
-        const filesToUpload = photos.filter(p => p.type === 'file').map(p => p.file);
+        const filesToUpload = photos
+          .filter((p) => p.type === "file")
+          .map((p) => p.file);
 
         if (filesToUpload.length > 0) {
           for (const file of filesToUpload) {
@@ -549,7 +564,6 @@ const InspectionForm = () => {
         }
       }
 
-
       const plant = formData.plantUnitArea
         ? formData.plantUnitArea.trim().toUpperCase().replace(/\s+/g, "")
         : "PLANT";
@@ -560,13 +574,10 @@ const InspectionForm = () => {
         status: status,
         updatedAt: serverTimestamp(),
         stepsCompleted: 2,
-        planId: currentPlanId // PERSIST PLAN ID
+        planId: currentPlanId, // PERSIST PLAN ID
       };
 
-
-
       const distinctId = editingReportId || newDocId || targetDocId;
-
 
       if (!newDocId && !editingReportId) {
         setNewDocId(distinctId);
@@ -574,9 +585,7 @@ const InspectionForm = () => {
 
       const reportRef = doc(db, "inspections", distinctId);
 
-
       await setDoc(reportRef, finalData, { merge: true });
-
 
       if (currentPlanId && status === "Submitted") {
         const planRef = doc(db, "inspection_plans", currentPlanId);
@@ -584,19 +593,29 @@ const InspectionForm = () => {
           status: "Submitted",
           "extendedProps.status": "Submitted",
           outcome: "Pass",
-          updatedAt: serverTimestamp()
+          updatedAt: serverTimestamp(),
         });
       }
 
-
       if (status === "Submitted") {
         try {
-          const inspectorName = formData.inspectorName || auth.currentUser?.displayName || "an Inspector";
+          const inspectorName =
+            formData.inspectorName ||
+            auth.currentUser?.displayName ||
+            "an Inspector";
           const title = "Report Submitted";
-          const message = `Report ${finalData.reportNo || "Unknown"} has been submitted by ${inspectorName} for approval.`;
+          const message = `Report ${
+            finalData.reportNo || "Unknown"
+          } has been submitted by ${inspectorName} for approval.`;
           const link = "/supervisor-review"; // Link to supervisor review page
 
-          await notificationService.notifyRole("supervisor", title, message, "info", link);
+          await notificationService.notifyRole(
+            "supervisor",
+            title,
+            message,
+            "info",
+            link
+          );
           console.log("Notification sent to supervisor (InspectionForm)");
         } catch (notifErr) {
           console.error("Failed to send notification:", notifErr);
@@ -605,19 +624,18 @@ const InspectionForm = () => {
 
       notifications.show({
         title: status === "Draft" ? "Draft Saved" : "Report Submitted",
-        message: status === "Draft"
-          ? "Your report has been saved as a draft."
-          : "Report submitted to supervisor for review.",
+        message:
+          status === "Draft"
+            ? "Your report has been saved as a draft."
+            : "Report submitted to supervisor for review.",
         color: "green",
       });
-
 
       if (status === "Draft") {
         navigate(`/report-submission`);
       } else {
         navigate(`/report-submission?id=${distinctId}`);
       }
-
     } catch (error) {
       console.error("Step 2 Error:", error);
       notifications.show({
@@ -648,7 +666,14 @@ const InspectionForm = () => {
           allowStepSelect={activeStep > 0}
         >
           {/* Step 1 Content: The General Form */}
-          <Paper withBorder shadow="sm" p="xl" radius="md" bg={isDark ? "#1a1b1e" : undefined} style={{ borderColor: isDark ? "#373a40" : undefined }}>
+          <Paper
+            withBorder
+            shadow="sm"
+            p="xl"
+            radius="md"
+            bg={isDark ? "#1a1b1e" : undefined}
+            style={{ borderColor: isDark ? "#373a40" : undefined }}
+          >
             <form onSubmit={handleStep1Submit}>
               <Stack gap="xl">
                 {/* Section 1: Equipment Details */}
@@ -904,7 +929,14 @@ const InspectionForm = () => {
           description="Upload photos with findings"
         >
           {/* Step 2 Content: Photo Report */}
-          <Paper withBorder shadow="sm" p="xl" radius="md" bg={isDark ? "#1a1b1e" : undefined} style={{ borderColor: isDark ? "#373a40" : undefined }} >
+          <Paper
+            withBorder
+            shadow="sm"
+            p="xl"
+            radius="md"
+            bg={isDark ? "#1a1b1e" : undefined}
+            style={{ borderColor: isDark ? "#373a40" : undefined }}
+          >
             <Stack>
               <Title order={4}>Photo Evidence & Specific Recommendations</Title>
               <Text c="dimmed" size="sm">
@@ -931,18 +963,22 @@ const InspectionForm = () => {
                   p="md"
                   bg={isDark ? "#25262b" : "gray.0"}
                   style={{
-                    transition: 'border-color 0.2s',
-                    borderColor: isDark ? "#373a40" : undefined
+                    transition: "border-color 0.2s",
+                    borderColor: isDark ? "#373a40" : undefined,
                   }}
                   onDragOver={(e) => {
                     e.preventDefault();
-                    e.currentTarget.style.borderColor = '#228be6';
+                    e.currentTarget.style.borderColor = "#228be6";
                   }}
                   onDragLeave={(e) => {
-                    e.currentTarget.style.borderColor = isDark ? '#373a40' : '#ced4da';
+                    e.currentTarget.style.borderColor = isDark
+                      ? "#373a40"
+                      : "#ced4da";
                   }}
                   onDrop={(e) => {
-                    e.currentTarget.style.borderColor = isDark ? '#373a40' : '#ced4da';
+                    e.currentTarget.style.borderColor = isDark
+                      ? "#373a40"
+                      : "#ced4da";
                     handleDrop(e, row.id);
                   }}
                 >
@@ -962,7 +998,10 @@ const InspectionForm = () => {
                     {/* Column 1: Image */}
                     <div
                       onDragOverCapture={(e) => {
-                        console.log("DragOver Capture Types:", e.dataTransfer.types);
+                        console.log(
+                          "DragOver Capture Types:",
+                          e.dataTransfer.types
+                        );
                         // Allow drop if it contains text/plain (drawer item)
                         if (e.dataTransfer.types.includes("text/plain")) {
                           e.preventDefault();
@@ -970,7 +1009,10 @@ const InspectionForm = () => {
                         }
                       }}
                       onDropCapture={(e) => {
-                        console.log("Drop Capture Types:", e.dataTransfer.types);
+                        console.log(
+                          "Drop Capture Types:",
+                          e.dataTransfer.types
+                        );
 
                         if (e.dataTransfer.types.includes("text/plain")) {
                           console.log("Is text/plain drop");
@@ -991,11 +1033,16 @@ const InspectionForm = () => {
                             );
 
                             if (targetIndex !== -1) {
-                              const currentPhotos = newRows[targetIndex].photos || [];
+                              const currentPhotos =
+                                newRows[targetIndex].photos || [];
                               const currentCount = currentPhotos.length;
 
                               if (currentCount >= 5) {
-                                notifications.show({ title: "Limit Reached", message: "Max 5 photos.", color: "red" });
+                                notifications.show({
+                                  title: "Limit Reached",
+                                  message: "Max 5 photos.",
+                                  color: "red",
+                                });
                                 return prev;
                               }
 
@@ -1003,18 +1050,22 @@ const InspectionForm = () => {
                               if (currentCount + files.length > 5) {
                                 const allowed = 5 - currentCount;
                                 filesToAdd = files.slice(0, allowed);
-                                notifications.show({ title: "Limit Reached", message: `Partial add.`, color: "orange" });
+                                notifications.show({
+                                  title: "Limit Reached",
+                                  message: `Partial add.`,
+                                  color: "orange",
+                                });
                               }
 
-                              const newPhotoObjects = filesToAdd.map(f => ({
-                                type: 'file',
+                              const newPhotoObjects = filesToAdd.map((f) => ({
+                                type: "file",
                                 file: f,
-                                preview: URL.createObjectURL(f)
+                                preview: URL.createObjectURL(f),
                               }));
 
                               newRows[targetIndex] = {
                                 ...newRows[targetIndex],
-                                photos: [...currentPhotos, ...newPhotoObjects]
+                                photos: [...currentPhotos, ...newPhotoObjects],
                               };
                             }
                             return newRows;
@@ -1035,29 +1086,52 @@ const InspectionForm = () => {
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          border: `1px dashed ${isDark ? "#373a40" : "#ced4da"}`,
+                          border: `1px dashed ${
+                            isDark ? "#373a40" : "#ced4da"
+                          }`,
                           borderRadius: 8,
                           cursor: "pointer",
                           overflow: "hidden",
                           backgroundColor:
                             row.photos && row.photos.length > 0
-                              ? (isDark ? "#25262b" : "white")
+                              ? isDark
+                                ? "#25262b"
+                                : "white"
                               : "transparent",
                           padding: 10,
                         }}
                       >
                         {row.photos && row.photos.length > 0 ? (
                           <SimpleGrid
-                            cols={row.photos.length > 4 ? 3 : row.photos.length > 1 ? 2 : 1}
+                            cols={
+                              row.photos.length === 1
+                                ? 1
+                                : row.photos.length === 2
+                                ? 2
+                                : row.photos.length <= 4
+                                ? 2
+                                : 3
+                            }
                             spacing="xs"
+                            verticalSpacing="xs"
                             w="100%"
+                            style={{
+                              alignItems: "stretch",
+                              overflow: "hidden",
+                            }}
                           >
                             {row.photos.map((p, i) => (
                               <ImagePreviewItem
                                 key={i}
                                 src={p.preview}
                                 onDelete={() => removeImageFromRow(row.id, i)}
-                                height={row.photos.length > 2 ? 80 : 140}
+                                height={
+                                  row.photos.length <= 2
+                                    ? 140
+                                    : row.photos.length <= 4
+                                    ? 100
+                                    : 80
+                                }
                               />
                             ))}
                           </SimpleGrid>
@@ -1079,7 +1153,7 @@ const InspectionForm = () => {
                             <Text size="xs" c="dimmed" ta="center">
                               Drag images here
                               <br />
-                              Max file size 5MB
+                              Max file size 10MB
                               <br />5 images only
                             </Text>
                           </Stack>
@@ -1152,12 +1226,12 @@ const InspectionForm = () => {
         fullScreen
         title="Report Preview"
         styles={{
-          title: { fontWeight: 'bold' },
+          title: { fontWeight: "bold" },
           body: {
-            backgroundColor: isDark ? '#1a1b1e' : '#f5f5f5',
-            minHeight: '100vh',
-            padding: 0
-          }
+            backgroundColor: isDark ? "#1a1b1e" : "#f5f5f5",
+            minHeight: "100vh",
+            padding: 0,
+          },
         }}
       >
         <Container size="xl" py="md">
@@ -1192,7 +1266,6 @@ const InspectionForm = () => {
                     onClick={async (e) => {
                       e.preventDefault();
                       e.stopPropagation();
-
 
                       if (submittingRef.current) return;
                       submittingRef.current = true;
@@ -1232,14 +1305,18 @@ const InspectionForm = () => {
         size="lg"
         withOverlay={false}
         lockScroll={false}
-        styles={{ content: { boxShadow: '-5px 0px 20px rgba(0,0,0,0.1)' } }}
+        styles={{ content: { boxShadow: "-5px 0px 20px rgba(0,0,0,0.1)" } }}
       >
         <Stack>
           <Title order={4}>Execution Notes</Title>
-          <div dangerouslySetInnerHTML={{ __html: draftData.notes || "<p>No notes recorded.</p>" }} />
+          <div
+            dangerouslySetInnerHTML={{
+              __html: draftData.notes || "<p>No notes recorded.</p>",
+            }}
+          />
           <Divider />
           <Title order={4}>Field Photos</Title>
-          {(!draftData.photos || draftData.photos.length === 0) ? (
+          {!draftData.photos || draftData.photos.length === 0 ? (
             <Text c="dimmed">No photos available.</Text>
           ) : (
             <DraftPhotoGallery photos={draftData.photos} />
@@ -1248,7 +1325,15 @@ const InspectionForm = () => {
       </Drawer>
 
       <Affix position={{ bottom: 20, right: 20 }}>
-        <Transition transition="slide-up" mounted={!!(draftData.notes || (draftData.photos && draftData.photos.length > 0))}>
+        <Transition
+          transition="slide-up"
+          mounted={
+            !!(
+              draftData.notes ||
+              (draftData.photos && draftData.photos.length > 0)
+            )
+          }
+        >
           {(transitionStyles) => (
             <Button
               leftSection={<IconNotebook size={20} />}
@@ -1264,14 +1349,17 @@ const InspectionForm = () => {
           )}
         </Transition>
       </Affix>
-
     </Container>
   );
 };
 
-
-
-function EquipmentSearchModal({ opened, onClose, equipmentList, onPick, isDark }) {
+function EquipmentSearchModal({
+  opened,
+  onClose,
+  equipmentList,
+  onPick,
+  isDark,
+}) {
   const [query, setQuery] = useState("");
 
   const q = query.toLowerCase().trim();
@@ -1325,10 +1413,12 @@ function EquipmentSearchModal({ opened, onClose, equipmentList, onPick, isDark }
             style={{
               cursor: "pointer",
               transition: "background-color 0.2s",
-              borderColor: isDark ? "#373a40" : undefined
+              borderColor: isDark ? "#373a40" : undefined,
             }}
             onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = isDark ? "#25262b" : "#f1f3f5")
+              (e.currentTarget.style.backgroundColor = isDark
+                ? "#25262b"
+                : "#f1f3f5")
             }
             onMouseLeave={(e) =>
               (e.currentTarget.style.backgroundColor = "transparent")
@@ -1379,8 +1469,10 @@ const ImagePreviewItem = ({ src, onDelete, height }) => {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       h={height}
+      w="100%"
+      style={{ overflow: "hidden" }}
     >
-      <Image src={src} radius="sm" h="100%" w="auto" fit="cover" />
+      <Image src={src} radius="sm" h="100%" w="100%" fit="cover" />
       {hovered && (
         <Box
           pos="absolute"
@@ -1418,8 +1510,8 @@ function DraftPhotoGallery({ photos }) {
   const [selected, setSelected] = useState(new Set()); // Set of URLs
 
   // Extract unique folders
-  const uniqueFolders = new Set(['General']);
-  photos.forEach(p => {
+  const uniqueFolders = new Set(["General"]);
+  photos.forEach((p) => {
     if (p.folder) uniqueFolders.add(p.folder);
   });
   const folders = Array.from(uniqueFolders);
@@ -1433,17 +1525,25 @@ function DraftPhotoGallery({ photos }) {
 
   return (
     <Stack>
-      <Alert variant="light" color="blue" title="How to use" icon={<IconInfoCircle />}>
-        Click photos to select multiple. Drag any selected photo to add all of them at once.
+      <Alert
+        variant="light"
+        color="blue"
+        title="How to use"
+        icon={<IconInfoCircle />}
+      >
+        Click photos to select multiple. Drag any selected photo to add all of
+        them at once.
       </Alert>
-      <Accordion multiple defaultValue={['General']} variant="separated">
+      <Accordion multiple defaultValue={["General"]} variant="separated">
         {selected.size > 0 && (
           <Text size="sm" mb="xs" c="blue" ta="right">
             {selected.size} selected. Drag any selected item.
           </Text>
         )}
-        {folders.map(folder => {
-          const folderPhotos = photos.filter(p => (p.folder || 'General') === folder);
+        {folders.map((folder) => {
+          const folderPhotos = photos.filter(
+            (p) => (p.folder || "General") === folder
+          );
           if (folderPhotos.length === 0) return null;
 
           return (
@@ -1479,11 +1579,13 @@ function DraftPhotoGallery({ photos }) {
                           e.dataTransfer.effectAllowed = "copy";
                         }}
                         style={{
-                          cursor: 'grab',
-                          border: isSelected ? '3px solid #228be6' : '1px solid transparent',
+                          cursor: "grab",
+                          border: isSelected
+                            ? "3px solid #228be6"
+                            : "1px solid transparent",
                           borderRadius: 8,
-                          transition: 'border 0.2s',
-                          position: 'relative'
+                          transition: "border 0.2s",
+                          position: "relative",
                         }}
                       >
                         <Image
@@ -1491,10 +1593,23 @@ function DraftPhotoGallery({ photos }) {
                           radius="md"
                           h={100}
                           fit="cover"
-                          style={{ pointerEvents: 'none' }}
+                          style={{ pointerEvents: "none" }}
                         />
                         {isSelected && (
-                          <Box pos="absolute" top={5} right={5} bg="blue" style={{ borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Box
+                            pos="absolute"
+                            top={5}
+                            right={5}
+                            bg="blue"
+                            style={{
+                              borderRadius: "50%",
+                              width: 20,
+                              height: 20,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
                             <IconCheck size={14} color="white" />
                           </Box>
                         )}
