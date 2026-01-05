@@ -274,7 +274,7 @@ export default function TaskMonitoring() {
       <Modal
         opened={viewModalOpen}
         onClose={() => setViewModalOpen(false)}
-        size="lg"
+        size="xl"
         radius="md"
         withCloseButton={false}
         padding={0}

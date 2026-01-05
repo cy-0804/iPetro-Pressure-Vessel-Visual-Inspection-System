@@ -5,8 +5,7 @@ import {
 } from "@mantine/core";
 import { IconCheck, IconX } from "@tabler/icons-react";
 
-// This component is now just the UI Form. 
-// It doesn't know about Modals or Popovers.
+
 export default function AddInspectionForm({
   onCancel,
   onSave,
@@ -32,7 +31,7 @@ export default function AddInspectionForm({
 
   useEffect(() => {
     if (initialEvent) {
-      // Populate form from existing event
+   
       setTitle(initialEvent.title || "");
       setEquipmentId(initialEvent.extendedProps?.equipmentId || "");
       setInspector(initialEvent.extendedProps?.inspector || inspectors[0] || "");
@@ -51,14 +50,14 @@ export default function AddInspectionForm({
         setEndDate(endObj.toISOString().split("T")[0]);
         setEndTime(endObj.toTimeString().slice(0, 5));
       } else if (initialEvent.start) {
-        // If no end, assume same day 1 hour later or whatever default
+
         const startObj = new Date(initialEvent.start);
         setEndDate(startObj.toISOString().split("T")[0]);
         setEndTime(startObj.toTimeString().slice(0, 5));
       }
 
     } else {
-      // Initialize New Event Dates
+ 
       if (!initialDateISO) {
         const d = new Date();
         const iso = d.toISOString().split("T")[0];
@@ -73,7 +72,7 @@ export default function AddInspectionForm({
         if (timePart) {
           const hhmm = timePart.slice(0, 5);
           setStartTime(hhmm);
-          // Default 1 hour duration
+
           const [h, m] = hhmm.split(":").map(Number);
           const endH = String((h + 1).toString()).padStart(2, "0");
           setEndTime(`${endH}:${m.toString().padStart(2, "0")}`);
@@ -83,7 +82,7 @@ export default function AddInspectionForm({
         }
       }
 
-      // Reset Form Defaults
+
       setTitle("");
       setEquipmentId("");
       setInspector(inspectors[0] || "");
@@ -101,13 +100,13 @@ export default function AddInspectionForm({
       return;
     }
 
-    // Validation: Check if Equipment exists
+
     if (!equipmentList.some(eq => eq.tagNumber === equipmentId)) {
       alert("Invalid Equipment ID. Please select one from the list.");
       return;
     }
 
-    // Validation: Check if Inspector exists (mock check against list strings)
+ 
     if (!inspectors.includes(inspector)) {
       alert("Invalid Inspector. Please select one from the list.");
       return;

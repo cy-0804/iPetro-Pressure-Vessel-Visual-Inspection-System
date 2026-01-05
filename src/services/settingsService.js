@@ -4,7 +4,7 @@ import { doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove } from "firebas
 const DOC_ID = "dropdowns";
 const COLLECTION = "metadata";
 
-// Initial Seed Data (Pressure Vessel Standards)
+
 const DEFAULT_OPTIONS = {
     types: [
         'Pressure Vessel', 'Heat Exchanger', 'Storage Tank (API 650)', 'Storage Tank (API 620)',

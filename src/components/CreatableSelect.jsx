@@ -5,13 +5,13 @@ import { IconTrash } from '@tabler/icons-react';
 export function CreatableSelect({ data, value, onChange, onCreate, onDelete, label, placeholder, ...props }) {
     const [search, setSearch] = useState('');
 
-    // Convert strings to objects if needed, and handle "Create" option
+
     const exactMatch = data.some(item => item === search);
 
-    // Build options list
+
     const selectData = data.map(item => ({ value: item, label: item }));
 
-    // Add "Create" option if searching and no match
+
     if (search && !exactMatch && search.trim().length > 0) {
         selectData.push({
             value: search,
@@ -21,11 +21,11 @@ export function CreatableSelect({ data, value, onChange, onCreate, onDelete, lab
 
     const handleChange = (val) => {
         if (val && !data.includes(val)) {
-            // It's a new item
+          
             onCreate(val);
         }
         onChange(val);
-        setSearch(''); // Reset search after selection
+        setSearch(''); 
     };
 
     return (
@@ -40,7 +40,7 @@ export function CreatableSelect({ data, value, onChange, onCreate, onDelete, lab
             onSearchChange={setSearch}
             nothingFoundMessage="Type to create..."
             renderOption={({ option }) => {
-                // Check if it's the "Create" option (value equals search and not in original data)
+             
                 const isCreateOption = option.value === search && !data.includes(option.value);
 
                 if (isCreateOption) {
