@@ -361,7 +361,7 @@ export default function InspectionCalendar() {
         centered
         title={null}
         padding={0}
-        size="auto"
+        size="xl"
       >
         {selectedEvent && (
           <InspectorEventDetails

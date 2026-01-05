@@ -16,15 +16,15 @@ export default function InspectionTable({ tasks, onAction, loading, isSupervisor
         return username;
     };
 
-   
+
     const getStatusColor = (status) => {
         switch (status) {
             case "PLANNED": return "blue";
             case "SCHEDULED": return "blue";
             case "IN_PROGRESS": return "orange";
             case "COMPLETED": return "green";
-            case "Submitted": return "cyan"; 
-            case "APPROVED": return "teal"; 
+            case "Submitted": return "cyan";
+            case "APPROVED": return "teal";
             case "Approved": return "teal";
             case "Rejected": return "red";
             case "OVERDUE": return "red";
@@ -60,10 +60,10 @@ export default function InspectionTable({ tasks, onAction, loading, isSupervisor
     const rows = tasks.map((task) => (
         <Table.Tr key={task.id}>
             <Table.Td>
-                <Text fw={500} size="sm">{task.extendedProps?.equipmentId || "-"}</Text>
+                <Text size="sm">{task.title}</Text>
             </Table.Td>
             <Table.Td>
-                <Text size="sm">{task.title}</Text>
+                <Text fw={500} size="sm">{task.extendedProps?.equipmentId || "-"}</Text>
             </Table.Td>
             <Table.Td>
                 {task.riskCategory && (
@@ -106,7 +106,7 @@ export default function InspectionTable({ tasks, onAction, loading, isSupervisor
                             </>
                         )}
 
-                     
+
                         {task.status?.toUpperCase() === "COMPLETED" && (
                             <Menu.Item leftSection={<IconCopyCheck size={14} />} color="blue" onClick={() => onAction("review", task)}>
                                 Review Report
@@ -115,7 +115,7 @@ export default function InspectionTable({ tasks, onAction, loading, isSupervisor
 
                         <Menu.Divider />
 
-                       
+
                         <Menu.Item leftSection={<IconEdit size={14} />} onClick={() => onAction("view", task)}>
                             View Details
                         </Menu.Item>
@@ -141,8 +141,8 @@ export default function InspectionTable({ tasks, onAction, loading, isSupervisor
         <Table striped highlightOnHover stickyHeader>
             <Table.Thead>
                 <Table.Tr>
-                    <Table.Th>Equipment Tag</Table.Th>
                     <Table.Th>Title</Table.Th>
+                    <Table.Th>Equipment Tag</Table.Th>
                     <Table.Th>Risk</Table.Th>
                     <Table.Th>Start Date</Table.Th>
                     <Table.Th>End Date</Table.Th>
