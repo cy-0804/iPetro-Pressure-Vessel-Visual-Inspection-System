@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { storage, db, auth } from "../firebase";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  deleteDoc, 
-  doc, 
+import {
+  collection,
+  addDoc,
+  getDocs,
+  deleteDoc,
+  doc,
   serverTimestamp,
   query,
-  orderBy 
+  orderBy
 } from "firebase/firestore";
 import {
   Container,
@@ -46,7 +46,7 @@ import { useTheme } from "../components/context/ThemeContext";
 
 const FileUploadComponent = () => {
   const { colorScheme } = useTheme();
-  const isDark = colorScheme === 'dark'; 
+  const isDark = colorScheme === 'dark';
 
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
@@ -59,7 +59,7 @@ const FileUploadComponent = () => {
     try {
       const q = query(collection(db, "documents"), orderBy("uploadedAt", "desc"));
       const querySnapshot = await getDocs(q);
-      
+
       const items = querySnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
@@ -96,7 +96,7 @@ const FileUploadComponent = () => {
         const timestamp = Date.now();
         const fileName = `${timestamp}-${file.name}`;
         const storageRef = ref(storage, `documents/${fileName}`);
-        
+
         await uploadBytes(storageRef, file);
         const url = await getDownloadURL(storageRef);
 
@@ -127,7 +127,7 @@ const FileUploadComponent = () => {
           uploadedAt: new Date(),
         });
       }
-      
+
       setUploadedFiles((prev) => [...newlyUploaded, ...prev]);
 
       notifications.show({
@@ -286,7 +286,7 @@ const FileUploadComponent = () => {
                   onDrop={handleDrop}
                   style={{
                     border: isDragging ? '3px dashed #1c7ed6' : '2px dashed #228be6',
-                    backgroundColor: isDragging 
+                    backgroundColor: isDragging
                       ? (isDark ? '#1e3a5f' : '#d0ebff')
                       : (isDark ? '#25262b' : '#f8f9fa'),
                     cursor: 'pointer',
@@ -308,10 +308,10 @@ const FileUploadComponent = () => {
                 >
                   <Center>
                     <Stack align="center" gap="md">
-                      <ThemeIcon 
-                        size={60} 
-                        radius="xl" 
-                        variant="light" 
+                      <ThemeIcon
+                        size={60}
+                        radius="xl"
+                        variant="light"
                         color="blue"
                         style={{
                           transform: isDragging ? 'scale(1.1)' : 'scale(1)',
@@ -389,7 +389,7 @@ const FileUploadComponent = () => {
                       }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.transform = 'translateY(-4px)';
-                        e.currentTarget.style.boxShadow = isDark 
+                        e.currentTarget.style.boxShadow = isDark
                           ? '0 8px 16px rgba(0,0,0,0.4)'
                           : '0 8px 16px rgba(0,0,0,0.1)';
                       }}
