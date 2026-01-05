@@ -298,7 +298,12 @@ export const inspectionService = {
 
             const q = query(
                 collection(db, COLLECTION_NAME),
-                where("status", "in", ["PLANNED", "SCHEDULED", "OVERDUE"])
+                where("status", "in", [
+                    "PLANNED", "SCHEDULED", "IN_PROGRESS",
+                    "COMPLETED", "Submitted",
+                    "REJECTED", "Rejected",
+                    "OVERDUE", "Draft"
+                ])
             );
             const snapshot = await getDocs(q);
 
@@ -322,15 +327,13 @@ export const inspectionService = {
                 if (!endDateStr) return;
 
                 const endDate = new Date(endDateStr);
-
                 const endOfDay = new Date(endDate);
                 endOfDay.setHours(23, 59, 59, 999);
 
-
                 const currentStatus = (data.status || "").toUpperCase();
 
-
-                if (now > endOfDay && ["PLANNED", "SCHEDULED"].includes(currentStatus)) {
+                // If now is past endOfDay AND status is NOT already OVERDUE (and implicitly not APPROVED due to query)
+                if (now > endOfDay && currentStatus !== "OVERDUE") {
                     console.log(`Marking ${d.id} as OVERDUE (Now > ${endOfDay.toISOString()})`);
                     await updateDoc(doc(db, COLLECTION_NAME, d.id), {
                         status: "OVERDUE",

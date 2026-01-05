@@ -171,7 +171,7 @@ export default function InspectorEventDetails({
         let currentStatus = event.extendedProps?.status || "pending";
 
 
-        if (["PLANNED", "SCHEDULED"].includes(currentStatus.toUpperCase())) {
+        if (currentStatus.toUpperCase() !== "APPROVED" && currentStatus.toUpperCase() !== "OVERDUE") {
             const endDateStr = event.end || event.extendedProps?.dueDate || event.extendedProps?.end;
             if (endDateStr) {
                 const end = new Date(endDateStr);
