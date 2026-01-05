@@ -136,11 +136,25 @@ export default function NotificationsPage() {
         return `${diffInDays} days ago`;
     };
 
+    // Delete All
+    const deleteAll = async () => {
+        if (!resolvedUsername) return;
+        if (window.confirm("Are you sure you want to delete all notifications?")) {
+            setNotifications([]);
+            await notificationService.deleteAllNotificationsForUser(resolvedUsername);
+        }
+    };
+
     return (
         <Container fluid py="xl">
             <Group justify="space-between" mb="lg">
                 <Title order={2}>Notifications</Title>
-                <Button variant="light" size="xs" onClick={markAllAsRead}>Mark all as read</Button>
+                <Group>
+                    <Button variant="light" color="red" size="xs" onClick={deleteAll} leftSection={<IconTrash size={14} />}>
+                        Delete All
+                    </Button>
+                    <Button variant="light" size="xs" onClick={markAllAsRead}>Mark all as read</Button>
+                </Group>
             </Group>
 
             <Tabs value={activeTab} onChange={setActiveTab} mb="md">
