@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import "./auth.css";
 import {
   TextInput,
@@ -29,6 +29,9 @@ import { notifications } from "@mantine/notifications";
 
 export default function Login() {
   // dark mode hook
+  const passwordRef = useRef(null);
+  const loginButtonRef = useRef(null);
+
   const { colorScheme } = useTheme();
 
   const navigate = useNavigate();
@@ -329,36 +332,49 @@ export default function Login() {
 
         <Title className="auth-title">Welcome Back</Title>
 
-        <Text className="auth-subtitle">
-          Don't have an account?{" "}
-          <span className="auth-link" onClick={() => navigate("/register")}>
-            Register
-          </span>
-        </Text>
-
         <TextInput
           label="Email or Username"
           required
           value={loginInput}
           onChange={(e) => setLoginInput(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              passwordRef.current?.focus();
+            }
+          }}
         />
+
 
         <PasswordInput
           label="Password"
           required
           mt="md"
+          ref={passwordRef}
           value={password}
           onChange={(e) => setPassword(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              loginButtonRef.current?.click();
+            }
+          }}
         />
+
 
         <Text
           size="sm"
-          className="auth-link"
-          style={{ textAlign: "right", marginTop: 8 }}
+          style={{
+            textAlign: "right",
+            marginTop: 8,
+            color: "#1c7ed6",
+            cursor: "pointer",
+          }}
           onClick={() => navigate("/forgot-password")}
+          onMouseOver={(e) => (e.target.style.textDecoration = "underline")}
+          onMouseOut={(e) => (e.target.style.textDecoration = "none")}
         >
           Forgot password?
         </Text>
+
 
         {error && <Text className="auth-error">{error}</Text>}
         {message && (
@@ -368,15 +384,16 @@ export default function Login() {
         )}
 
         <Button
+          ref={loginButtonRef}
           fullWidth
           mt="xl"
-          color="red"
           loading={loading}
           disabled={loading}
           onClick={handleLogin}
         >
           Login
         </Button>
+
       </div>
 
       {/* Force Password Change Modal */}

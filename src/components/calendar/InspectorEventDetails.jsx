@@ -171,7 +171,7 @@ export default function InspectorEventDetails({
         let currentStatus = event.extendedProps?.status || "pending";
 
 
-        if (["PLANNED", "SCHEDULED"].includes(currentStatus.toUpperCase())) {
+        if (currentStatus.toUpperCase() !== "APPROVED" && currentStatus.toUpperCase() !== "OVERDUE") {
             const endDateStr = event.end || event.extendedProps?.dueDate || event.extendedProps?.end;
             if (endDateStr) {
                 const end = new Date(endDateStr);
@@ -465,7 +465,7 @@ export default function InspectorEventDetails({
 
     return (
         <>
-            <Box w={700} p="md">
+            <Box w="100%" p="md">
                 <Group justify="space-between" align="start" mb="md">
                     <Box>
                         <Text fw={700} size="xl">{event.title}</Text>
@@ -522,6 +522,8 @@ export default function InspectorEventDetails({
                             <Text size="sm">{event.extendedProps?.description || "No description provided."}</Text>
                         </Stack>
                     </Paper>
+
+                    <TextInput label="Equipment Tag No" value={event.extendedProps?.equipmentId || "N/A"} readOnly />
 
 
                     <Group grow>

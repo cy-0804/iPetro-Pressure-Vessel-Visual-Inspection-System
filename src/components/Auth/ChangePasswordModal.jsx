@@ -17,13 +17,30 @@ export default function ChangePasswordModal({ opened, user, onSuccess }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const isStrongPassword = (password) => {
+  return (
+    password.length >= 8 &&
+    /[A-Z]/.test(password) &&
+    /[a-z]/.test(password) &&
+    /[0-9]/.test(password) &&
+    /[^A-Za-z0-9]/.test(password)
+  );
+};
+
 
   const handleSubmit = async () => {
     setError("");
-    if (newPassword.length < 6) {
-      setError("Password must be at least 6 characters");
+    if (!isStrongPassword(newPassword)) {
+      notifications.show({
+        title: "Weak Password",
+        message:
+          "Password must be at least 8 characters and include uppercase, lowercase, number, and symbol.",
+        color: "red",
+        autoClose: 5000,
+      });
       return;
     }
+
     if (newPassword !== confirmPassword) {
       setError("Passwords do not match");
       return;
@@ -41,6 +58,8 @@ export default function ChangePasswordModal({ opened, user, onSuccess }) {
       notifications.show({
         title: "Success",
         message: "Password updated successfully!",
+        position: "top-center",
+        autoClose: 2500,
         color: "green",
       });
 
@@ -48,11 +67,7 @@ export default function ChangePasswordModal({ opened, user, onSuccess }) {
         onSuccess();
       }
 
-      // Modal will close automatically as MainLayout re-evaluates 'isFirstLogin' logic (it will become false)
-      // Or we rely on the parent to close it.
-      // Since parent checks isFirstLogin, updating it to false in DB works,
-      // BUT we need the local state in MainLayout to update.
-      // We will trigger a reload or expect real-time listener.
+    
     } catch (err) {
       console.error(err);
       setError("Failed to update password. You may need to re-login.");

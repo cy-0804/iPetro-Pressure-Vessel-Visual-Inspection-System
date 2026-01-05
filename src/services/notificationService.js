@@ -131,5 +131,21 @@ export const notificationService = {
         } catch (error) {
             console.error("Error deleting notification:", error);
         }
+    },
+
+    deleteAllNotificationsForUser: async (username) => {
+        try {
+            const q = query(
+                collection(db, COLLECTION_NAME),
+                where("targetUser", "==", username)
+            );
+            const snapshot = await getDocs(q);
+            const deletePromises = snapshot.docs.map(d => deleteDoc(doc(db, COLLECTION_NAME, d.id)));
+            await Promise.all(deletePromises);
+            console.log(`Deleted all notifications for ${username}`);
+        } catch (error) {
+            console.error("Error deleting all notifications:", error);
+            throw error;
+        }
     }
 };

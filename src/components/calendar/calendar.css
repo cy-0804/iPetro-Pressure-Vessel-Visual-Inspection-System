@@ -36,7 +36,7 @@
   transition: all 0.2s ease;
 }
 
-/* Make select dropdowns more obvious with arrow indicator */
+
 .top-toolbar select {
   appearance: none;
   -webkit-appearance: none;
@@ -141,7 +141,7 @@
   border-color: #373a40;
 }
 
-/* Ensure grid lines are visible */
+
 .fc td,
 .fc th {
   border-color: light-dark(#e5e5e5, #373a40) !important;
@@ -158,7 +158,7 @@
   opacity: 0.9;
 }
 
-/* Dark mode for calendar buttons */
+
 [data-mantine-color-scheme="dark"] .fc .fc-button-primary {
   background-color: #373a40;
   border-color: #373a40;

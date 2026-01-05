@@ -62,31 +62,31 @@ const Storage = () => {
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  //  Fetch data from BOTH Storage and Firestore
+
   const fetchStorageData = useCallback(async () => {
     setLoading(true);
     try {
       const storageRef = ref(storage, currentPath);
       const result = await listAll(storageRef);
 
-      // Get folders from Storage
+
       const folderList = result.prefixes.map((folderRef) => ({
         name: folderRef.name,
         fullPath: folderRef.fullPath,
         type: "folder",
       }));
 
-      // Get files from Storage AND Firestore metadata
+      
       const fileList = await Promise.all(
         result.items.map(async (itemRef) => {
           try {
-            // Skip .placeholder files
+           
             if (itemRef.name === '.placeholder') return null;
 
             const url = await getDownloadURL(itemRef);
             const metadata = await getMetadata(itemRef);
 
-            // Try to get additional metadata from Firestore
+          
             const q = query(
               collection(db, "storage_files"),
               where("storagePath", "==", itemRef.fullPath)
@@ -106,7 +106,7 @@ const Storage = () => {
               contentType: metadata.contentType,
               timeCreated: metadata.timeCreated,
               type: "file",
-              ...firestoreData, // Include Firestore metadata
+              ...firestoreData, 
             };
           } catch (error) {
             console.error(`Error fetching file ${itemRef.name}:`, error);
@@ -133,7 +133,7 @@ const Storage = () => {
     fetchStorageData();
   }, [fetchStorageData]);
 
-  //  Upload files to Storage AND save metadata to Firestore
+  
   const handleFileUpload = async (selectedFiles) => {
     if (!selectedFiles || selectedFiles.length === 0) return;
 
@@ -149,11 +149,10 @@ const Storage = () => {
         const filePath = currentPath ? `${currentPath}/${file.name}` : file.name;
         const fileRef = ref(storage, filePath);
         
-        // Upload to Storage
+      
         await uploadBytes(fileRef, file);
         const url = await getDownloadURL(fileRef);
 
-        // Save metadata to Firestore
         await addDoc(collection(db, "storage_files"), {
           fileName: file.name,
           fileSize: file.size,
@@ -201,7 +200,7 @@ const Storage = () => {
     setCurrentPath(pathParts.join("/"));
   };
 
-  //  Create folder in Storage AND save to Firestore
+ 
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) {
       notifications.show({
@@ -232,7 +231,7 @@ const Storage = () => {
       const emptyBlob = new Blob([''], { type: 'text/plain' });
       await uploadBytes(placeholderRef, emptyBlob);
 
-      // Save folder metadata to Firestore
+     
       await addDoc(collection(db, "storage_folders"), {
         folderName: newFolderName,
         folderPath: folderPath,
@@ -263,7 +262,6 @@ const Storage = () => {
     }
   };
 
-  //  Delete file from Storage AND Firestore
   const handleDeleteFile = async (file) => {
     modals.openConfirmModal({
       title: "Delete File",
