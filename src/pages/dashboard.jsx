@@ -33,6 +33,8 @@ import {
   IconFileText,
   IconUpload,
   IconListDetails,
+  IconX,
+  IconTrash,
 } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
 import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore";
@@ -138,15 +140,33 @@ function PlanRow({ plan, onClick, hoverCardSx }) {
   );
 }
 
-function ReportRow({ report, onClick, hoverCardSx }) {
+function ReportRow({ report, onClick, hoverCardSx, onDismiss }) {
   const title = report.reportNo || report.equipmentId || "Untitled Report";
   const equipment = report.equipmentId || "—";
   const description = report.equipmentDescription || "";
   const dateText = report.inspectionDate ? dayjs(report.inspectionDate).format("YYYY-MM-DD") : "—";
 
   return (
-    <Paper p="md" radius="md" sx={hoverCardSx} style={{ cursor: "pointer" }} onClick={onClick}>
-      <Group justify="space-between" align="flex-start">
+    <Paper p="md" radius="md" sx={hoverCardSx} style={{ cursor: "pointer", position: "relative" }} onClick={onClick}>
+      {/* Dismiss Button */}
+      {onDismiss && (
+        <Box
+          onClick={(e) => onDismiss(e, report)}
+          style={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            zIndex: 10,
+            opacity: 0.6,
+            cursor: "pointer"
+          }}
+          sx={{ "&:hover": { opacity: 1, color: 'red' } }}
+        >
+          <IconX size={16} />
+        </Box>
+      )}
+
+      <Group justify="space-between" align="flex-start" pr={onDismiss ? 24 : 0}>
         <div style={{ minWidth: 0 }}>
           <Text fw={700} lineClamp={1}>
             {title}
@@ -172,6 +192,10 @@ function ReportRow({ report, onClick, hoverCardSx }) {
   );
 }
 
+
+import { userService } from "../services/userService";
+import { getEquipments } from "../services/equipmentService";
+import InspectorEventDetails from "../components/calendar/InspectorEventDetails";
 
 /* ---------------- Dashboard ---------------- */
 export default function Dashboard() {
@@ -200,13 +224,57 @@ export default function Dashboard() {
   const [loadingMonth, setLoadingMonth] = useState(true);
   const [loadingUpcoming, setLoadingUpcoming] = useState(true);
 
+  // Simplified Preview Modal
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
+
+  // Full Details Modal
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [inspectorsList, setInspectorsList] = useState([]);
+  const [equipmentList, setEquipmentList] = useState([]);
 
   const openPlanModal = (plan) => {
     setSelectedPlan(plan);
     setModalOpen(true);
   };
+
+  const handleOpenDetails = () => {
+    setModalOpen(false); // Close preview
+    setDetailsModalOpen(true); // Open full details
+  };
+
+  /* -------- Fetch Helpers for Details Modal -------- */
+  useEffect(() => {
+    async function loadAuxData() {
+      try {
+        const eqs = await getEquipments();
+        setEquipmentList(eqs);
+
+        const users = await userService.getInspectors();
+        const inspectorUsers = users.filter(u => u.role === 'inspector');
+        setInspectorsList(inspectorUsers);
+      } catch (e) {
+        console.error("Dashboard: Failed to load aux data", e);
+      }
+    }
+    loadAuxData();
+  }, []);
+
+  const handleUpdateEvent = async (updatedEvent) => {
+    // Update local state to reflect changes immediately
+    const updater = (prev) => prev.map(p => p.id === updatedEvent.id ? { ...p, ...updatedEvent } : p);
+    setMonthPlans(updater);
+    setUpcomingPlans(updater);
+    setSelectedPlan(updatedEvent); // Update selected plan if needed
+  };
+
+  const handleDeleteEvent = async (id) => {
+    // In dashboard we might not support delete directly or just close
+    setDetailsModalOpen(false);
+    setMonthPlans(prev => prev.filter(p => p.id !== id));
+    setUpcomingPlans(prev => prev.filter(p => p.id !== id));
+  };
+
 
   const hoverCardSx = {
     transition: "all 0.2s ease",
@@ -235,27 +303,36 @@ export default function Dashboard() {
       try {
         const { start, end } = monthRangeStrings(month);
 
-        // Default: all plans in month
-        let qMonth = query(
+        // Fetch all plans in the date range first (avoids complex index requirements)
+        // We will filter for the specific inspector client-side
+        const qMonth = query(
           collection(db, "inspection_plans"),
           where("start", ">=", start),
           where("start", "<=", end),
           orderBy("start", "asc")
         );
 
-        // Inspector view: assigned only
+        const snap = await getDocs(qMonth);
+        let plans = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+        // Inspector view: assigned only (Client-side filter)
         if (isInspector && username) {
-          qMonth = query(
-            collection(db, "inspection_plans"),
-            where("inspectors", "array-contains", username),
-            where("start", ">=", start),
-            where("start", "<=", end),
-            orderBy("start", "asc")
-          );
+          plans = plans.filter(p => {
+            // Check root 'inspectors' array (new format)
+            if (p.inspectors && Array.isArray(p.inspectors) && p.inspectors.includes(username)) return true;
+
+            // Check root 'inspector' string (new format)
+            if (p.inspector === username) return true;
+
+            // Check Legacy extendedProps
+            if (p.extendedProps?.inspectors && p.extendedProps.inspectors.includes(username)) return true;
+            if (p.extendedProps?.inspector === username) return true;
+
+            return false;
+          });
         }
 
-        const snap = await getDocs(qMonth);
-        setMonthPlans(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setMonthPlans(plans);
       } catch (e) {
         console.error("Dashboard: loadMonthPlans failed", e);
         setMonthPlans([]);
@@ -281,58 +358,45 @@ export default function Dashboard() {
         const start = today.format("YYYY-MM-DD");
         const end = today.add(7, "day").format("YYYY-MM-DD");
 
-        // Query 1: Upcoming plans (next 7 days)
+        // Query 1: Upcoming plans (next 7 days) - Fetch ALL first
         let qUp = query(
           collection(db, "inspection_plans"),
           where("start", ">=", start),
           where("start", "<=", end),
-          orderBy("start", "asc"),
-          limit(20)
+          orderBy("start", "asc")
         );
 
-        // Query 2: Overdue plans (Important!)
+        // Query 2: Overdue plans (Important!) - Fetch ALL first
         let qOverdue = query(
           collection(db, "inspection_plans"),
           where("status", "==", "OVERDUE"),
-          orderBy("start", "asc"),
-          limit(20)
+          orderBy("start", "asc")
         );
 
-        if (isInspector && username) {
-          qUp = query(
-            collection(db, "inspection_plans"),
-            where("inspectors", "array-contains", username),
-            where("start", ">=", start),
-            where("start", "<=", end),
-            orderBy("start", "asc"),
-            limit(20)
-          );
-
-          // For overdue, we need composite index: inspectors + status
-          // Since we might not have that specific index, we can fetch all overdue for inspector via client-side filtering 
-          // OR if we assume valid index exists. 
-          // Safest fallback: Use the inspectors query we used for monthPlans but filter for overdue?
-          // Actually, let's try the direct query. If index missing, we catch error.
-          // Better: just query all OVERDUE and filter client side since OVERDUE count shouldn't be massive.
-          qOverdue = query(
-            collection(db, "inspection_plans"),
-            where("status", "==", "OVERDUE"),
-            // where("inspectors", "array-contains", username), // This would require new index: status + inspectors
-            orderBy("start", "asc")
-          );
-        }
+        // Note: usage of limit() removed temporarily to ensure we get enough docs to filter down 
+        // if the volume is low. If volume is high, we might want to keep limit but increase it.
+        // For this workshop, fetching all in range is safer for visibility.
 
         const [snapUp, snapOver] = await Promise.all([getDocs(qUp), getDocs(qOverdue)]);
 
-        const upcomingDocs = snapUp.docs.map((d) => ({ id: d.id, ...d.data() }));
+        let upcomingDocs = snapUp.docs.map((d) => ({ id: d.id, ...d.data() }));
         let overdueDocs = snapOver.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-        // Client-side filter for inspector overdue if we didn't use the specific query
+        // Client-side filter for inspector
         if (isInspector && username) {
-          overdueDocs = overdueDocs.filter(d =>
-            d.extendedProps?.inspector === username ||
-            (Array.isArray(d.inspectors) && d.inspectors.includes(username))
-          );
+          const filterFn = (d) => {
+            // Check root 'inspectors' array (new format)
+            if (d.inspectors && Array.isArray(d.inspectors) && d.inspectors.includes(username)) return true;
+            // Check root 'inspector' string (new format)
+            if (d.inspector === username) return true;
+            // Check Legacy extendedProps
+            if (d.extendedProps?.inspectors && d.extendedProps.inspectors.includes(username)) return true;
+            if (d.extendedProps?.inspector === username) return true;
+            return false;
+          };
+
+          upcomingDocs = upcomingDocs.filter(filterFn);
+          overdueDocs = overdueDocs.filter(filterFn);
         }
 
         // Merge: Overdue first (most urgent), then Upcoming
@@ -369,9 +433,8 @@ export default function Dashboard() {
         if (isInspector) {
           // Get current user's inspector name
           let inspectorName = username;
-          if (!inspectorName && auth.currentUser) {
-            inspectorName = auth.currentUser.displayName || auth.currentUser.email;
-          }
+          // Fallback if needed
+          if (!inspectorName && userData?.email) inspectorName = userData.email;
 
           if (!inspectorName) {
             console.warn("Dashboard: No inspector name available");
@@ -413,7 +476,7 @@ export default function Dashboard() {
     }
 
     loadMonthReports();
-  }, [month, userLoading, username, isInspector]);
+  }, [month, userLoading, username, isInspector, userData]);
 
   /* -------- Top stats -------- */
   const stats = useMemo(() => {
@@ -444,9 +507,38 @@ export default function Dashboard() {
     return { total, pendingReview, completed, overdue, completionRate };
   }, [monthReports]);
 
+  /* -------- Dismiss/Clear Logic -------- */
+  const [dismissedReports, setDismissedReports] = useState(() => {
+    try {
+      const saved = localStorage.getItem("dismissedReports");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  useEffect(() => {
+    localStorage.setItem("dismissedReports", JSON.stringify(dismissedReports));
+  }, [dismissedReports]);
+
+  const handleDismiss = (e, report) => {
+    e.stopPropagation();
+    const status = normStatus(report.status);
+
+    // Warning condition: In Progress, Draft, Overdue, or Submitted (Pending Review)
+    // Safe condition: Approved, Completed, Video Uploaded, Rejected
+    const isSafe = ["APPROVED", "COMPLETED", "VIDEO_UPLOADED", "REJECTED"].includes(status);
+
+    if (!isSafe) {
+      if (!window.confirm("This inspection is pending review or incomplete. Are you sure you want to remove it from the dashboard?")) {
+        return;
+      }
+    }
+    setDismissedReports(prev => [...prev, report.id]);
+  };
+
   /* -------- Recent list -------- */
   const recentInspections = useMemo(() => {
     return [...monthReports]
+      .filter(r => !dismissedReports.includes(r.id))
       .sort((a, b) => {
         // Sort by inspectionDate descending (most recent first)
         const dateA = a.inspectionDate || "";
@@ -454,7 +546,27 @@ export default function Dashboard() {
         return dateB.localeCompare(dateA);
       })
       .slice(0, 6);
-  }, [monthReports]);
+  }, [monthReports, dismissedReports]);
+
+  const handleClearAll = () => {
+    const visibleReports = recentInspections;
+    if (visibleReports.length === 0) return;
+
+    const hasUnsafe = visibleReports.some(r => {
+      const status = normStatus(r.status);
+      return !["APPROVED", "COMPLETED", "VIDEO_UPLOADED", "REJECTED"].includes(status);
+    });
+
+    if (hasUnsafe) {
+      if (!window.confirm("Some items in this list are pending review or incomplete. Are you sure you want to clear the entire list?")) {
+        return;
+      }
+    }
+
+    // Dismiss all currently visible
+    const newIds = visibleReports.map(r => r.id);
+    setDismissedReports(prev => [...prev, ...newIds]);
+  };
 
   /* -------- Calendar dots -------- */
   const dayBuckets = useMemo(() => {
@@ -487,6 +599,55 @@ export default function Dashboard() {
       .sort((a, b) => (a.start || "").localeCompare(b.start || ""));
   }, [monthPlans, selectedDateStr]);
 
+  /* -------- Drill Down Logic -------- */
+  const [activeStatView, setActiveStatView] = useState(null); // null | 'total' | 'pending' | 'completed' | 'overdue'
+
+  const handleStatClick = (view) => {
+    setActiveStatView(view);
+  };
+
+  const drillDownData = useMemo(() => {
+    if (!activeStatView) return { title: "", data: [], type: "report" };
+
+    switch (activeStatView) {
+      case 'total':
+        return {
+          title: "Total Reports (This Month)",
+          data: monthReports,
+          type: "report"
+        };
+      case 'pending':
+        return {
+          title: "Pending Review",
+          data: monthReports.filter(r => normStatus(r.status) === "SUBMITTED"),
+          type: "report"
+        };
+      case 'completed':
+        return {
+          title: "Completed Reports",
+          data: monthReports.filter(r => normStatus(r.status) === "APPROVED"),
+          type: "report"
+        };
+      case 'overdue':
+        // Reuse the logic from stats calculation
+        const todayStr = dayjs().format("YYYY-MM-DD");
+        const overdueReports = monthReports.filter((r) => {
+          const inspDate = r.inspectionDate;
+          if (!inspDate) return false;
+          const st = normStatus(r.status);
+          if (st === "APPROVED") return false;
+          return inspDate < todayStr;
+        });
+        return {
+          title: "Overdue Reports",
+          data: overdueReports,
+          type: "report"
+        };
+      default:
+        return { title: "", data: [], type: "report" };
+    }
+  }, [activeStatView, monthReports]);
+
   return (
     <Container size="xl" py="lg">
       {/* Header */}
@@ -517,6 +678,7 @@ export default function Dashboard() {
       <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="lg" mb="xl">
         {[
           {
+            key: "total",
             title: "TOTAL REPORTS",
             value: stats.total,
             icon: IconReportAnalytics,
@@ -524,6 +686,7 @@ export default function Dashboard() {
             description: "This month",
           },
           {
+            key: "pending",
             title: "PENDING REVIEW",
             value: stats.pendingReview,
             icon: IconClock,
@@ -531,6 +694,7 @@ export default function Dashboard() {
             description: "Waiting action",
           },
           {
+            key: "completed",
             title: "COMPLETED",
             value: stats.completed,
             icon: IconCircleCheck,
@@ -538,6 +702,7 @@ export default function Dashboard() {
             description: `${stats.completionRate}% completion`,
           },
           {
+            key: "overdue",
             title: "OVERDUE",
             value: stats.overdue,
             icon: IconAlertCircle,
@@ -551,7 +716,9 @@ export default function Dashboard() {
             p="xl"
             radius="md"
             sx={hoverCardSx}
+            onClick={() => handleStatClick(stat.key)}
             style={{
+              cursor: 'pointer',
               background: isDark
                 ? undefined
                 : "linear-gradient(135deg, #f1f1f1 0%, #e9e9e9 100%)",
@@ -578,229 +745,295 @@ export default function Dashboard() {
         ))}
       </SimpleGrid>
 
-      {/* Main grid */}
-      <Grid gutter="lg">
-        {/* LEFT */}
-        <Grid.Col span={8}>
-          <Card shadow="sm" padding="lg" radius="md" withBorder>
-            <Group justify="space-between" mb="md">
-              <Title order={3}>
-                {activeSection === "inspections" ? "Recent Inspections" : "Upcoming Tasks"}
-              </Title>
-              <SegmentedControl
-                value={activeSection}
-                onChange={setActiveSection}
-                data={[
-                  { label: "Inspections", value: "inspections" },
-                  { label: "Tasks", value: "tasks" },
-                ]}
-              />
-            </Group>
+      {/* Drill Down View or Main Grid */}
+      {activeStatView ? (
+        <Card shadow="sm" padding="lg" radius="md" withBorder>
+          <Group mb="md">
+            <Button variant="subtle" onClick={() => setActiveStatView(null)}>
+              ← Back to Dashboard
+            </Button>
+          </Group>
+          <Title order={3} mb="md">{drillDownData.title}</Title>
 
-            <Box>
-              {activeSection === "inspections" && (
-                <Stack>
-                  {recentInspections.length === 0 ? (
-                    <Text c="dimmed" fs="italic">No recent inspections.</Text>
-                  ) : (
-                    recentInspections.map((r) => (
-                      <ReportRow key={r.id} report={r} hoverCardSx={hoverCardSx} onClick={() => openPlanModal(r)} />
-                    ))
-                  )}
-                </Stack>
-              )}
-
-              {activeSection === "tasks" && (
-                <Stack>
-                  <Text size="sm" c="dimmed" mb="sm">
-                    Important upcoming and overdue tasks
-                  </Text>
-                  {upcomingPlans.length === 0 ? (
-                    <Text c="dimmed" fs="italic">No upcoming or overdue tasks.</Text>
-                  ) : (
-                    upcomingPlans.map((p) => (
-                      <PlanRow key={p.id} plan={p} hoverCardSx={hoverCardSx} onClick={() => openPlanModal(p)} />
-                    ))
-                  )}
-                </Stack>
-              )}
-            </Box>
-          </Card>
-        </Grid.Col>
-
-        {/* RIGHT */}
-        <Grid.Col span={4}>
-          {/* Calendar & Completion Toggle */}
-          <Card shadow="sm" padding="lg" radius="md" withBorder mb="lg">
-            <Group justify="space-between" mb="md">
-              <Title order={3}>
-                {rightActiveSection === "completion" ? "Completion Rate" : "Calendar"}
-              </Title>
-              <SegmentedControl
-                size="xs"
-                value={rightActiveSection}
-                onChange={setRightActiveSection}
-                data={[
-                  { label: <IconCircleCheck size={16} />, value: "completion" },
-                  { label: <IconCalendar size={16} />, value: "calendar" },
-                ]}
-              />
-            </Group>
-
-            {rightActiveSection === "calendar" ? (
-              <>
-                <Box style={{ display: "flex", justifyContent: "center" }}>
-                  <Box style={{ width: "100%", maxWidth: 360 }}>
-                    <Calendar
-                      value={selectedDateObj}
-                      onChange={(v) => setSelectedDateObj(v || new Date())}
-                      month={month}
-                      onMonthChange={setMonth}
-                      renderDay={(date) => {
-                        const day = dayjs(date).date();
-                        const dateKey = dayjs(date).format("YYYY-MM-DD");
-                        const buckets = dayBuckets.get(dateKey);
-                        const order = ["red", "orange", "cyan", "green", "blue", "gray"];
-                        return (
-                          <Box style={{ width: "100%" }} key={dateKey}>
-                            <div style={{ textAlign: "center" }}>{day}</div>
-                            {buckets && buckets.size > 0 && (
-                              <Group justify="center" gap={3} mt={2} style={{ pointerEvents: "none" }}>
-                                {order
-                                  .filter((b) => buckets.has(b))
-                                  .slice(0, 3)
-                                  .map((b) => (
-                                    <Dot key={b} bucket={b} />
-                                  ))}
-                              </Group>
-                            )}
-                          </Box>
-                        );
-                      }}
-                    />
-                  </Box>
-                </Box>
-                <Divider my="md" />
-                <Text size="sm" fw={700}>
-                  Selected Day: {dayjs(selectedDateObj).format("MMM D, YYYY")}
-                </Text>
-                <Text size="sm" c="dimmed">
-                  {selectedDayPlans.length === 0
-                    ? `No inspections on ${dayjs(selectedDateObj).format("MMM D")}.`
-                    : `${selectedDayPlans.length} inspection(s) on this day.`}
-                </Text>
-              </>
-            ) : (
-              <Center py="xl">
-                <Stack align="center">
-                  <RingProgress
-                    size={180}
-                    thickness={16}
-                    roundCaps
-                    sections={[{ value: stats.completionRate, color: "green" }]}
-                    label={
-                      <Text c="blue" fw={700} ta="center" size="xl">
-                        {stats.completionRate}%
-                        <Text size="xs" c="dimmed" fw={500}>Complete</Text>
-                      </Text>
-                    }
-                  />
-                  <Group>
-                    <Group gap={6}>
-                      <Box w={8} h={8} style={{ borderRadius: 999, background: 'var(--mantine-color-green-6)' }} />
-                      <Text size="xs">Completed</Text>
-                      <Text size="xs" fw={700}>{stats.completed}</Text>
-                    </Group>
-                    <Group gap={6}>
-                      <Box w={8} h={8} style={{ borderRadius: 999, background: 'var(--mantine-color-orange-6)' }} />
-                      <Text size="xs">Pending</Text>
-                      <Text size="xs" fw={700}>{stats.total - stats.completed}</Text>
-                    </Group>
-                  </Group>
-                </Stack>
-              </Center>
-            )}
-          </Card>
-
-          {/* Quick actions */}
           <Stack>
-            <Card
-              padding="lg"
-              radius="md"
-              withBorder
-              sx={hoverActionCardSx}
-              style={{
-                background: "linear-gradient(135deg, #6d5bd0 0%, #5a4ac0 100%)",
-                color: "white",
-              }}
-              onClick={() => navigate("/inspection-plan")}
-            >
-              <Group>
-                <ThemeIcon color="white" variant="light">
-                  <IconPlus size={18} />
-                </ThemeIcon>
-                <div>
-                  <Text fw={800}>New Inspection</Text>
-                  <Text size="sm" style={{ opacity: 0.9 }}>
-                    Schedule equipment inspection
-                  </Text>
-                </div>
-              </Group>
-            </Card>
-
-            <Card
-              padding="lg"
-              radius="md"
-              withBorder
-              sx={hoverActionCardSx}
-              style={{
-                background: "linear-gradient(135deg, #ff6aa2 0%, #ff4d7d 100%)",
-                color: "white",
-              }}
-              onClick={() => navigate("/inspection-form")}
-            >
-              <Group>
-                <ThemeIcon color="white" variant="light">
-                  <IconFileText size={18} />
-                </ThemeIcon>
-                <div>
-                  <Text fw={800}>Generate Report</Text>
-                  <Text size="sm" style={{ opacity: 0.9 }}>
-                    Create inspection report
-                  </Text>
-                </div>
-              </Group>
-            </Card>
-
-            <Card
-              padding="lg"
-              radius="md"
-              withBorder
-              sx={hoverActionCardSx}
-              style={{
-                background: "linear-gradient(135deg, #4b4b7a 0%, #3b3b66 100%)",
-                color: "white",
-              }}
-              onClick={() => navigate("/document-upload")}
-            >
-              <Group>
-                <ThemeIcon color="white" variant="light">
-                  <IconUpload size={18} />
-                </ThemeIcon>
-                <div>
-                  <Text fw={800}>Quick Upload</Text>
-                  <Text size="sm" style={{ opacity: 0.9 }}>
-                    Upload document report
-                  </Text>
-                </div>
-              </Group>
-            </Card>
+            {drillDownData.data.length === 0 ? (
+              <Text c="dimmed" fs="italic">No items found.</Text>
+            ) : (
+              drillDownData.data.map((item) => (
+                <ReportRow
+                  key={item.id}
+                  report={item}
+                  hoverCardSx={hoverCardSx}
+                  onClick={() => openPlanModal(item)} // Re-using modal logic for now, though reports might need different modal if they aren't plans
+                />
+              ))
+            )}
           </Stack>
-        </Grid.Col>
-      </Grid>
+        </Card>
+      ) : (
+        <Grid gutter="lg">
+          {/* LEFT */}
+          <Grid.Col span={8}>
+            <Card shadow="sm" padding="lg" radius="md" withBorder>
+              <Group justify="space-between" mb="md">
+                <Group>
+                  <Title order={3}>
+                    {activeSection === "inspections" ? "Recent Inspections" : "Upcoming Tasks"}
+                  </Title>
+                </Group>
 
-      {/* Modal */}
-      <Modal opened={modalOpen} onClose={() => setModalOpen(false)} title="Inspection Details" radius="lg">
+                <Group>
+                  {activeSection === "inspections" && recentInspections.length > 0 && (
+                    <Button
+                      variant="subtle"
+                      color="red"
+                      size="xs"
+                      leftSection={<IconTrash size={14} />}
+                      onClick={handleClearAll}
+                    >
+                      Clear All
+                    </Button>
+                  )}
+                  <SegmentedControl
+                    value={activeSection}
+                    onChange={setActiveSection}
+                    data={[
+                      { label: "Inspections", value: "inspections" },
+                      { label: "Tasks", value: "tasks" },
+                    ]}
+                  />
+                </Group>
+              </Group>
+
+              <Box>
+                {activeSection === "inspections" && (
+                  <Stack>
+                    {recentInspections.length === 0 ? (
+                      <Text c="dimmed" fs="italic">No recent inspections.</Text>
+                    ) : (
+                      recentInspections.map((r) => (
+                        <ReportRow
+                          key={r.id}
+                          report={r}
+                          hoverCardSx={hoverCardSx}
+                          onClick={() => openPlanModal(r)}
+                          onDismiss={handleDismiss}
+                        />
+                      ))
+                    )}
+                  </Stack>
+                )}
+
+                {activeSection === "tasks" && (
+                  <Stack>
+                    <Text size="sm" c="dimmed" mb="sm">
+                      Important upcoming and overdue tasks
+                    </Text>
+                    {upcomingPlans.length === 0 ? (
+                      <Text c="dimmed" fs="italic">No upcoming or overdue tasks.</Text>
+                    ) : (
+                      upcomingPlans.map((p) => (
+                        <PlanRow key={p.id} plan={p} hoverCardSx={hoverCardSx} onClick={() => openPlanModal(p)} />
+                      ))
+                    )}
+                  </Stack>
+                )}
+              </Box>
+            </Card>
+          </Grid.Col>
+
+          {/* RIGHT */}
+          <Grid.Col span={4}>
+            {/* Calendar & Completion Toggle */}
+            <Card shadow="sm" padding="lg" radius="md" withBorder mb="lg">
+              <Group justify="space-between" mb="md">
+                <Title order={3}>
+                  {rightActiveSection === "completion" ? "Completion Rate" : "Calendar"}
+                </Title>
+                <SegmentedControl
+                  size="xs"
+                  value={rightActiveSection}
+                  onChange={setRightActiveSection}
+                  data={[
+                    { label: <IconCircleCheck size={16} />, value: "completion" },
+                    { label: <IconCalendar size={16} />, value: "calendar" },
+                  ]}
+                />
+              </Group>
+
+              {rightActiveSection === "calendar" ? (
+                <>
+                  <Box style={{ display: "flex", justifyContent: "center" }}>
+                    <Box style={{ width: "100%", maxWidth: 360 }}>
+                      <Calendar
+                        value={selectedDateObj}
+                        onChange={(v) => setSelectedDateObj(v || new Date())}
+                        month={month}
+                        onMonthChange={setMonth}
+                        renderDay={(date) => {
+                          const day = dayjs(date).date();
+                          const dateKey = dayjs(date).format("YYYY-MM-DD");
+                          const buckets = dayBuckets.get(dateKey);
+                          const order = ["red", "orange", "cyan", "green", "blue", "gray"];
+                          return (
+                            <Box style={{ width: "100%" }} key={dateKey}>
+                              <div style={{ textAlign: "center" }}>{day}</div>
+                              {buckets && buckets.size > 0 && (
+                                <Group justify="center" gap={3} mt={2} style={{ pointerEvents: "none" }}>
+                                  {order
+                                    .filter((b) => buckets.has(b))
+                                    .slice(0, 3)
+                                    .map((b) => (
+                                      <Dot key={b} bucket={b} />
+                                    ))}
+                                </Group>
+                              )}
+                            </Box>
+                          );
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                  <Divider my="md" />
+                  <Text size="sm" fw={700}>
+                    Selected Day: {dayjs(selectedDateObj).format("MMM D, YYYY")}
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    {selectedDayPlans.length === 0
+                      ? `No inspections on ${dayjs(selectedDateObj).format("MMM D")}.`
+                      : `${selectedDayPlans.length} inspection(s) on this day.`}
+                  </Text>
+                  {/* List plans for selected day in calendar view */}
+                  {selectedDayPlans.length > 0 && (
+                    <Stack mt="sm" gap="xs">
+                      {selectedDayPlans.map(p => (
+                        <Paper key={p.id} withBorder p="xs" sx={{ cursor: 'pointer' }} onClick={() => openPlanModal(p)}>
+                          <Group justify="space-between">
+                            <Text size="xs" fw={700}>{p.title}</Text>
+                            <Badge size="xs" color={getStatusColor(p.status)}>{normStatus(p.status)}</Badge>
+                          </Group>
+                        </Paper>
+                      ))}
+                    </Stack>
+                  )}
+                </>
+              ) : (
+                <Center py="xl">
+                  <Stack align="center">
+                    <RingProgress
+                      size={180}
+                      thickness={16}
+                      roundCaps
+                      sections={[{ value: stats.completionRate, color: "green" }]}
+                      label={
+                        <Text c="blue" fw={700} ta="center" size="xl">
+                          {stats.completionRate}%
+                          <Text size="xs" c="dimmed" fw={500}>Complete</Text>
+                        </Text>
+                      }
+                    />
+                    <Group>
+                      <Group gap={6}>
+                        <Box w={8} h={8} style={{ borderRadius: 999, background: 'var(--mantine-color-green-6)' }} />
+                        <Text size="xs">Completed</Text>
+                        <Text size="xs" fw={700}>{stats.completed}</Text>
+                      </Group>
+                      <Group gap={6}>
+                        <Box w={8} h={8} style={{ borderRadius: 999, background: 'var(--mantine-color-orange-6)' }} />
+                        <Text size="xs">Pending</Text>
+                        <Text size="xs" fw={700}>{stats.total - stats.completed}</Text>
+                      </Group>
+                    </Group>
+                  </Stack>
+                </Center>
+              )}
+            </Card>
+
+            {/* Quick actions */}
+            <Stack>
+              <Card
+                padding="lg"
+                radius="md"
+                withBorder
+                sx={hoverActionCardSx}
+                style={{
+                  background: "linear-gradient(135deg, #6d5bd0 0%, #5a4ac0 100%)",
+                  color: "white",
+                }}
+                onClick={() => navigate("/inspection-plan")}
+              >
+                <Group>
+                  <ThemeIcon color="white" variant="light">
+                    <IconPlus size={18} />
+                  </ThemeIcon>
+                  <div>
+                    <Text fw={800}>New Inspection</Text>
+                    <Text size="sm" style={{ opacity: 0.9 }}>
+                      Schedule equipment inspection
+                    </Text>
+                  </div>
+                </Group>
+              </Card>
+
+              <Card
+                padding="lg"
+                radius="md"
+                withBorder
+                sx={hoverActionCardSx}
+                style={{
+                  background: "linear-gradient(135deg, #ff6aa2 0%, #ff4d7d 100%)",
+                  color: "white",
+                }}
+                onClick={() => navigate("/inspection-form")}
+              >
+                <Group>
+                  <ThemeIcon color="white" variant="light">
+                    <IconFileText size={18} />
+                  </ThemeIcon>
+                  <div>
+                    <Text fw={800}>Generate Report</Text>
+                    <Text size="sm" style={{ opacity: 0.9 }}>
+                      Create inspection report
+                    </Text>
+                  </div>
+                </Group>
+              </Card>
+
+              <Card
+                padding="lg"
+                radius="md"
+                withBorder
+                sx={hoverActionCardSx}
+                style={{
+                  background: "linear-gradient(135deg, #4b4b7a 0%, #3b3b66 100%)",
+                  color: "white",
+                }}
+                onClick={() => navigate("/document-upload")}
+              >
+                <Group>
+                  <ThemeIcon color="white" variant="light">
+                    <IconUpload size={18} />
+                  </ThemeIcon>
+                  <div>
+                    <Text fw={800}>Quick Upload</Text>
+                    <Text size="sm" style={{ opacity: 0.9 }}>
+                      Upload document report
+                    </Text>
+                  </div>
+                </Group>
+              </Card>
+            </Stack>
+          </Grid.Col>
+        </Grid>
+      )}
+
+      {/* Simplified Preview Modal */}
+      <Modal
+        opened={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Inspection Details"
+        centered
+      >
         {selectedPlan ? (
           <Stack gap="sm">
             <Text fw={900}>{selectedPlan.title || "Untitled Inspection"}</Text>
@@ -827,13 +1060,39 @@ export default function Dashboard() {
               <Button variant="light" onClick={() => navigate("/inspection-plan")}>
                 Open Schedule
               </Button>
-              <Button onClick={() => navigate("/inspection-plan")}>View Details</Button>
+              <Button onClick={handleOpenDetails}>View Details</Button>
             </Group>
           </Stack>
         ) : (
           <Text>No plan selected.</Text>
         )}
       </Modal>
+
+      {/* Full Details Modal */}
+      <Modal
+        opened={detailsModalOpen}
+        onClose={() => setDetailsModalOpen(false)}
+        withCloseButton={false}
+        centered
+        title={null}
+        padding={0}
+        size="xl"
+      >
+        {selectedPlan && (
+          <InspectorEventDetails
+            event={selectedPlan}
+            onUpdate={handleUpdateEvent}
+            onDelete={handleDeleteEvent}
+            onClose={() => setDetailsModalOpen(false)}
+            viewMode={isInspector ? 'inspector' : 'supervisor'}
+            inspectors={inspectorsList}
+            equipmentList={equipmentList}
+            currentUser={username}
+            userProfile={userData}
+          />
+        )}
+      </Modal>
+
     </Container>
   );
 }
