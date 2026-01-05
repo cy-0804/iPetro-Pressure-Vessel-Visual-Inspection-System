@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { storage, db, auth } from "../firebase";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  deleteDoc, 
-  doc, 
+import {
+  collection,
+  addDoc,
+  getDocs,
+  deleteDoc,
+  doc,
   serverTimestamp,
   query,
-  orderBy 
+  orderBy
 } from "firebase/firestore";
 import {
   Container,
@@ -46,7 +46,7 @@ import { useTheme } from "../components/context/ThemeContext";
 
 const FileUploadComponent = () => {
   const { colorScheme } = useTheme();
-  const isDark = colorScheme === 'dark'; 
+  const isDark = colorScheme === 'dark';
 
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
@@ -59,7 +59,7 @@ const FileUploadComponent = () => {
     try {
       const q = query(collection(db, "documents"), orderBy("uploadedAt", "desc"));
       const querySnapshot = await getDocs(q);
-      
+
       const items = querySnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
@@ -96,7 +96,7 @@ const FileUploadComponent = () => {
         const timestamp = Date.now();
         const fileName = `${timestamp}-${file.name}`;
         const storageRef = ref(storage, `documents/${fileName}`);
-        
+
         await uploadBytes(storageRef, file);
         const url = await getDownloadURL(storageRef);
 
@@ -127,7 +127,7 @@ const FileUploadComponent = () => {
           uploadedAt: new Date(),
         });
       }
-      
+
       setUploadedFiles((prev) => [...newlyUploaded, ...prev]);
 
       notifications.show({
@@ -177,54 +177,45 @@ const FileUploadComponent = () => {
     }
   };
 
-const handleDelete = async (file) => {
-  modals.openConfirmModal({
-    title: 'Delete Document',
-    centered: true,
-    children: (
-      <Text size="sm">
-        Are you sure you want to delete <Text component="span" fw={600}>{file.fileName}</Text>? This action cannot be undone.
-      </Text>
-    ),
-    labels: { confirm: 'Delete', cancel: 'Cancel' },
-    confirmProps: { color: 'red', leftSection: <IconTrash size={16} /> },
-    onConfirm: async () => {
-      try {
-      
+  const handleDelete = async (file) => {
+    modals.openConfirmModal({
+      title: 'Delete Document',
+      centered: true,
+      children: (
+        <Text size="sm">
+          Are you sure you want to delete <Text component="span" fw={600}>{file.fileName}</Text>? This action cannot be undone.
+        </Text>
+      ),
+      labels: { confirm: 'Delete', cancel: 'Cancel' },
+      confirmProps: { color: 'red', leftSection: <IconTrash size={16} /> },
+      onConfirm: async () => {
         try {
           const fileRef = ref(storage, file.storagePath);
           await deleteObject(fileRef);
-        } catch (storageError) {
-      
-          console.warn("File not found in storage, removing metadata only:", storageError);
+          await deleteDoc(doc(db, "documents", file.id));
+
+          setUploadedFiles((prev) =>
+            prev.filter((item) => item.id !== file.id)
+          );
+
+          notifications.show({
+            title: 'Success',
+            message: 'Document deleted successfully',
+            color: 'green',
+            autoClose: 3000,
+          });
+        } catch (error) {
+          console.error("Error deleting file:", error);
+          notifications.show({
+            title: 'Delete Failed',
+            message: 'Unable to delete document.',
+            color: 'red',
+            autoClose: 5000,
+          });
         }
-
-      
-        await deleteDoc(doc(db, "documents", file.id));
-
-
-        setUploadedFiles((prev) =>
-          prev.filter((item) => item.id !== file.id)
-        );
-
-        notifications.show({
-          title: 'Success',
-          message: 'Document deleted successfully',
-          color: 'green',
-          autoClose: 3000,
-        });
-      } catch (error) {
-        console.error("Error deleting file:", error);
-        notifications.show({
-          title: 'Delete Failed',
-          message: 'Unable to delete document. Please try again.',
-          color: 'red',
-          autoClose: 5000,
-        });
-      }
-    },
-  });
-};
+      },
+    });
+  };
 
   const getFileIcon = (fileName) => {
     const ext = fileName.split('.').pop().toLowerCase();
@@ -295,7 +286,7 @@ const handleDelete = async (file) => {
                   onDrop={handleDrop}
                   style={{
                     border: isDragging ? '3px dashed #1c7ed6' : '2px dashed #228be6',
-                    backgroundColor: isDragging 
+                    backgroundColor: isDragging
                       ? (isDark ? '#1e3a5f' : '#d0ebff')
                       : (isDark ? '#25262b' : '#f8f9fa'),
                     cursor: 'pointer',
@@ -317,10 +308,10 @@ const handleDelete = async (file) => {
                 >
                   <Center>
                     <Stack align="center" gap="md">
-                      <ThemeIcon 
-                        size={60} 
-                        radius="xl" 
-                        variant="light" 
+                      <ThemeIcon
+                        size={60}
+                        radius="xl"
+                        variant="light"
                         color="blue"
                         style={{
                           transform: isDragging ? 'scale(1.1)' : 'scale(1)',
@@ -398,7 +389,7 @@ const handleDelete = async (file) => {
                       }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.transform = 'translateY(-4px)';
-                        e.currentTarget.style.boxShadow = isDark 
+                        e.currentTarget.style.boxShadow = isDark
                           ? '0 8px 16px rgba(0,0,0,0.4)'
                           : '0 8px 16px rgba(0,0,0,0.1)';
                       }}

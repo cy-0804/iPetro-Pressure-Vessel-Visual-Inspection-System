@@ -2,8 +2,8 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 // Auth
 import PrivateRoute from "../auth/PrivateRoute";
 import Login from "../auth/login.jsx";
-import Register from "../auth/register.jsx";
 import ForgotPassword from "../auth/forgotpassword.jsx";
+import ResetPassword from "../auth/resetpassword.jsx";
 
 // Layouts
 import { MainLayout } from "../components/Layout/mainLayout.jsx";
@@ -31,18 +31,19 @@ import TaskMonitoring from "../pages/supervisor/TaskMonitoring.jsx";
 
 // New Pages (Admin)
 import UserManagement from "../pages/admin/UserManagement.jsx";
+import AuditLog from "../pages/admin/AuditLog.jsx";
 
 // Other / Shared
 import DocumentUploadManagement from "../pages/FileUpload.jsx";
-import CustomerFeedback from "../pages/CustomerFeedback.jsx";
 import OtherSettings from "../pages/OtherSettings.jsx";
 import UserProfile from "../pages/UserProfile.jsx";
 import Storage from "../pages/Storage.jsx";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
-  { path: "/register", element: <Register /> },
   { path: "/forgot-password", element: <ForgotPassword /> },
+  { path: "/reset-password", element: <ResetPassword /> },
+
 
   {
     element: <PrivateRoute />, // <-- check if logged in
@@ -79,9 +80,14 @@ export const router = createBrowserRouter([
           { path: "/inspection-history", element: <InspectionReportHistory /> }, // "History"
 
           // New Execution Flows
-          { path: "/inspection-execution/:id", element: <InspectionExecution /> },
-          { path: "/inspection-draft/:id", element: <InspectionDraftPreview /> },
-
+          {
+            path: "/inspection-execution/:id",
+            element: <InspectionExecution />,
+          },
+          {
+            path: "/inspection-draft/:id",
+            element: <InspectionDraftPreview />,
+          },
 
           // --- SUPERVISOR (I.S) ---
           // Dashboard & Notification shared above
@@ -92,12 +98,12 @@ export const router = createBrowserRouter([
           // --- ADMIN (A) ---
           // Dashboard shared above
           { path: "/user-management", element: <UserManagement /> },
+          { path: "/audit-logs", element: <AuditLog /> },
           // (OtherSettings could be merged here or kept separate)
           { path: "/other-settings", element: <OtherSettings /> },
 
           // --- OTHERS / MANAGEMENT ---
           { path: "/document-upload", element: <DocumentUploadManagement /> },
-          { path: "/customer-feedback", element: <CustomerFeedback /> },
           { path: "/user-profile", element: <UserProfile /> },
           // Default redirect
           {

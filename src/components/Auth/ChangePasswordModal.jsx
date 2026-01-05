@@ -17,13 +17,30 @@ export default function ChangePasswordModal({ opened, user, onSuccess }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const isStrongPassword = (password) => {
+  return (
+    password.length >= 8 &&
+    /[A-Z]/.test(password) &&
+    /[a-z]/.test(password) &&
+    /[0-9]/.test(password) &&
+    /[^A-Za-z0-9]/.test(password)
+  );
+};
+
 
   const handleSubmit = async () => {
     setError("");
-    if (newPassword.length < 6) {
-      setError("Password must be at least 6 characters");
+    if (!isStrongPassword(newPassword)) {
+      notifications.show({
+        title: "Weak Password",
+        message:
+          "Password must be at least 8 characters and include uppercase, lowercase, number, and symbol.",
+        color: "red",
+        autoClose: 5000,
+      });
       return;
     }
+
     if (newPassword !== confirmPassword) {
       setError("Passwords do not match");
       return;
@@ -41,6 +58,8 @@ export default function ChangePasswordModal({ opened, user, onSuccess }) {
       notifications.show({
         title: "Success",
         message: "Password updated successfully!",
+        position: "top-center",
+        autoClose: 2500,
         color: "green",
       });
 

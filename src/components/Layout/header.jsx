@@ -23,7 +23,8 @@ import {
   IconSend,
 } from "@tabler/icons-react";
 import { signOut } from "firebase/auth";
-import { auth } from "../../firebase";
+import { auth, db } from "../../firebase";
+import { doc, updateDoc } from "firebase/firestore";
 import { useTheme } from "../context/ThemeContext";
 import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
@@ -48,14 +49,17 @@ export function Header({ opened, toggle, userInfo }) {
     const targets = [currentUser.username, currentUser.email].filter(Boolean);
 
     if (targets.length > 0) {
-      const unsubscribe = notificationService.subscribeToUserNotifications(targets, (notifs) => {
-        setUserNotifications(notifs);
-      });
+      const unsubscribe = notificationService.subscribeToUserNotifications(
+        targets,
+        (notifs) => {
+          setUserNotifications(notifs);
+        }
+      );
       return () => unsubscribe();
     }
   }, [currentUser.username, currentUser.email]);
 
-  const unreadCount = userNotifications.filter(n => !n.read).length;
+  const unreadCount = userNotifications.filter((n) => !n.read).length;
 
   const getInitials = (name) => {
     return name
@@ -71,15 +75,24 @@ export function Header({ opened, toggle, userInfo }) {
     modals.openConfirmModal({
       title: "Logout Confirmation",
       centered: true,
-      children: (
-        <Text size="sm">
-          Are you sure you want to logout?
-        </Text>
-      ),
+      children: <Text size="sm">Are you sure you want to logout?</Text>,
       labels: { confirm: "Logout", cancel: "Cancel" },
       confirmProps: { color: "red", leftSection: <IconLogout size={16} /> },
       onConfirm: async () => {
         try {
+          // IMPORTANT: Clear localStorage FIRST to prevent race condition
+          // with mainLayout's session token check
+          localStorage.removeItem("sessionToken");
+
+          // Then clear sessionToken from Firestore
+          const user = auth.currentUser;
+          if (user) {
+            const userRef = doc(db, "users", user.uid);
+            await updateDoc(userRef, {
+              sessionToken: null,
+            });
+          }
+
           await signOut(auth);
           notifications.show({
             title: "Logged Out",
@@ -179,15 +192,18 @@ export function Header({ opened, toggle, userInfo }) {
                     <Text size="sm" fw={700}>
                       Notifications
                     </Text>
-
                   </Group>
                 </Box>
                 <Menu.Divider />
                 <ScrollArea h={250} type="always" offsetScrollbars>
                   {userNotifications.length === 0 ? (
-                    <Box p="sm"><Text size="sm" c="dimmed">No notifications</Text></Box>
+                    <Box p="sm">
+                      <Text size="sm" c="dimmed">
+                        No notifications
+                      </Text>
+                    </Box>
                   ) : (
-                    userNotifications.map(notif => (
+                    userNotifications.map((notif) => (
                       <Menu.Item
                         key={notif.id}
                         py="sm"
@@ -207,16 +223,32 @@ export function Header({ opened, toggle, userInfo }) {
                               width: 8,
                               height: 8,
                               borderRadius: "50%",
-                              backgroundColor: notif.read ? "#adb5bd" : (notif.type === 'alert' ? '#fa5252' : '#228be6'),
+                              backgroundColor: notif.read
+                                ? "#adb5bd"
+                                : notif.type === "alert"
+                                ? "#fa5252"
+                                : "#228be6",
                             }}
                           />
                         }
                       >
                         <Box>
-                          <Text size="sm" fw={600}>{notif.title}</Text>
-                          <Text size="xs" c="dimmed" mt={2} style={{ whiteSpace: 'normal' }}>{notif.message}</Text>
+                          <Text size="sm" fw={600}>
+                            {notif.title}
+                          </Text>
+                          <Text
+                            size="xs"
+                            c="dimmed"
+                            mt={2}
+                            style={{ whiteSpace: "normal" }}
+                          >
+                            {notif.message}
+                          </Text>
                           <Text size="xs" c="dimmed" mt={2}>
-                            {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(notif.createdAt).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
                           </Text>
                         </Box>
                       </Menu.Item>
@@ -255,7 +287,9 @@ export function Header({ opened, toggle, userInfo }) {
                     transition: "background-color 0.2s ease",
                   }}
                   onMouseEnter={(e) =>
-                    (e.currentTarget.style.backgroundColor = isDark ? "#25262b" : "#f8f9fa")
+                    (e.currentTarget.style.backgroundColor = isDark
+                      ? "#25262b"
+                      : "#f8f9fa")
                   }
                   onMouseLeave={(e) =>
                     (e.currentTarget.style.backgroundColor = "transparent")
@@ -290,7 +324,10 @@ export function Header({ opened, toggle, userInfo }) {
               </Menu.Target>
 
               <Menu.Dropdown>
-                <Box p="md" style={{ backgroundColor: isDark ? "#25262b" : "#f8f9fa" }}>
+                <Box
+                  p="md"
+                  style={{ backgroundColor: isDark ? "#25262b" : "#f8f9fa" }}
+                >
                   <Group gap="sm">
                     <Avatar
                       src={currentUser.avatar}

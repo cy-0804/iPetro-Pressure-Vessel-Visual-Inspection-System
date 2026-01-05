@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import "./auth.css";
 import {
   TextInput,
@@ -20,6 +20,7 @@ import {
   getDocs,
   doc,
   getDoc,
+  updateDoc,
 } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import ChangePasswordModal from "../components/Auth/ChangePasswordModal";
@@ -27,8 +28,10 @@ import { useTheme } from "../components/context/ThemeContext";
 import { notifications } from "@mantine/notifications";
 
 export default function Login() {
-
   // dark mode hook
+  const passwordRef = useRef(null);
+  const loginButtonRef = useRef(null);
+
   const { colorScheme } = useTheme();
 
   const navigate = useNavigate();
@@ -66,6 +69,7 @@ export default function Login() {
     try {
       setLoading(true);
       let email = loginInput.trim();
+      let userDocId = null;
 
       // 🔍 Username → Email lookup (only when needed)
       if (!isEmail(email)) {
@@ -81,22 +85,130 @@ export default function Login() {
           return;
         }
 
-        email = snapshot.docs[0].data().email;
+        const userDoc = snapshot.docs[0];
+        email = userDoc.data().email;
+        userDocId = userDoc.id;
+
+        // 🚫 CHECK IF ACCOUNT IS DEACTIVATED
+        if (userDoc.data().isActive === false) {
+          setError(
+            "Your account has been deactivated. Please contact an administrator."
+          );
+          notifications.show({
+            title: "Account Deactivated",
+            message:
+              "Your account has been deactivated. Please contact an administrator.",
+            color: "red",
+            autoClose: 5000,
+          });
+          return;
+        }
+
+        // 🚫 CHECK FOR EXISTING ACTIVE SESSION (before login attempt)
+        const existingSession = userDoc.data().sessionToken;
+        const lastActivity = userDoc.data().lastActivity;
+        const SESSION_TIMEOUT = 1000 * 60 * 15; // 15 minutes
+
+        if (existingSession) {
+          // Check if the existing session is stale (expired)
+          const isSessionStale =
+            lastActivity && Date.now() - lastActivity > SESSION_TIMEOUT;
+
+          if (!isSessionStale) {
+            // Session is still active, block login
+            setError(
+              "This account is already logged in on another device. Please log out from the other device first."
+            );
+            notifications.show({
+              title: "Login Blocked",
+              message: "Account is already logged in on another device.",
+              color: "orange",
+              autoClose: 5000,
+            });
+            return;
+          }
+          // Session is stale, allow login (will be overwritten below)
+          console.log("Existing session is stale, allowing new login");
+        }
+      } else {
+        // For email login, we need to find the user doc first to check session
+        const q = query(collection(db, "users"), where("email", "==", email));
+        const snapshot = await getDocs(q);
+
+        if (!snapshot.empty) {
+          const userDoc = snapshot.docs[0];
+          userDocId = userDoc.id;
+
+          // 🚫 CHECK IF ACCOUNT IS DEACTIVATED
+          if (userDoc.data().isActive === false) {
+            setError(
+              "Your account has been deactivated. Please contact an administrator."
+            );
+            notifications.show({
+              title: "Account Deactivated",
+              message:
+                "Your account has been deactivated. Please contact an administrator.",
+              color: "red",
+              autoClose: 5000,
+            });
+            return;
+          }
+
+          // CHECK FOR EXISTING ACTIVE SESSION (before login attempt)
+          const existingSession = userDoc.data().sessionToken;
+          const lastActivity = userDoc.data().lastActivity;
+          const SESSION_TIMEOUT = 1000 * 60 * 15; // 15 minutes
+
+          if (existingSession) {
+            // Check if the existing session is stale (expired)
+            const isSessionStale =
+              lastActivity && Date.now() - lastActivity > SESSION_TIMEOUT;
+
+            if (!isSessionStale) {
+              // Session is still active, block login
+              setError(
+                "This account is already logged in on another device. Please log out from the other device first."
+              );
+              notifications.show({
+                title: "Login Blocked",
+                message: "Account is already logged in on another device.",
+                color: "orange",
+                autoClose: 5000,
+              });
+              return;
+            }
+            // Session is stale, allow login (will be overwritten below)
+            console.log("Existing session is stale, allowing new login");
+          }
+        }
       }
 
-      // 1. Sign In
+      // 1. Sign In (only if no active session exists)
       const userCred = await signInWithEmailAndPassword(auth, email, password);
       const user = userCred.user;
 
-      // 2. Check for First Login Flag
+      // --- SESSION TOKEN LOGIC START ---
+      const sessionToken = Date.now().toString();
       const userRef = doc(db, "users", user.uid);
+
+      // Save to local storage
+      localStorage.setItem("sessionToken", sessionToken);
+
+      // Save to Firestore (Concurrent Login Prevention + Session Expiration)
+      await updateDoc(userRef, {
+        sessionToken: sessionToken,
+        lastActivity: Date.now(), // For server-side session expiration
+      });
+      // --- SESSION TOKEN LOGIC END ---
+
+      // 2. Check for First Login Flag
       const userSnap = await getDoc(userRef);
 
       if (userSnap.exists() && userSnap.data().isFirstLogin === true) {
         // Show Modal, DO NOT Navigate
         setCurrentUser(user);
         setShowPasswordModal(true);
-        
+
         //  Show notification for first login
         notifications.show({
           title: "First Login Detected",
@@ -112,7 +224,7 @@ export default function Login() {
           color: "green",
           autoClose: 3000,
         });
-        
+
         // Normal Login
         navigate("/dashboard");
       }
@@ -197,7 +309,7 @@ export default function Login() {
   // Callback when password change is successful
   const handlePasswordChanged = () => {
     setShowPasswordModal(false);
-    // ✅ Show success notification after password change
+    // Show success notification after password change
     notifications.show({
       title: "Password Changed",
       message: "Your password has been updated successfully!",
@@ -220,36 +332,49 @@ export default function Login() {
 
         <Title className="auth-title">Welcome Back</Title>
 
-        <Text className="auth-subtitle">
-          Don't have an account?{" "}
-          <span className="auth-link" onClick={() => navigate("/register")}>
-            Register
-          </span>
-        </Text>
-
         <TextInput
           label="Email or Username"
           required
           value={loginInput}
           onChange={(e) => setLoginInput(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              passwordRef.current?.focus();
+            }
+          }}
         />
+
 
         <PasswordInput
           label="Password"
           required
           mt="md"
+          ref={passwordRef}
           value={password}
           onChange={(e) => setPassword(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              loginButtonRef.current?.click();
+            }
+          }}
         />
+
 
         <Text
           size="sm"
-          className="auth-link"
-          style={{ textAlign: "right", marginTop: 8 }}
+          style={{
+            textAlign: "right",
+            marginTop: 8,
+            color: "#1c7ed6",
+            cursor: "pointer",
+          }}
           onClick={() => navigate("/forgot-password")}
+          onMouseOver={(e) => (e.target.style.textDecoration = "underline")}
+          onMouseOut={(e) => (e.target.style.textDecoration = "none")}
         >
           Forgot password?
         </Text>
+
 
         {error && <Text className="auth-error">{error}</Text>}
         {message && (
@@ -259,15 +384,16 @@ export default function Login() {
         )}
 
         <Button
+          ref={loginButtonRef}
           fullWidth
           mt="xl"
-          color="red"
           loading={loading}
           disabled={loading}
           onClick={handleLogin}
         >
           Login
         </Button>
+
       </div>
 
       {/* Force Password Change Modal */}
