@@ -95,6 +95,10 @@ export default function CreateInspectionPlanForm({ onSaved, onCancel, initialDat
                 start: wStartObj.toISOString().split("T")[0],
                 end: wEndObj.toISOString().split("T")[0],
 
+                // Root level fields for Dashboard Query Compatibility
+                inspectors: selectedInspector ? [selectedInspector] : [],
+                inspector: selectedInspector || "Unassigned",
+
                 riskCategory,
                 inspectionType: 'Visual',
                 scope,
@@ -108,6 +112,7 @@ export default function CreateInspectionPlanForm({ onSaved, onCancel, initialDat
 
                 extendedProps: {
                     equipmentId: asset,
+                    // Keep these for backward compatibility if needed, but root level is now primary for queries
                     inspectors: selectedInspector ? [selectedInspector] : [],
                     inspector: selectedInspector || "Unassigned",
                     status: initialData?.extendedProps?.status || "PLANNED",
