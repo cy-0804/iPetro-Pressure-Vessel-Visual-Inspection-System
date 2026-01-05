@@ -190,19 +190,19 @@ const handleDelete = async (file) => {
     confirmProps: { color: 'red', leftSection: <IconTrash size={16} /> },
     onConfirm: async () => {
       try {
-        // Try to delete from Firebase Storage
+      
         try {
           const fileRef = ref(storage, file.storagePath);
           await deleteObject(fileRef);
         } catch (storageError) {
-          // If file doesn't exist in storage, log it but continue
+      
           console.warn("File not found in storage, removing metadata only:", storageError);
         }
 
-        // Always delete from Firestore (metadata)
+      
         await deleteDoc(doc(db, "documents", file.id));
 
-        // Update UI
+
         setUploadedFiles((prev) =>
           prev.filter((item) => item.id !== file.id)
         );

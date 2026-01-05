@@ -6,7 +6,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 
 
-// Helper: Upload Image
+
 export const uploadEquipmentImage = async (file) => {
     if (!file) return null;
     try {
@@ -22,7 +22,7 @@ export const uploadEquipmentImage = async (file) => {
 
 const COLLECTION_NAME = "equipments";
 
-// Mimicking 'uploadHighscore' pattern from reference
+
 export const addEquipment = async (data) => {
     try {
         const docRef = await addDoc(collection(db, COLLECTION_NAME), {
@@ -33,7 +33,7 @@ export const addEquipment = async (data) => {
         return docRef.id;
     } catch (e) {
         console.error("Error adding document: ", e);
-        throw e; // Re-throw so UI knows it failed
+        throw e; 
     }
 };
 

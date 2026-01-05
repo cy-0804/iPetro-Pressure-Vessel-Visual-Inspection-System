@@ -128,10 +128,7 @@ export const userService = {
     }
   },
 
-  /**
-   * Delete user from Firestore
-   * Note: This does NOT delete from Auth (requires Admin SDK)
-   */
+ 
   deleteUser: async (uid) => {
     try {
       await deleteDoc(doc(db, "users", uid));
@@ -141,9 +138,7 @@ export const userService = {
     }
   },
 
-  /**
-   * Trigger a password reset email for the user
-   */
+
   sendPasswordReset: async (email) => {
     try {
       await sendPasswordResetEmail(auth, email);
@@ -153,16 +148,9 @@ export const userService = {
     }
   },
 
-  /**
-   * Fetch all inspectors (or all users if role not strictly enforced)
-   * Added for Inspection Calendar functionality
-   */
   getInspectors: async () => {
     try {
-      // Option 1: Filter by role 'inspector'
-      // const q = query(collection(db, "users"), where("role", "==", "inspector"));
-
-      // Filter by roles: inspector and supervisor
+   
       const q = query(collection(db, "users"), where("role", "in", ["inspector", "supervisor"]));
 
       const snapshot = await getDocs(q);
@@ -176,15 +164,13 @@ export const userService = {
     }
   },
 
-  /**
-   * Fetch current authenticated user's profile
-   */
+ 
   getCurrentUserProfile: async () => {
     try {
       const user = auth.currentUser;
       if (!user) return null;
 
-      // Fetch from Firestore users collection
+   
       const docRef = doc(db, "users", user.uid);
       const docSnap = await import("firebase/firestore").then(mod => mod.getDoc(docRef));
 

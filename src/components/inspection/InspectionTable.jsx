@@ -3,7 +3,7 @@ import { Table, Badge, ActionIcon, Menu, Group, Text, Tooltip } from "@mantine/c
 import { IconSettings, IconCalendarTime, IconUserPlus, IconCheck, IconX, IconEdit, IconCopyCheck } from "@tabler/icons-react";
 
 export default function InspectionTable({ tasks, onAction, loading, isSupervisor = false, inspectors = [] }) {
-    // Helper to get Inspector Name
+
     const getInspectorName = (username) => {
         if (!username) return "Unassigned";
         const found = inspectors.find(i => i.username === username || i.email === username);
@@ -16,15 +16,15 @@ export default function InspectionTable({ tasks, onAction, loading, isSupervisor
         return username;
     };
 
-    // Helper for Status Colors
+   
     const getStatusColor = (status) => {
         switch (status) {
             case "PLANNED": return "blue";
             case "SCHEDULED": return "blue";
             case "IN_PROGRESS": return "orange";
             case "COMPLETED": return "green";
-            case "Submitted": return "cyan"; // Pending Review
-            case "APPROVED": return "teal"; // Legacy cap
+            case "Submitted": return "cyan"; 
+            case "APPROVED": return "teal"; 
             case "Approved": return "teal";
             case "Rejected": return "red";
             case "OVERDUE": return "red";
@@ -95,7 +95,6 @@ export default function InspectionTable({ tasks, onAction, loading, isSupervisor
                     <Menu.Dropdown>
                         <Menu.Label>Actions</Menu.Label>
 
-                        {/* SUPERVISOR ONLY: Assign/Edit (Only if PLANNED) */}
                         {isSupervisor && (task.status?.toUpperCase() === "PLANNED" || task.status?.toUpperCase() === "SCHEDULED") && (
                             <>
                                 <Menu.Item leftSection={<IconUserPlus size={14} />} onClick={() => onAction("assign", task)}>
@@ -107,7 +106,7 @@ export default function InspectionTable({ tasks, onAction, loading, isSupervisor
                             </>
                         )}
 
-                        {/* COMPLETED: Review */}
+                     
                         {task.status?.toUpperCase() === "COMPLETED" && (
                             <Menu.Item leftSection={<IconCopyCheck size={14} />} color="blue" onClick={() => onAction("review", task)}>
                                 Review Report
@@ -116,7 +115,7 @@ export default function InspectionTable({ tasks, onAction, loading, isSupervisor
 
                         <Menu.Divider />
 
-                        {/* ALWAYS AVAILABLE: View Details */}
+                       
                         <Menu.Item leftSection={<IconEdit size={14} />} onClick={() => onAction("view", task)}>
                             View Details
                         </Menu.Item>

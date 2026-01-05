@@ -131,14 +131,14 @@ export default function OtherSettings() {
     }
   };
 
-  // Updated theme toggle handler
+
   const handleThemeToggle = async (checked) => {
     const newTheme = checked ? "dark" : "light";
     
-    // Change theme immediately in the app
+  
     changeTheme(newTheme);
 
-    // Save to Firestore
+
     const user = auth.currentUser;
     if (!user) return;
 
@@ -210,7 +210,7 @@ export default function OtherSettings() {
     }
   };
 
-  // Wheel spinner loading
+
   if (loadingPrefs) {
     return (
       <Container size="lg" py="xl">
@@ -297,7 +297,7 @@ export default function OtherSettings() {
             </Paper>
           </Tabs.Panel>
 
-          {/* Preferences Tab - Theme Toggle */}
+          {/* Preferences Tab */}
           <Tabs.Panel value="preferences" pt="lg">
             <Paper shadow="sm" p="xl" radius="md" withBorder>
               <Stack gap="lg">

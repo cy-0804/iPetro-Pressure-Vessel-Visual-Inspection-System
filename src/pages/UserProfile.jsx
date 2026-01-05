@@ -96,14 +96,14 @@ export default function UserProfile() {
 
       await updateProfile(user, { photoURL: downloadURL });
 
-      // Update Firestore as well so it shows in UserManagement
+      
       await updateDoc(doc(db, "users", user.uid), {
         photoURL: downloadURL,
       });
 
       setAvatarUrl(downloadURL);
 
-      // Dispatch custom event to update header
+    
       window.dispatchEvent(new Event("profileUpdated"));
 
       notifications.show({
@@ -123,7 +123,7 @@ export default function UserProfile() {
     }
   };
 
-  // Handle profile update
+  
   const handleUpdateProfile = async () => {
     // Validation
     if (!firstName.trim() || !lastName.trim()) {
@@ -139,20 +139,20 @@ export default function UserProfile() {
       setLoading(true);
       const user = auth.currentUser;
 
-      // Update Firestore
+     
       await updateDoc(doc(db, "users", user.uid), {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         phoneNumber: phoneNumber.trim(),
       });
 
-      // Update Firebase Auth display name with full name
+      
       const fullName = `${firstName.trim()} ${lastName.trim()}`;
       await updateProfile(user, {
         displayName: fullName,
       });
 
-      // Dispatch custom event to update header
+    
       window.dispatchEvent(new Event("profileUpdated"));
 
       notifications.show({

@@ -48,11 +48,7 @@ export default function ChangePasswordModal({ opened, user, onSuccess }) {
         onSuccess();
       }
 
-      // Modal will close automatically as MainLayout re-evaluates 'isFirstLogin' logic (it will become false)
-      // Or we rely on the parent to close it.
-      // Since parent checks isFirstLogin, updating it to false in DB works,
-      // BUT we need the local state in MainLayout to update.
-      // We will trigger a reload or expect real-time listener.
+    
     } catch (err) {
       console.error(err);
       setError("Failed to update password. You may need to re-login.");

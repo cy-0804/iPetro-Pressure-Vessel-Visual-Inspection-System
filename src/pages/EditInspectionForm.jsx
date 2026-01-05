@@ -84,12 +84,12 @@ const EditInspectionForm = () => {
 
   // --- Initial Data Loading ---
   useEffect(() => {
-    // Check if we have incoming report data (Edit Mode)
+   
     if (location.state && location.state.reportData) {
       const report = location.state.reportData;
       setEditingReportId(report.id);
 
-      // Populate Form Data
+     
       setFormData({
         equipmentId: report.equipmentId || "",
         equipmentDescription: report.equipmentDescription || "",
@@ -107,13 +107,13 @@ const EditInspectionForm = () => {
         inspectionType: report.inspectionType || "VI",
       });
 
-      // Populate Photo Rows
+      
       if (report.photoReport && report.photoReport.length > 0) {
         const rows = report.photoReport.map((item, index) => ({
           id: Date.now() + index,
           files: [],
           previews: item.photoUrls || [],
-          existingUrls: item.photoUrls || [], // Track existing URLs separately
+          existingUrls: item.photoUrls || [], 
           finding: item.finding || "",
           recommendation: item.recommendation || "",
         }));
@@ -126,7 +126,7 @@ const EditInspectionForm = () => {
         color: "blue",
       });
     } else {
-      // If accessed directly without state, redirect back
+
       notifications.show({
         title: "Error",
         message: "No report selected for editing.",
@@ -148,7 +148,7 @@ const EditInspectionForm = () => {
     fetchEquipment();
   }, [location.state, navigate]);
 
-  // --- Handlers: Step 1 (General Form) ---
+ 
   const handleChange = (name, value) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
@@ -282,7 +282,7 @@ const EditInspectionForm = () => {
       if (editingReportId) {
         docRef = doc(db, "inspections", editingReportId);
       } else {
-        // Fallback or error, but this component is Edit Only
+
         docRef = doc(collection(db, "inspections"));
       }
       const docId = docRef.id;
@@ -293,7 +293,7 @@ const EditInspectionForm = () => {
         // Start with existing URLs if any
         const photoUrls = [...(row.existingUrls || [])];
 
-        // Upload all NEW files in this row
+
         if (row.files && row.files.length > 0) {
           for (const file of row.files) {
             const storageRef = ref(
@@ -306,7 +306,7 @@ const EditInspectionForm = () => {
           }
         }
 
-        // Only add to report if there's content or photos
+    
         if (photoUrls.length > 0 || row.finding || row.recommendation) {
           uploadedPhotos.push({
             finding: row.finding,
@@ -317,8 +317,7 @@ const EditInspectionForm = () => {
         }
       }
 
-      // Generate Report No (Update if needed, but usually stays same on edit unless fields change)
-      // Format: [Plant]/[Type]/[Tag]/TA[Year]
+
       const plant = formData.plantUnitArea
         ? formData.plantUnitArea.trim().toUpperCase().replace(/\s+/g, "")
         : "PLANT";
