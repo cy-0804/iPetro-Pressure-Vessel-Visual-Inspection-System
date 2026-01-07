@@ -4,6 +4,8 @@ import { inspectionService } from '../../services/inspectionService';
 import { getEquipments } from '../../services/equipmentService';
 import { userService } from '../../services/userService';
 
+import { notifications } from '@mantine/notifications';
+
 export default function CreateInspectionPlanForm({ onSaved, onCancel, initialDate, initialData }) {
     const [loading, setLoading] = useState(false);
     const [equipmentList, setEquipmentList] = useState([]);
@@ -68,7 +70,11 @@ export default function CreateInspectionPlanForm({ onSaved, onCancel, initialDat
 
     const handleSubmit = async () => {
         if (!asset || !windowStart || !windowEnd || !title || !location || !selectedInspector) {
-            alert("Please fill in required fields: Asset, Title, Location, Start Date, End Date, Inspector");
+            notifications.show({
+                title: 'Validation Error',
+                message: 'Please fill in required fields: Asset, Title, Location, Start Date, End Date, Inspector',
+                color: 'red'
+            });
             return;
         }
 
@@ -78,13 +84,21 @@ export default function CreateInspectionPlanForm({ onSaved, onCancel, initialDat
             const wEndObj = new Date(windowEnd);
 
             if (isNaN(wStartObj.getTime()) || isNaN(wEndObj.getTime())) {
-                alert("Invalid Dates");
+                notifications.show({
+                    title: 'Validation Error',
+                    message: 'Invalid Dates',
+                    color: 'red'
+                });
                 setLoading(false);
                 return;
             }
 
             if (wEndObj < wStartObj) {
-                alert("End Date must be after Start Date");
+                notifications.show({
+                    title: 'Validation Error',
+                    message: 'End Date must be after Start Date',
+                    color: 'red'
+                });
                 setLoading(false);
                 return;
             }
@@ -124,14 +138,34 @@ export default function CreateInspectionPlanForm({ onSaved, onCancel, initialDat
 
             if (initialData && initialData.id) {
                 await inspectionService.updateInspectionPlan(initialData.id, planData);
-                if (onSaved) onSaved({ ...planData, id: initialData.id });
+                notifications.show({
+                    title: 'Success',
+                    message: 'Inspection plan updated successfully',
+                    color: 'green'
+                });
+                // Delay closing/refreshing to let user see the success message
+                setTimeout(() => {
+                    if (onSaved) onSaved({ ...planData, id: initialData.id });
+                }, 1000);
             } else {
                 const newId = await inspectionService.addInspectionPlan(planData);
-                if (onSaved) onSaved({ ...planData, id: newId });
+                notifications.show({
+                    title: 'Success',
+                    message: 'Inspection plan created successfully',
+                    color: 'green'
+                });
+                // Delay closing/refreshing to let user see the success message
+                setTimeout(() => {
+                    if (onSaved) onSaved({ ...planData, id: newId });
+                }, 1000);
             }
         } catch (e) {
             console.error("Error saving plan:", e);
-            alert(`Failed to save plan: ${e.message}`);
+            notifications.show({
+                title: 'Error',
+                message: `Failed to save plan: ${e.message}`,
+                color: 'red'
+            });
         } finally {
             setLoading(false);
         }
@@ -216,7 +250,9 @@ export default function CreateInspectionPlanForm({ onSaved, onCancel, initialDat
 
             <Group justify="flex-end" mt="md">
                 <Button variant="default" onClick={onCancel}>Cancel</Button>
-                <Button onClick={handleSubmit} loading={loading}>Create Plan</Button>
+                <Button onClick={handleSubmit} loading={loading}>
+                    {initialData && initialData.id ? 'Edit' : 'Create Plan'}
+                </Button>
             </Group>
         </Stack>
     );
