@@ -56,7 +56,7 @@ const menuSections = [
         label: "Equipment Details",
         icon: IconSettingsPlus,
       },
-      { link: "/document-upload", label: "Upload Inspection", icon: IconUpload },
+      { link: "/document-upload", label: "Documents Upload", icon: IconUpload },
       {
         link: "/report-submission",
         label: "Report Submission",
