@@ -161,9 +161,14 @@ const InspectionForm = () => {
         color: "blue",
       });
     } else {
-      const today = new Date().toISOString().split("T")[0];
+    // Use local date (avoid UTC shifting from toISOString())
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const today = `${yyyy}-${mm}-${dd}`;
 
-      const unsubscribe = auth.onAuthStateChanged(async (user) => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
         if (user) {
           let inspector = user.displayName || user.email || "Unknown Inspector";
 
@@ -573,8 +578,11 @@ const InspectionForm = () => {
         photoReport: uploadedPhotos,
         status: status,
         updatedAt: serverTimestamp(),
+        submittedAt: status === 'Submitted' ? serverTimestamp() : null,
+        createdAt: editingReportId ? undefined : serverTimestamp(),
         stepsCompleted: 2,
         planId: currentPlanId, // PERSIST PLAN ID
+        inspectorId: auth.currentUser?.uid || null, // Add unique user ID for robust filtering
       };
 
       const distinctId = editingReportId || newDocId || targetDocId;
@@ -604,9 +612,8 @@ const InspectionForm = () => {
             auth.currentUser?.displayName ||
             "an Inspector";
           const title = "Report Submitted";
-          const message = `Report ${
-            finalData.reportNo || "Unknown"
-          } has been submitted by ${inspectorName} for approval.`;
+          const message = `Report ${finalData.reportNo || "Unknown"
+            } has been submitted by ${inspectorName} for approval.`;
           const link = "/supervisor-review"; // Link to supervisor review page
 
           await notificationService.notifyRole(
@@ -1086,9 +1093,8 @@ const InspectionForm = () => {
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          border: `1px dashed ${
-                            isDark ? "#373a40" : "#ced4da"
-                          }`,
+                          border: `1px dashed ${isDark ? "#373a40" : "#ced4da"
+                            }`,
                           borderRadius: 8,
                           cursor: "pointer",
                           overflow: "hidden",
@@ -1107,10 +1113,10 @@ const InspectionForm = () => {
                               row.photos.length === 1
                                 ? 1
                                 : row.photos.length === 2
-                                ? 2
-                                : row.photos.length <= 4
-                                ? 2
-                                : 3
+                                  ? 2
+                                  : row.photos.length <= 4
+                                    ? 2
+                                    : 3
                             }
                             spacing="xs"
                             verticalSpacing="xs"
@@ -1129,8 +1135,8 @@ const InspectionForm = () => {
                                   row.photos.length <= 2
                                     ? 140
                                     : row.photos.length <= 4
-                                    ? 100
-                                    : 80
+                                      ? 100
+                                      : 80
                                 }
                               />
                             ))}
@@ -1416,9 +1422,9 @@ function EquipmentSearchModal({
               borderColor: isDark ? "#373a40" : undefined,
             }}
             onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = isDark
-                ? "#25262b"
-                : "#f1f3f5")
+            (e.currentTarget.style.backgroundColor = isDark
+              ? "#25262b"
+              : "#f1f3f5")
             }
             onMouseLeave={(e) =>
               (e.currentTarget.style.backgroundColor = "transparent")

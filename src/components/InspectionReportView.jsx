@@ -715,7 +715,7 @@ export const InspectionReportView = ({
       <style>{`
             .a4-page {
                 width: 210mm;
-                min-height: 297mm;
+                height: 296mm; /* Slightly less than 297mm to prevent overflow */
                 background-color: white;
                 margin: 0 auto 20px auto;
                 padding: 10mm;
@@ -730,9 +730,10 @@ export const InspectionReportView = ({
             }
 
             @media print {
-                @page { margin: 0; size: auto; }
+                @page { margin: 0; size: A4; }
                 body { background-color: white; -webkit-print-color-adjust: exact; }
                 
+                /* Hide everything by default relying on component scoping */
                 body * { visibility: hidden; }
                 .print-container, .print-container * { visibility: visible; }
                 
@@ -741,20 +742,21 @@ export const InspectionReportView = ({
                     top: 0;
                     left: 0;
                     width: 100%;
+                    height: 100%;
                 }
 
                 .a4-page {
                     width: 210mm;
-                    height: 297mm; /* Force height for print */
-                    min-height: 297mm;
+                    height: 296mm; /* Strict height for single page alignment */
                     margin: 0;
-                    padding: 10mm; /* Printer margins might handle this, but explicit padding is safer for content */
+                    padding: 10mm;
                     box-shadow: none;
-                    page-break-after: always; /* Force break after each page */
+                    page-break-after: always;
                     break-after: page;
+                    display: flex; /* Restore flex for footer positioning */
+                    flex-direction: column;
                 }
 
-                /* Remove break after last page if needed, but safe to keep */
                 .a4-page:last-child {
                     page-break-after: auto;
                 }
