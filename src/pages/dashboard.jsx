@@ -330,6 +330,14 @@ export default function Dashboard() {
   const [clearModalOpen, setClearModalOpen] = useState(false);
   const [clearCandidateIds, setClearCandidateIds] = useState([]);
 
+  // Clear History modal
+  const [clearHistoryModalOpen, setClearHistoryModalOpen] = useState(false);
+
+  // Confirmation modals for clear actions
+  const [clearCompletedConfirmOpen, setClearCompletedConfirmOpen] = useState(false);
+  const [clearAllConfirmOpen, setClearAllConfirmOpen] = useState(false);
+  const [completedReportsCount, setCompletedReportsCount] = useState(0);
+
   // Full Details Modal
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [inspectorsList, setInspectorsList] = useState([]);
@@ -420,6 +428,25 @@ export default function Dashboard() {
           if (d.exists()) r = { id: d.id, ...d.data() };
         }
       }
+
+      // Track viewed report in localStorage for Recent Inspections
+      if (r.id) {
+        try {
+          const viewedReports = JSON.parse(localStorage.getItem('viewedReports') || '[]');
+          // Add to beginning, remove duplicates, keep last 5
+          const updated = [r.id, ...viewedReports.filter(id => id !== r.id)].slice(0, 5);
+          localStorage.setItem('viewedReports', JSON.stringify(updated));
+          setViewedReportIds(updated); // Update state immediately to trigger re-render/fetch
+
+          // Also remove from dismissedReports if present, so it reappears
+          if (dismissedReports.includes(r.id)) {
+            setDismissedReports(prev => prev.filter(id => id !== r.id));
+          }
+        } catch (e) {
+          console.error('Failed to track viewed report', e);
+        }
+      }
+
       setReviewReport(r);
       setReviewModalOpen(true);
     } catch (e) {
@@ -515,74 +542,75 @@ export default function Dashboard() {
         return;
       }
 
-      // Create temporary full-screen print container
-      const tempId = 'temp-print-container';
-      let temp = document.getElementById(tempId);
-      if (temp) temp.remove();
-
-      temp = document.createElement('div');
-      temp.id = tempId;
-      temp.style.position = 'fixed';
-      temp.style.top = '0';
-      temp.style.left = '0';
-      temp.style.right = '0';
-      temp.style.bottom = '0';
-      temp.style.background = 'white';
-      temp.style.zIndex = '2147483647';
-      temp.style.overflow = 'auto';
-      temp.style.display = 'flex';
-      temp.style.justifyContent = 'center';
-      temp.style.alignItems = 'flex-start';
-      temp.style.padding = '0';
-
       // Clone the section (deep) so we don't disturb React-managed nodes
       const clone = section.cloneNode(true);
-      // Remove transforms and ensure A4 width
+      // Remove transforms to ensure full-size rendering
       clone.style.transform = 'none';
-      clone.style.width = '210mm';
-      clone.style.maxWidth = '210mm';
-      clone.style.margin = '0 auto';
+      clone.style.transformOrigin = 'top center';
 
-      temp.appendChild(clone);
+      // Create a wrapper for the cloned content
+      const printWrapper = document.createElement('div');
+      printWrapper.className = 'print-wrapper-temp';
+      printWrapper.appendChild(clone);
 
-      // Hide everything else by adding a class to body and CSS rule
-      document.body.classList.add('dashboard-temp-printing');
-
-      // Inject temporary CSS to hide other elements except our temp container
+      // Inject temporary CSS for print
       const styleId = 'dashboard-temp-print-style';
       let styleTag = document.getElementById(styleId);
       if (!styleTag) {
         styleTag = document.createElement('style');
         styleTag.id = styleId;
-        styleTag.innerHTML = `
-          .dashboard-temp-printing > *:not(#${tempId}) { display: none !important; }
-          #${tempId} { display: block !important; }
-          @media print { body { margin: 0 !important; } }
-        `;
         document.head.appendChild(styleTag);
       }
 
-      document.body.appendChild(temp);
+      styleTag.innerHTML = `
+        @media print {
+          body > *:not(.print-wrapper-temp) { 
+            display: none !important; 
+          }
+          .print-wrapper-temp {
+            display: block !important;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+          }
+          .print-wrapper-temp * {
+            transform: none !important;
+          }
+        }
+      `;
+
+      // Append to body
+      document.body.appendChild(printWrapper);
 
       const cleanup = () => {
-        try { if (temp && temp.parentNode) temp.parentNode.removeChild(temp); } catch (e) { }
-        try { document.body.classList.remove('dashboard-temp-printing'); } catch (e) { }
-        try { const s = document.getElementById(styleId); if (s) s.parentNode.removeChild(s); } catch (e) { }
-        try { window.removeEventListener('afterprint', cleanup); } catch (e) { }
+        try {
+          if (printWrapper && printWrapper.parentNode) {
+            printWrapper.parentNode.removeChild(printWrapper);
+          }
+        } catch (e) { }
+        try {
+          const s = document.getElementById(styleId);
+          if (s) s.parentNode.removeChild(s);
+        } catch (e) { }
+        try {
+          window.removeEventListener('afterprint', cleanup);
+        } catch (e) { }
       };
 
       window.addEventListener('afterprint', cleanup);
-      // Give browser a short moment to render the DOM changes, then print
+
+      // Give browser time to render, then print
       setTimeout(() => {
         try {
           window.print();
-          // fallback cleanup if afterprint doesn't fire
+          // Fallback cleanup
           setTimeout(cleanup, 3000);
         } catch (e) {
           console.error('print failed', e);
           cleanup();
         }
-      }, 120);
+      }, 200);
     } catch (e) {
       console.error('print failed', e);
       window.print();
@@ -656,7 +684,7 @@ export default function Dashboard() {
     // Realtime subscription for month plans
     const unsubscribe = onSnapshot(
       qMonth,
-      (snap) => {
+      async (snap) => {
         try {
           let plans = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
@@ -669,7 +697,30 @@ export default function Dashboard() {
               return false;
             });
           }
-          setMonthPlans(plans);
+
+          // Filter out plans with approved/rejected/completed reports
+          // So they disappear from calendar once done
+          const filteredPlans = [];
+          await Promise.all(plans.map(async (p) => {
+            try {
+              const snaps = await getDocs(query(collection(db, 'inspections'), where('planId', '==', p.id)));
+              const reports = snaps.docs.map(d => ({ id: d.id, ...d.data() }));
+              // Check if any report is approved/rejected/completed
+              const hasCompletedReport = reports.some(r => {
+                const s = normStatus(r.status);
+                return s === 'APPROVED' || s === 'REJECTED' || s === 'COMPLETED';
+              });
+              // Only include plan if it doesn't have a completed report
+              if (!hasCompletedReport) {
+                filteredPlans.push(p);
+              }
+            } catch (e) {
+              // On error, keep the plan visible
+              filteredPlans.push(p);
+            }
+          }));
+
+          setMonthPlans(filteredPlans);
         } catch (err) {
           console.error("Dashboard: month plans snapshot processing failed", err);
           setMonthPlans([]);
@@ -942,6 +993,58 @@ export default function Dashboard() {
     } catch { return []; }
   });
 
+  // Track viewed reports for Recent Inspections
+  const [viewedReportIds, setViewedReportIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem("viewedReports");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  // Cache for viewed reports that might be outside the current month view
+  const [cachedViewedReports, setCachedViewedReports] = useState([]);
+
+  // Fetch missing viewed reports (those not in monthplans/monthReports)
+  useEffect(() => {
+    const fetchMissingReports = async () => {
+      // Get latest IDs
+      let ids = [];
+      try { ids = JSON.parse(localStorage.getItem('viewedReports') || '[]'); } catch (e) { }
+
+      if (ids.length === 0) return;
+
+      // Identify which IDs we don't have data for in monthReports or already cached
+      const missingIds = ids.filter(id => {
+        const inMonth = monthReports.some(r => r.id === id);
+        const inCache = cachedViewedReports.some(r => r.id === id);
+        return !inMonth && !inCache;
+      });
+
+      if (missingIds.length === 0) return;
+
+      // Fetch missing
+      try {
+        const newReports = [];
+        await Promise.all(missingIds.map(async (id) => {
+          try {
+            const snap = await getDoc(doc(db, 'inspections', id));
+            if (snap.exists()) {
+              newReports.push({ id: snap.id, ...snap.data() });
+            }
+          } catch (e) { console.error(`Failed to fetch report ${id}`, e); }
+        }));
+
+        if (newReports.length > 0) {
+          setCachedViewedReports(prev => [...prev, ...newReports]);
+        }
+      } catch (e) {
+        console.error("Failed to fetch missing viewed reports", e);
+      }
+    };
+
+    fetchMissingReports();
+  }, [monthReports, viewedReportIds]); // Re-run when month data changes or IDs change
+
   useEffect(() => {
     localStorage.setItem("dismissedReports", JSON.stringify(dismissedReports));
   }, [dismissedReports]);
@@ -962,18 +1065,48 @@ export default function Dashboard() {
     setDismissedReports(prev => [...prev, report.id]);
   };
 
-  /* -------- Recent list -------- */
+  /* -------- Recent list: Merge submitted reports + viewed reports -------- */
   const recentInspections = useMemo(() => {
-    return [...monthReports]
-      .filter(r => !dismissedReports.includes(r.id))
+    // Use the state 'viewedReportIds' which updates immediately on interaction
+    const viewedIds = viewedReportIds;
+
+    // Combine monthReports AND cachedViewedReports
+    const combined = [...monthReports, ...cachedViewedReports];
+
+    // Remove duplicates by ID, filter dismissed, sort by most recent
+    const uniqueMap = new Map();
+    combined.forEach(r => {
+      if (!dismissedReports.includes(r.id)) {
+        uniqueMap.set(r.id, r);
+      }
+    });
+
+    // Convert to array and sort by:
+    // 1. Priority to viewed reports (most recently viewed first)
+    // 2. Then by submission/inspection date
+    const uniqueReports = Array.from(uniqueMap.values());
+
+    return uniqueReports
       .sort((a, b) => {
-        // Sort by inspectionDate descending (most recent first)
-        const dateA = a.inspectionDate || "";
-        const dateB = b.inspectionDate || "";
-        return dateB.localeCompare(dateA);
+        const aViewedIndex = viewedIds.indexOf(a.id);
+        const bViewedIndex = viewedIds.indexOf(b.id);
+
+        // Both viewed: sort by view order (lower index = more recent)
+        if (aViewedIndex !== -1 && bViewedIndex !== -1) {
+          return aViewedIndex - bViewedIndex;
+        }
+        // Only a viewed: a comes first
+        if (aViewedIndex !== -1) return -1;
+        // Only b viewed: b comes first
+        if (bViewedIndex !== -1) return 1;
+
+        // Neither viewed: sort by inspection date
+        const dateA = a.inspectionDate || a.submittedAt || "";
+        const dateB = b.inspectionDate || b.submittedAt || "";
+        return String(dateB).localeCompare(String(dateA));
       })
-      .slice(0, 6);
-  }, [monthReports, dismissedReports]);
+      .slice(0, 5); // Limit to last 5
+  }, [monthReports, dismissedReports, cachedViewedReports, viewedReportIds]);
 
   // Fetch plan titles for any reports that reference a planId and are missing title in cache
   useEffect(() => {
@@ -1008,24 +1141,83 @@ export default function Dashboard() {
   }, [recentInspections, planTitles]);
 
   const handleClearAll = () => {
+    // Close the clear history modal first
+    setClearHistoryModalOpen(false);
+
+    // Check if there are reports to clear
     const visibleReports = recentInspections;
-    if (visibleReports.length === 0) return;
-
-    const hasUnsafe = visibleReports.some(r => {
-      const status = normStatus(r.status);
-      return !["APPROVED", "COMPLETED", "VIDEO_UPLOADED", "REJECTED"].includes(status);
-    });
-
-    const newIds = visibleReports.map(r => r.id);
-    if (hasUnsafe) {
-      // open interactive modal to confirm
-      setClearCandidateIds(newIds);
-      setClearModalOpen(true);
+    if (visibleReports.length === 0) {
+      notifications.show({ title: 'No reports', message: 'There are no reports to clear', color: 'blue' });
       return;
     }
 
-    // Dismiss all currently visible
-    setDismissedReports(prev => [...prev, ...newIds]);
+    // Show custom confirmation modal instead of window.confirm
+    setClearAllConfirmOpen(true);
+  };
+
+  const confirmClearAll = () => {
+    // Perform the actual clear all action
+    // We must dismiss ALL reports currently in monthReports to ensure nothing else "slides in"
+    // from pagination/slicing
+    const allIds = monthReports.map(r => r.id);
+
+    setDismissedReports(prev => {
+      const all = new Set([...prev, ...allIds]);
+      return Array.from(all);
+    });
+
+    // Clear view history
+    localStorage.setItem('viewedReports', JSON.stringify([]));
+    setViewedReportIds([]); // Update state immediately
+
+    // Close confirmation modal
+    setClearAllConfirmOpen(false);
+
+    notifications.show({ title: 'Cleared', message: 'All recent inspections cleared', color: 'green' });
+  };
+
+  const handleClearCompletedOnly = () => {
+    // Close the clear history modal first
+    setClearHistoryModalOpen(false);
+
+    // Filter completed reports from ALL loaded reports (monthReports)
+    // to ensure we catch everything, not just the visible 5
+    const completedReports = monthReports.filter(r => {
+      // Must not already be dismissed
+      if (dismissedReports.includes(r.id)) return false;
+      const status = normStatus(r.status);
+      return ["APPROVED", "REJECTED", "COMPLETED", "VIDEO_UPLOADED"].includes(status);
+    });
+
+    if (completedReports.length === 0) {
+      notifications.show({ title: 'No completed reports', message: 'There are no completed reports to clear', color: 'blue' });
+      return;
+    }
+
+    // Store count and show custom confirmation modal
+    setCompletedReportsCount(completedReports.length);
+    setClearCompletedConfirmOpen(true);
+  };
+
+  const confirmClearCompletedOnly = () => {
+    // Perform the actual clear completed action on ALL loaded reports
+    const completedReports = monthReports.filter(r => {
+      // Must not already be dismissed
+      if (dismissedReports.includes(r.id)) return false;
+      const status = normStatus(r.status);
+      return ["APPROVED", "REJECTED", "COMPLETED", "VIDEO_UPLOADED"].includes(status);
+    });
+
+    const completedIds = completedReports.map(r => r.id);
+    setDismissedReports(prev => {
+      const all = new Set([...prev, ...completedIds]);
+      return Array.from(all);
+    });
+
+    // Close confirmation modal
+    setClearCompletedConfirmOpen(false);
+
+    notifications.show({ title: 'Cleared', message: `${completedReports.length} completed report(s) cleared`, color: 'green' });
   };
 
   /* -------- Calendar dots -------- */
@@ -1405,9 +1597,9 @@ export default function Dashboard() {
                       color="red"
                       size="xs"
                       leftSection={<IconTrash size={14} />}
-                      onClick={handleClearAll}
+                      onClick={() => setClearHistoryModalOpen(true)}
                     >
-                      Clear All
+                      Clear History
                     </Button>
                   )}
                   <SegmentedControl
@@ -1827,26 +2019,33 @@ export default function Dashboard() {
                   <Text size="xs" c="dimmed">{Math.round(previewScale * 100)}%</Text>
                   <Button size="xs" variant="subtle" onClick={() => setPreviewScale(s => Math.min(1.0, Math.round((s + 0.05) * 100) / 100))}>+</Button>
                 </Group>
-                {normStatus(reviewReport.status) === 'SUBMITTED' && (
-                  <>
-                    <Button
-                      color="red"
-                      variant="light"
-                      loading={processingReview}
-                      onClick={() => {
-                        if (!showRejectInput) {
-                          setShowRejectInput(true);
-                          return;
-                        }
-                        // confirm reject with provided reason
-                        handleRejectReview(rejectReason);
-                      }}
-                    >
-                      {showRejectInput ? 'Confirm Reject' : 'Reject & Return'}
-                    </Button>
-                    <Button color="green" onClick={handleApproveReview} loading={processingReview}>Approve Report</Button>
-                  </>
-                )}
+                {(() => {
+                  // Only admin and supervisor can approve/reject reports
+                  // Inspectors should never see these buttons
+                  const isInspectorRole = role === 'inspector';
+                  const canReview = normStatus(reviewReport.status) === 'SUBMITTED' && !isInspectorRole;
+
+                  return canReview ? (
+                    <>
+                      <Button
+                        color="red"
+                        variant="light"
+                        loading={processingReview}
+                        onClick={() => {
+                          if (!showRejectInput) {
+                            setShowRejectInput(true);
+                            return;
+                          }
+                          // confirm reject with provided reason
+                          handleRejectReview(rejectReason);
+                        }}
+                      >
+                        {showRejectInput ? 'Confirm Reject' : 'Reject & Return'}
+                      </Button>
+                      <Button color="green" onClick={handleApproveReview} loading={processingReview}>Approve Report</Button>
+                    </>
+                  ) : null;
+                })()}
               </Group>
             </Group>
 
@@ -1920,6 +2119,118 @@ export default function Dashboard() {
                 notifications.show({ title: 'Cleared', message: 'Recent inspections cleared from view', color: 'blue' });
               }}>Clear All</Button>
             </Group>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Clear History Modal */}
+      <Modal
+        opened={clearHistoryModalOpen}
+        onClose={() => setClearHistoryModalOpen(false)}
+        title="Clear Recent Inspections"
+        centered
+        size="sm"
+      >
+        <Stack>
+          <Text size="sm">Choose how you want to clear your recent inspections:</Text>
+
+          <Button
+            variant="light"
+            color="blue"
+            fullWidth
+            onClick={handleClearCompletedOnly}
+          >
+            Clear Completed Only
+          </Button>
+
+          <Text size="xs" c="dimmed" ta="center">
+            Removes only approved, rejected, and completed reports
+          </Text>
+
+          <Divider my="sm" />
+
+          <Button
+            variant="light"
+            color="red"
+            fullWidth
+            leftSection={<IconTrash size={16} />}
+            onClick={handleClearAll}
+          >
+            Clear All
+          </Button>
+
+          <Text size="xs" c="dimmed" ta="center">
+            Removes all reports and clears view history
+          </Text>
+
+          <Button
+            variant="subtle"
+            color="gray"
+            fullWidth
+            onClick={() => setClearHistoryModalOpen(false)}
+            mt="md"
+          >
+            Cancel
+          </Button>
+        </Stack>
+      </Modal>
+
+      {/* Clear Completed Only Confirmation Modal */}
+      <Modal
+        opened={clearCompletedConfirmOpen}
+        onClose={() => setClearCompletedConfirmOpen(false)}
+        title={`Clear ${completedReportsCount} Completed Report(s)`}
+        centered
+        size="sm"
+      >
+        <Stack>
+          <Text size="sm">
+            Clear {completedReportsCount} completed report(s) from Recent Inspections? This will not delete any reports from the database.
+          </Text>
+
+          <Group position="right" mt="md">
+            <Button
+              variant="default"
+              onClick={() => setClearCompletedConfirmOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              color="blue"
+              onClick={confirmClearCompletedOnly}
+            >
+              OK
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Clear All Confirmation Modal */}
+      <Modal
+        opened={clearAllConfirmOpen}
+        onClose={() => setClearAllConfirmOpen(false)}
+        title="Clear All Recent Inspections"
+        centered
+        size="sm"
+      >
+        <Stack>
+          <Text size="sm">
+            Clear all items from Recent Inspections? This will not delete any reports from the database.
+          </Text>
+
+          <Group position="right" mt="md">
+            <Button
+              variant="default"
+              onClick={() => setClearAllConfirmOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              onClick={confirmClearAll}
+            >
+              OK
+            </Button>
           </Group>
         </Stack>
       </Modal>
