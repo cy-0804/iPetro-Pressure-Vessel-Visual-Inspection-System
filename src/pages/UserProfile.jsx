@@ -2,8 +2,6 @@ import { useState, useEffect } from "react";
 import {
   Container,
   Paper,
-  Title,
-  Text,
   TextInput,
   Button,
   Avatar,
@@ -11,27 +9,12 @@ import {
   Stack,
   Box,
   FileButton,
-  PasswordInput,
-  Divider,
   Grid,
-  Badge,
 } from "@mantine/core";
-import {
-  IconCamera,
-  IconUser,
-  IconMail,
-  IconLock,
-  IconCalendar,
-  IconPhone,
-} from "@tabler/icons-react";
+import { IconCamera, IconMail, IconPhone } from "@tabler/icons-react";
 import { auth, db, storage } from "../firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import {
-  updateProfile,
-  updatePassword,
-  EmailAuthProvider,
-  reauthenticateWithCredential,
-} from "firebase/auth";
+import { updateProfile } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { notifications } from "@mantine/notifications";
 
@@ -46,16 +29,24 @@ export default function UserProfile() {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
-  const [createdAt, setCreatedAt] = useState("");
 
-  // Password change
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  // New fields
+  const [department, setDepartment] = useState("");
+  const [inspectorId, setInspectorId] = useState("");
+
+  // Backup for cancel
+  const [backupData, setBackupData] = useState({});
+
+  const DEPARTMENT_LABELS = {
+  IT: "IT",
+  HR: "Human Resources",
+  FIN: "Finance",
+  OPS: "Operations",
+};
 
   /* ======================================================
      FETCH USER DATA
-     ====================================================== */
+  ====================================================== */
   useEffect(() => {
     const fetchUser = async () => {
       const user = auth.currentUser;
@@ -65,16 +56,29 @@ export default function UserProfile() {
       if (!snap.exists()) return;
 
       const data = snap.data();
-      setUsername(data.username || "");
-      setFirstName(data.firstName || "");
-      setLastName(data.lastName || "");
-      setPhoneNumber(data.phoneNumber || "");
-      setEmail(data.email || user.email);
-      setRole(data.role || "inspector");
-      setAvatarUrl(user.photoURL || "");
-      setCreatedAt(
-        data.createdAt?.toDate?.().toLocaleDateString() || "N/A"
-      );
+      const initialData = {
+        username: data.username || "",
+        firstName: data.firstName || "",
+        lastName: data.lastName || "",
+        phoneNumber: data.phoneNumber || "",
+        email: data.email || user.email || "",
+        role: data.role || "",
+        avatarUrl: user.photoURL || "",
+        department: data.department || "",
+        inspectorId: data.inspectorId || "",
+      };
+
+      setUsername(initialData.username);
+      setFirstName(initialData.firstName);
+      setLastName(initialData.lastName);
+      setPhoneNumber(initialData.phoneNumber);
+      setEmail(initialData.email);
+      setRole(initialData.role);
+      setAvatarUrl(initialData.avatarUrl);
+      setDepartment(initialData.department);
+      setInspectorId(initialData.inspectorId);
+
+      setBackupData(initialData);
     };
 
     fetchUser();
@@ -82,7 +86,7 @@ export default function UserProfile() {
 
   /* ======================================================
      HELPERS
-     ====================================================== */
+  ====================================================== */
   const displayName =
     firstName && lastName ? `${firstName} ${lastName}` : username;
 
@@ -96,7 +100,7 @@ export default function UserProfile() {
 
   /* ======================================================
      AVATAR UPLOAD
-     ====================================================== */
+  ====================================================== */
   const handleAvatarUpload = async (file) => {
     if (!file) return;
 
@@ -132,15 +136,17 @@ export default function UserProfile() {
 
   /* ======================================================
      UPDATE PROFILE
-     ====================================================== */
+  ====================================================== */
   const handleUpdateProfile = async () => {
-    if (!firstName || !lastName) {
-      notifications.show({
+    // Phone number validation: optional +country code, 9-15 digits
+    const phoneRegex = /^\+?[0-9]{1,4}?[-\s]?([0-9]{6,14})$/;
+    if (phoneNumber && !phoneRegex.test(phoneNumber.replace(/\s+/g, ""))) {
+      return notifications.show({
         title: "Validation Error",
-        message: "First and last name are required",
+        message:
+          "Please enter a valid phone number with optional country code (9-15 digits)",
         color: "red",
       });
-      return;
     }
 
     try {
@@ -148,16 +154,11 @@ export default function UserProfile() {
       const user = auth.currentUser;
 
       await updateDoc(doc(db, "users", user.uid), {
-        firstName,
-        lastName,
         phoneNumber,
       });
 
-      await updateProfile(user, {
-        displayName: `${firstName} ${lastName}`,
-      });
-
-      window.dispatchEvent(new Event("profileUpdated"));
+      // Update backup for cancel
+      setBackupData((prev) => ({ ...prev, phoneNumber }));
 
       notifications.show({
         title: "Saved",
@@ -176,64 +177,34 @@ export default function UserProfile() {
   };
 
   /* ======================================================
-     CHANGE PASSWORD
-     ====================================================== */
-  const handleChangePassword = async () => {
-    if (newPassword !== confirmNewPassword) {
-      return notifications.show({
-        title: "Error",
-        message: "Passwords do not match",
-        color: "red",
-      });
-    }
+     CANCEL CHANGES
+  ====================================================== */
+  const handleCancel = () => {
+    setUsername(backupData.username);
+    setFirstName(backupData.firstName);
+    setLastName(backupData.lastName);
+    setPhoneNumber(backupData.phoneNumber);
+    setEmail(backupData.email);
+    setRole(backupData.role);
+    setAvatarUrl(backupData.avatarUrl);
+    setDepartment(backupData.department);
+    setInspectorId(backupData.inspectorId);
 
-    try {
-      setLoading(true);
-      const user = auth.currentUser;
-
-      const credential = EmailAuthProvider.credential(
-        user.email,
-        currentPassword
-      );
-
-      await reauthenticateWithCredential(user, credential);
-      await updatePassword(user, newPassword);
-
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmNewPassword("");
-
-      notifications.show({
-        title: "Success",
-        message: "Password updated successfully",
-        color: "green",
-      });
-    } catch (err) {
-      notifications.show({
-        title: "Error",
-        message:
-          err.code === "auth/wrong-password"
-            ? "Current password is incorrect"
-            : "Password update failed",
-        color: "red",
-      });
-    } finally {
-      setLoading(false);
-    }
+    notifications.show({
+      title: "Cancelled",
+      message: "Changes have been reverted",
+      color: "blue",
+    });
   };
 
   /* ======================================================
      UI
-     ====================================================== */
+  ====================================================== */
   return (
-    <Container size="xl" py="xl">
-      <Title order={2} mb="lg">
-        Account Settings
-      </Title>
-
-      {/* PROFILE HEADER */}
-      <Paper withBorder radius="md" p="xl" mb="xl">
-        <Group align="center">
+    <Container size="md" py="xl">
+      <Paper withBorder radius="md" p="xl">
+        {/* AVATAR */}
+        <Stack align="center" mb="xl">
           <Box pos="relative">
             <Avatar size={120} src={avatarUrl} radius="xl">
               {initials}
@@ -253,103 +224,59 @@ export default function UserProfile() {
               )}
             </FileButton>
           </Box>
+        </Stack>
 
-          <Stack gap={4}>
-            <Title order={3}>{displayName}</Title>
-            <Text size="sm" c="dimmed">
-              @{username}
-            </Text>
-            <Group gap="xs">
-              <Badge variant="light">{role}</Badge>
-              <Text size="xs" c="dimmed">
-                Joined {createdAt}
-              </Text>
-            </Group>
-          </Stack>
-        </Group>
-      </Paper>
+        {/* FORM */}
+        <Stack gap="md">
+          <TextInput label="Full Name" value={displayName} disabled />
 
-      <Grid gutter="lg">
-        {/* PERSONAL INFO */}
-        <Grid.Col span={{ base: 12, md: 7 }}>
-          <Paper withBorder p="xl" radius="md">
-            <Title order={4} mb="md">
-              Personal Information
-            </Title>
+          <TextInput
+            label="Email"
+            value={email}
+            disabled
+            leftSection={<IconMail size={16} />}
+          />
 
-            <Stack>
+          <TextInput
+            label="Phone Number"
+            value={phoneNumber}
+            onChange={(e) => setPhoneNumber(e.currentTarget.value)}
+            leftSection={<IconPhone size={16} />}
+            placeholder="+60123456789"
+          />
+
+          {/* TWO COLUMN – SYSTEM INFO */}
+          <Grid>
+            <Grid.Col span={6}>
               <TextInput label="Username" value={username} disabled />
-              <Group grow>
-                <TextInput
-                  label="First Name"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.currentTarget.value)}
-                />
-                <TextInput
-                  label="Last Name"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.currentTarget.value)}
-                />
-              </Group>
+            </Grid.Col>
+            <Grid.Col span={6}>
+              <TextInput label="Role" value={role} disabled />
+            </Grid.Col>
 
+            <Grid.Col span={6}>
               <TextInput
-                label="Phone Number"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.currentTarget.value)}
-                leftSection={<IconPhone size={16} />}
-              />
-
-              <TextInput
-                label="Email"
-                value={email}
+                label="Department"
+                value={DEPARTMENT_LABELS[department] || department}
                 disabled
-                leftSection={<IconMail size={16} />}
               />
+            </Grid.Col>
+            <Grid.Col span={6}>
+              <TextInput label="Inspector ID" value={inspectorId} disabled />
+            </Grid.Col>
+          </Grid>
 
-              <Group justify="flex-end">
-                <Button onClick={handleUpdateProfile} loading={loading}>
-                  Save Changes
-                </Button>
-              </Group>
-            </Stack>
-          </Paper>
-        </Grid.Col>
-
-        {/* SECURITY */}
-        <Grid.Col span={{ base: 12, md: 5 }}>
-          <Paper withBorder p="xl" radius="md">
-            <Title order={4} mb="md">
-              Security
-            </Title>
-
-            <Stack>
-              <PasswordInput
-                label="Current Password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.currentTarget.value)}
-              />
-              <PasswordInput
-                label="New Password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.currentTarget.value)}
-              />
-              <PasswordInput
-                label="Confirm New Password"
-                value={confirmNewPassword}
-                onChange={(e) => setConfirmNewPassword(e.currentTarget.value)}
-              />
-
-              <Button
-                color="red"
-                onClick={handleChangePassword}
-                loading={loading}
-              >
-                Update Password
-              </Button>
-            </Stack>
-          </Paper>
-        </Grid.Col>
-      </Grid>
+          {/* ACTIONS */}
+          <Group justify="flex-end" mt="xl">
+            <Button variant="default" onClick={handleCancel}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateProfile} loading={loading}>
+              Save Changes
+            </Button>
+          </Group>
+        </Stack>
+      </Paper>
     </Container>
   );
 }
