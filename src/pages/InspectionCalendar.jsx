@@ -101,10 +101,11 @@ export default function InspectionCalendar() {
         try {
           const snaps = await getDocs(query(collection(db, 'inspections'), where('planId', '==', p.id)));
           const reports = snaps.docs.map(d => ({ id: d.id, ...d.data() }));
-          // Check if any report is approved/rejected/completed
+          // Check if any report is completed (Hide these)
+          // Keep REJECTED and APPROVED visible.
           const hasCompletedReport = reports.some(r => {
             const s = (r.status || "").toString().trim().toUpperCase();
-            return s === 'APPROVED' || s === 'REJECTED' || s === 'COMPLETED';
+            return s === 'COMPLETED';
           });
           // Only include plan if it doesn't have a completed report
           if (!hasCompletedReport) {
