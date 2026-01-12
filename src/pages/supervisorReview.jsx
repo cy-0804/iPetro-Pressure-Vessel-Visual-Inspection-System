@@ -38,6 +38,8 @@ import { db, auth } from "../firebase";
 import { InspectionReportView } from "../components/InspectionReportView";
 import { useTheme } from "../components/context/ThemeContext";
 
+import { useSearchParams } from "react-router-dom"; // Import useSearchParams
+
 export default function SupervisorReview() {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -50,9 +52,17 @@ export default function SupervisorReview() {
   const isDark = colorScheme === 'dark';
 
   // Tabs & Filters
-  const [activeTab, setActiveTab] = useState("pending");
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "pending");
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFilter, setDateFilter] = useState(null);
+
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
 
   const fetchReports = async () => {
     setLoading(true);

@@ -59,6 +59,13 @@ const ReportSubmission = () => {
   const [selectedReport, setSelectedReport] = useState(null);
   const [activeTab, setActiveTab] = useState("pending");
 
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
+
 
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFilter, setDateFilter] = useState(null);
