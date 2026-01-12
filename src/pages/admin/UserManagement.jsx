@@ -104,155 +104,154 @@ export default function UserManagement() {
   };
 
   const openEditModal = (user) => {
-  setEditingUserId(user.id);
-  setOriginalIsActive(user.isActive);
-  setFormData({
-    username: user.username,
-    email: user.email,
-    password: "",
-    role: user.role,
-    department: user.department || "IT", // <-- Add this
-    isActive: user.isActive,
-  });
-  open();
-};
+    setEditingUserId(user.id);
+    setOriginalIsActive(user.isActive);
+    setFormData({
+      username: user.username,
+      email: user.email,
+      password: "",
+      role: user.role,
+      department: user.department || "IT", // <-- Add this
+      isActive: user.isActive,
+    });
+    open();
+  };
 
   const handleSaveUser = async () => {
-  // Validation
-  if (
-    !formData.username ||
-    (!isEditing && !formData.email) ||
-    (!isEditing && !formData.password) ||
-    (!isEditing && !formData.department) // NEW: require department
-  ) {
-    notifications.show({
-      title: "Error",
-      message: "Missing fields",
-      color: "red",
-    });
-    return;
-  }
-
-  setSubmitLoading(true);
-
-  try {
-    if (isEditing) {
-      // -------- EDIT EXISTING USER --------
-      const targetUser = users.find((u) => u.id === editingUserId);
-
-      await userService.updateUser(editingUserId, {
-        username: formData.username,
-        role: formData.role,
-        isActive: formData.isActive,
-        department: formData.department,
-      });
-
-      // Log audit
-      if (originalIsActive !== formData.isActive) {
-        await auditService.logAction(
-          formData.isActive
-            ? auditService.ACTIONS.USER_ACTIVATED
-            : auditService.ACTIONS.USER_DEACTIVATED,
-          getAdminInfo(),
-          {
-            uid: editingUserId,
-            username: targetUser?.username,
-            email: targetUser?.email,
-          },
-          { previousStatus: originalIsActive, newStatus: formData.isActive }
-        );
-      } else {
-        await auditService.logAction(
-          auditService.ACTIONS.USER_UPDATED,
-          getAdminInfo(),
-          {
-            uid: editingUserId,
-            username: targetUser?.username,
-            email: targetUser?.email,
-          },
-          { changes: "role/username/department updated" }
-        );
-      }
-
+    // Validation
+    if (
+      !formData.username ||
+      (!isEditing && !formData.email) ||
+      (!isEditing && !formData.password) ||
+      (!isEditing && !formData.department) // NEW: require department
+    ) {
       notifications.show({
-        title: "Success",
-        message: "User updated successfully",
-        color: "green",
+        title: "Error",
+        message: "Missing fields",
+        color: "red",
       });
-    } else {
-      // -------- CREATE NEW USER --------
+      return;
+    }
 
-      // Function to generate unique ID
-      const generateUserId = () => {
-        const dept = formData.department.toUpperCase().replace(/\s/g, "");
-        const roleCode =
-          formData.role === "admin"
-            ? "ADM"
-            : formData.role === "supervisor"
-            ? "SUP"
-            : "INS";
+    setSubmitLoading(true);
 
-        const datePart = new Date()
-          .toISOString()
-          .slice(2, 10)
-          .replace(/-/g, ""); // YYMMDD
+    try {
+      if (isEditing) {
+        // -------- EDIT EXISTING USER --------
+        const targetUser = users.find((u) => u.id === editingUserId);
 
-        const randomPart = Math.floor(1000 + Math.random() * 9000); // 4-digit random
+        await userService.updateUser(editingUserId, {
+          username: formData.username,
+          role: formData.role,
+          isActive: formData.isActive,
+          department: formData.department,
+        });
 
-        return `${dept}-${roleCode}-${datePart}-${randomPart}`;
-      };
+        // Log audit
+        if (originalIsActive !== formData.isActive) {
+          await auditService.logAction(
+            formData.isActive
+              ? auditService.ACTIONS.USER_ACTIVATED
+              : auditService.ACTIONS.USER_DEACTIVATED,
+            getAdminInfo(),
+            {
+              uid: editingUserId,
+              username: targetUser?.username,
+              email: targetUser?.email,
+            },
+            { previousStatus: originalIsActive, newStatus: formData.isActive }
+          );
+        } else {
+          await auditService.logAction(
+            auditService.ACTIONS.USER_UPDATED,
+            getAdminInfo(),
+            {
+              uid: editingUserId,
+              username: targetUser?.username,
+              email: targetUser?.email,
+            },
+            { changes: "role/username/department updated" }
+          );
+        }
 
-      // Ensure uniqueness
-      let newUid = generateUserId();
-      while (users.some((u) => u.id === newUid)) {
-        newUid = generateUserId();
-      }
+        notifications.show({
+          title: "Success",
+          message: "User updated successfully",
+          color: "green",
+        });
+      } else {
+        // -------- CREATE NEW USER --------
 
-      // Create user with generated ID
-      const createdUid = await userService.createUser({
-        id: newUid,
-        username: formData.username,
-        email: formData.email,
-        password: formData.password, // if needed
-        role: formData.role,
-        isActive: formData.isActive,
-        isFirstLogin: true,
-        photoURL: null,
-        department: formData.department,  // <-- ADD THIS
-        createdAt: new Date(),
-      });
+        // Function to generate unique ID
+        const generateUserId = () => {
+          const dept = formData.department.toUpperCase().replace(/\s/g, "");
+          const roleCode =
+            formData.role === "admin"
+              ? "ADM"
+              : formData.role === "supervisor"
+              ? "SUP"
+              : "INS";
 
-      // Audit log
-      await auditService.logAction(
-        auditService.ACTIONS.USER_CREATED,
-        getAdminInfo(),
-        {
-          uid: createdUid,
+          const datePart = new Date()
+            .toISOString()
+            .slice(2, 10)
+            .replace(/-/g, ""); // YYMMDD
+
+          const randomPart = Math.floor(1000 + Math.random() * 9000); // 4-digit random
+
+          return `${dept}-${roleCode}-${datePart}-${randomPart}`;
+        };
+
+        // Ensure uniqueness
+        let newUid = generateUserId();
+        while (users.some((u) => u.id === newUid)) {
+          newUid = generateUserId();
+        }
+
+        // Create user with generated ID
+        const createdUid = await userService.createUser({
+          id: newUid,
           username: formData.username,
           email: formData.email,
-        },
-        { role: formData.role, department: formData.department }
-      );
+          password: formData.password, // if needed
+          role: formData.role,
+          isActive: formData.isActive,
+          isFirstLogin: true,
+          photoURL: null,
+          department: formData.department, // <-- ADD THIS
+          createdAt: new Date(),
+        });
 
-      notifications.show({
-        title: "Success",
-        message: `User ${formData.username} created with ID ${newUid}`,
-        color: "green",
-      });
+        // Audit log
+        await auditService.logAction(
+          auditService.ACTIONS.USER_CREATED,
+          getAdminInfo(),
+          {
+            uid: createdUid,
+            username: formData.username,
+            email: formData.email,
+          },
+          { role: formData.role, department: formData.department }
+        );
 
-      close();
+        notifications.show({
+          title: "Success",
+          message: `User ${formData.username} created with ID ${newUid}`,
+          color: "green",
+        });
+
+        close();
+      }
+    } catch (error) {
+      let content = error.message;
+      if (error.code === "auth/email-already-in-use")
+        content = "Email already in use";
+
+      notifications.show({ title: "Error", message: content, color: "red" });
+    } finally {
+      setSubmitLoading(false);
     }
-  } catch (error) {
-    let content = error.message;
-    if (error.code === "auth/email-already-in-use")
-      content = "Email already in use";
-
-    notifications.show({ title: "Error", message: content, color: "red" });
-  } finally {
-    setSubmitLoading(false);
-  }
-};
-
+  };
 
   // Quick toggle status with confirmation
   const handleToggleStatus = (user) => {
@@ -723,17 +722,6 @@ export default function UserManagement() {
               }
             />
           )}
-
-          <Switch
-            label="Active Account"
-            description={
-              formData.isActive ? "User can log in" : "User cannot log in"
-            }
-            checked={formData.isActive}
-            onChange={(e) =>
-              setFormData({ ...formData, isActive: e.currentTarget.checked })
-            }
-          />
 
           <Button fullWidth onClick={handleSaveUser} loading={submitLoading}>
             {isEditing ? "Save Changes" : "Create User"}
