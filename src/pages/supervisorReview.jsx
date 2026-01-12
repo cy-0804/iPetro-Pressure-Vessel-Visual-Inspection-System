@@ -127,6 +127,28 @@ export default function SupervisorReview() {
 
   const handleOpenReview = (report) => {
     setSelectedReport(report);
+
+    // Track viewed report in localStorage for Dashboard Recent Inspections
+    if (report && report.id) {
+      try {
+        const viewedReports = JSON.parse(localStorage.getItem('viewedReports') || '[]');
+        // Add to beginning, remove duplicates, keep last 5
+        const updated = [report.id, ...viewedReports.filter(id => id !== report.id)].slice(0, 5);
+        localStorage.setItem('viewedReports', JSON.stringify(updated));
+
+        // Also remove from dismissedReports if present, so it reappears on Dashboard
+        try {
+          const dismissed = JSON.parse(localStorage.getItem('dismissedReports') || '[]');
+          if (dismissed.includes(report.id)) {
+            const newDismissed = dismissed.filter(id => id !== report.id);
+            localStorage.setItem('dismissedReports', JSON.stringify(newDismissed));
+          }
+        } catch (e) { }
+
+      } catch (e) {
+        console.error('Failed to track viewed report', e);
+      }
+    }
   };
 
   const handleReject = async () => {

@@ -90,7 +90,33 @@ export default function InspectionCalendar() {
 
       const plans = await inspectionService.getInspectionPlans();
       console.log(" fetched plans:", plans.length); // Debug Log
-      setUserEvents(plans);
+
+      // Filter out plans with approved/rejected/completed reports
+      // So they disappear from calendar once done
+      const { collection, getDocs, query, where } = await import('firebase/firestore');
+      const { db } = await import('../firebase');
+
+      const filteredPlans = [];
+      await Promise.all(plans.map(async (p) => {
+        try {
+          const snaps = await getDocs(query(collection(db, 'inspections'), where('planId', '==', p.id)));
+          const reports = snaps.docs.map(d => ({ id: d.id, ...d.data() }));
+          // Check if any report is approved/rejected/completed
+          const hasCompletedReport = reports.some(r => {
+            const s = (r.status || "").toString().trim().toUpperCase();
+            return s === 'APPROVED' || s === 'REJECTED' || s === 'COMPLETED';
+          });
+          // Only include plan if it doesn't have a completed report
+          if (!hasCompletedReport) {
+            filteredPlans.push(p);
+          }
+        } catch (e) {
+          // On error, keep the plan visible
+          filteredPlans.push(p);
+        }
+      }));
+
+      setUserEvents(filteredPlans);
 
       const users = await userService.getInspectors();
 

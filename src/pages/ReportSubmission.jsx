@@ -11,6 +11,7 @@ import {
   updateDoc,
   deleteDoc,
   serverTimestamp,
+  or,
 } from "firebase/firestore";
 import {
   Container,
@@ -116,9 +117,13 @@ const ReportSubmission = () => {
           console.log("Filtering reports for Inspector:", inspectorName);
 
 
+          // Use OR query to find reports by ID (new) OR Name (legacy)
           const q = query(
             collection(db, "inspections"),
-            where("inspectorName", "==", inspectorName)
+            or(
+              where("inspectorId", "==", currentUser.uid),
+              where("inspectorName", "==", inspectorName)
+            )
           );
 
           const snapshot = await getDocs(q);
@@ -262,16 +267,16 @@ const ReportSubmission = () => {
   };
 
 
-  const pendingReports = filteredReports.filter(r => ["Draft", "FIELD_COMPLETED", "COMPLETED"].includes(r.status));
+  // Normalize status for case-insensitive comparison
+  const normStatus = (s) => (s || "").toString().trim().toUpperCase();
 
+  const pendingReports = filteredReports.filter(r => ["DRAFT", "FIELD_COMPLETED", "COMPLETED"].includes(normStatus(r.status)));
 
-  const submittedReports = filteredReports.filter(r => r.status === "Submitted");
+  const submittedReports = filteredReports.filter(r => normStatus(r.status) === "SUBMITTED");
 
+  const rejectedReports = filteredReports.filter(r => normStatus(r.status) === "REJECTED");
 
-  const rejectedReports = filteredReports.filter(r => r.status === "Rejected");
-
-
-  const approvedReports = filteredReports.filter(r => r.status === "Approved");
+  const approvedReports = filteredReports.filter(r => normStatus(r.status) === "APPROVED");
 
   const renderTable = (data, showReason = false, supervisorLabel = null) => (
     <Table highlightOnHover verticalSpacing="sm">
