@@ -604,9 +604,8 @@ const InspectionForm = () => {
             auth.currentUser?.displayName ||
             "an Inspector";
           const title = "Report Submitted";
-          const message = `Report ${
-            finalData.reportNo || "Unknown"
-          } has been submitted by ${inspectorName} for approval.`;
+          const message = `Report ${finalData.reportNo || "Unknown"
+            } has been submitted by ${inspectorName} for approval.`;
           const link = "/supervisor-review"; // Link to supervisor review page
 
           await notificationService.notifyRole(
@@ -1086,9 +1085,8 @@ const InspectionForm = () => {
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          border: `1px dashed ${
-                            isDark ? "#373a40" : "#ced4da"
-                          }`,
+                          border: `1px dashed ${isDark ? "#373a40" : "#ced4da"
+                            }`,
                           borderRadius: 8,
                           cursor: "pointer",
                           overflow: "hidden",
@@ -1107,10 +1105,10 @@ const InspectionForm = () => {
                               row.photos.length === 1
                                 ? 1
                                 : row.photos.length === 2
-                                ? 2
-                                : row.photos.length <= 4
-                                ? 2
-                                : 3
+                                  ? 2
+                                  : row.photos.length <= 4
+                                    ? 2
+                                    : 3
                             }
                             spacing="xs"
                             verticalSpacing="xs"
@@ -1129,8 +1127,8 @@ const InspectionForm = () => {
                                   row.photos.length <= 2
                                     ? 140
                                     : row.photos.length <= 4
-                                    ? 100
-                                    : 80
+                                      ? 100
+                                      : 80
                                 }
                               />
                             ))}
@@ -1416,9 +1414,9 @@ function EquipmentSearchModal({
               borderColor: isDark ? "#373a40" : undefined,
             }}
             onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = isDark
-                ? "#25262b"
-                : "#f1f3f5")
+            (e.currentTarget.style.backgroundColor = isDark
+              ? "#25262b"
+              : "#f1f3f5")
             }
             onMouseLeave={(e) =>
               (e.currentTarget.style.backgroundColor = "transparent")

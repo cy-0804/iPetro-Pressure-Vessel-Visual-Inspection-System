@@ -15,15 +15,16 @@ import { getEquipments } from "../services/equipmentService";
 import "../components/calendar/calendar.css";
 import { auth } from "../firebase";
 const getEventColor = (status) => {
-  switch (status) {
-    case "PLANNED": return "#228be6"; // mantine blue-6 (Unified)
-    case "SCHEDULED": return "#228be6"; // mantine blue-6
-    case "IN_PROGRESS": return "#fd7e14"; // mantine orange-6
-    case "COMPLETED": return "#40c057"; // mantine green-6
-    case "Submitted": return "#15aabf"; // mantine cyan-6 (Pending Review)
-    case "Approved": return "#12b886"; // mantine teal-6
-    case "Rejected": return "#e03131"; // mantine red-8
-    case "OVERDUE": return "#fa5252"; // mantine red-6
+  const normalized = (status || "").toUpperCase();
+  switch (normalized) {
+    case "PLANNED": return "#228be6";
+    case "SCHEDULED": return "#228be6";
+    case "IN_PROGRESS": return "#fd7e14";
+    case "COMPLETED": return "#40c057";
+    case "SUBMITTED": return "#15aabf";
+    case "APPROVED": return "#12b886";
+    case "REJECTED": return "#e03131";
+    case "OVERDUE": return "#fa5252";
     default: return "gray";
   }
 };

@@ -146,6 +146,38 @@ export const inspectionService = {
                             );
                         }
                     }
+
+                    // Check if dates are changing and if status is currently OVERDUE
+                    if ((updates.start || updates.end) && currentData.status === "OVERDUE") {
+                        let newStatus = "PLANNED";
+                        try {
+                            console.log("Reverting OVERDUE status due to date change...");
+                            // If extendedProps.status was also overdue
+                            const reportsQ = query(collection(db, "inspections"), where("planId", "==", id));
+                            const reportsSnap = await getDocs(reportsQ);
+
+                            if (!reportsSnap.empty) {
+                                const rData = reportsSnap.docs[0].data();
+                                if (rData.status === "Submitted") newStatus = "Submitted";
+                                else if (rData.status === "Approved") newStatus = "APPROVED";
+                                else if (rData.status === "Rejected") newStatus = "REJECTED";
+                                else newStatus = "IN_PROGRESS";
+                            } else {
+                                // No report, but maybe checklist progress?
+                                // If tasks exist and are completed, maybe IN_PROGRESS?
+                                // For simplicity, default to PLANNED if no report started.
+                                // Or stick to current status? No, OVERDUE must go.
+                                // If 'rescheduleRequest' is being cleared, likely it's PLANNED.
+                            }
+
+                            updates.status = newStatus;
+                            updates["extendedProps.status"] = newStatus;
+
+                        } catch (e) {
+                            console.warn("Error calculating revert status:", e);
+                        }
+                    }
+
                 }
             } catch (notifyErr) {
                 console.warn("Failed to process reassignment notifications:", notifyErr);
@@ -203,7 +235,7 @@ export const inspectionService = {
                 "COMPLETED": ["APPROVED", "IN_PROGRESS", "Submitted"],
                 "APPROVED": [],
                 "REJECTED": ["IN_PROGRESS", "Submitted"],
-                "OVERDUE": ["IN_PROGRESS", "COMPLETED"],
+                "OVERDUE": ["IN_PROGRESS", "COMPLETED", "APPROVED", "Approved"],
 
                 "Draft": ["Submitted", "Draft"],
                 "Submitted": ["Approved", "Rejected", "IN_PROGRESS"],
@@ -225,10 +257,25 @@ export const inspectionService = {
                 throw new Error("Only Supervisors can reject inspections.");
             }
 
+            // Logic to persist OVERDUE status even if report is Submitted or Rejected
+            let finalStatus = newStatus;
+
+            const isOverdue = currentStatus.toUpperCase() === "OVERDUE";
+
+            if (isOverdue && (newStatus === "Submitted" || newStatus === "Rejected")) {
+                console.log(`Plan ${id} is OVERDUE. Keeping status as OVERDUE despite '${newStatus}' update.`);
+                finalStatus = "OVERDUE";
+                // The plan status stays OVERDUE. 
+                // The logic in ReportSubmission/SupervisorReview will update the 'inspections' collection status,
+                // so the report itself is Submitted/Rejected, but the PLAN remains OVERDUE.
+            }
+
+            // Only update if status actually changes (or if we need to update extendedProps)
+            // But if we forced it to OVERDUE and it was already OVERDUE, we might skip updateDoc or just do it to be safe (e.g. updatedAt).
 
             await updateDoc(docRef, {
-                status: newStatus,
-                "extendedProps.status": newStatus,
+                status: finalStatus,
+                "extendedProps.status": finalStatus,
                 updatedAt: new Date().toISOString()
             });
 
@@ -236,7 +283,8 @@ export const inspectionService = {
             await addDoc(collection(db, "inspection_status_log"), {
                 planId: id,
                 oldStatus: currentStatus,
-                newStatus: newStatus,
+                newStatus: finalStatus, // Log the actual resulting status
+                action: newStatus, // Log the intended action/status
                 changedBy: changedBy || "Unknown",
                 timestamp: serverTimestamp()
             });
@@ -261,7 +309,8 @@ export const inspectionService = {
                         "/report-submission"
                     );
                 } else if (newStatus === "Submitted") {
-
+                    // Even if finalStatus is OVERDUE, we still send "Pending Review" notification 
+                    // because the report ITSELF is submitted.
                     try {
                         const q = query(collection(db, "users"), where("role", "==", "supervisor"));
                         const snapshot = await getDocs(q);
@@ -284,7 +333,7 @@ export const inspectionService = {
                 }
             }
 
-            return { id, status: newStatus };
+            return { id, status: finalStatus };
         } catch (error) {
             console.error("Error updating status:", error);
             throw error;
@@ -300,9 +349,11 @@ export const inspectionService = {
                 collection(db, COLLECTION_NAME),
                 where("status", "in", [
                     "PLANNED", "SCHEDULED", "IN_PROGRESS",
-                    "COMPLETED", "Submitted",
+                    "COMPLETED",
+                    "COMPLETED",
                     "REJECTED", "Rejected",
-                    "OVERDUE", "Draft"
+                    "OVERDUE", "Draft",
+                    "Submitted", "Pending Review"
                 ])
             );
             const snapshot = await getDocs(q);
@@ -378,7 +429,7 @@ export const inspectionService = {
 
 
                 if (now <= endOfDay && currentStatus === "OVERDUE") {
-
+                    // If date was extended, revert to PLANNED (or Submitted if report exists? Sync will handle report match)
                     const newStatus = "PLANNED";
                     await updateDoc(doc(db, COLLECTION_NAME, d.id), { status: newStatus });
                 }
@@ -478,14 +529,28 @@ export const inspectionService = {
                     }
                 }
 
+                // Determine the correct status to revert to (don't blind reset to PLANNED if work exists)
+                let newStatus = "PLANNED";
+                try {
+                    const reportsQ = query(collection(db, "inspections"), where("planId", "==", id));
+                    const reportsSnap = await getDocs(reportsQ);
+                    if (!reportsSnap.empty) {
+                        const rData = reportsSnap.docs[0].data();
+                        if (rData.status === "Submitted") newStatus = "Submitted";
+                        else if (rData.status === "Approved") newStatus = "APPROVED";
+                        else if (rData.status === "Rejected") newStatus = "REJECTED";
+                        else newStatus = "IN_PROGRESS"; // Draft or others
+                    }
+                } catch (e) {
+                    console.warn("Could not fetch report status for reschedule, defaulting to PLANNED", e);
+                }
+
                 await updateDoc(docRef, {
                     start: finalStartISO,
                     end: finalEndISO,
-                    start: finalStartISO,
-                    end: finalEndISO,
                     dueDate: finalEndISO,
-                    status: "PLANNED",
-                    "extendedProps.status": "PLANNED",
+                    status: newStatus,
+                    "extendedProps.status": newStatus,
                     rescheduleRequest: {
                         ...request,
                         status: "approved",
@@ -602,11 +667,17 @@ export const inspectionService = {
                     else if (reportStatus === "REJECTED") expectedStatus = "REJECTED";
                     else if (reportStatus === "SUBMITTED") expectedStatus = "SUBMITTED";
 
+                    // OVERDUE Protection: If plan is OVERDUE, it should stay OVERDUE unless APPROVED.
+                    // Submitted and Rejected report statuses should NOT override Overdue plan status.
+                    if (planStatus === "OVERDUE" && (expectedStatus === "SUBMITTED" || expectedStatus === "REJECTED")) {
+                        expectedStatus = "OVERDUE";
+                    }
+
                     if (planStatus !== expectedStatus) {
                         console.log(`Syncing Plan ${plan.id}: ${planStatus} -> ${expectedStatus}`);
                         await updateDoc(doc(db, "inspection_plans", plan.id), {
-                            status: report.status,
-                            "extendedProps.status": report.status,
+                            status: expectedStatus, // Use expectedStatus (report.status might be Submitted, but we want OVERDUE)
+                            "extendedProps.status": expectedStatus,
                             updatedAt: new Date().toISOString()
                         });
                         updatedCount++;

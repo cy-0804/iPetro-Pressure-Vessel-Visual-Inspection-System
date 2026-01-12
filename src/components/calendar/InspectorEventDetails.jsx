@@ -84,16 +84,19 @@ export default function InspectorEventDetails({
             setTasks(event.extendedProps.tasks || []);
             setProgress(event.extendedProps.progress || 0);
             setOutcome(event.extendedProps.outcome || null);
-            setHasReport(false);
-            setReportData(null);
-            setCheckingStatus(true);
+            // setCheckingStatus(true); // REMOVED: Don't set true here, only on ID change
         }
     }, [event]);
 
 
     useEffect(() => {
         const checkReportExistence = async () => {
-            if (!event?.id) { setCheckingStatus(false); return; }
+            if (!event?.id) { return; }
+
+            setCheckingStatus(true); // Set true here
+            setHasReport(false);
+            setReportData(null);
+
             try {
                 const q = query(collection(db, "inspections"), where("planId", "==", event.id));
                 const snap = await getDocs(q);
@@ -104,21 +107,18 @@ export default function InspectorEventDetails({
 
                     console.log("Found existing report:", rData.status);
                     setHasReport(true);
-
-                    const actualStatus = rData.status || "COMPLETED";
-                    setStatus(actualStatus);
-                    setProgress(100);
-
-
                 }
             } catch (err) {
                 console.error("Error verifying report status:", err);
             } finally {
-                setTimeout(() => setCheckingStatus(false), 300); // Slight artificial delay to prevent flash if fast
+                setTimeout(() => setCheckingStatus(false), 300);
             }
         };
         checkReportExistence();
     }, [event.id]);
+
+
+
 
 
     const [rescheduleOpen, setRescheduleOpen] = useState(false);
@@ -168,24 +168,7 @@ export default function InspectorEventDetails({
         setEditInitialData(event);
 
 
-        let currentStatus = event.extendedProps?.status || "pending";
-
-
-        if (currentStatus.toUpperCase() !== "APPROVED" && currentStatus.toUpperCase() !== "OVERDUE") {
-            const endDateStr = event.end || event.extendedProps?.dueDate || event.extendedProps?.end;
-            if (endDateStr) {
-                const end = new Date(endDateStr);
-
-                end.setHours(23, 59, 59, 999);
-                const now = new Date();
-
-                if (now > end) {
-                    currentStatus = "OVERDUE";
-                }
-            }
-        }
-
-        setStatus(currentStatus);
+        // Status is handled by the first useEffect
     }, [event]);
 
 
@@ -205,6 +188,7 @@ export default function InspectorEventDetails({
     >
         <CreateInspectionPlanForm
             initialData={editInitialData}
+            existingReportStatus={reportData?.status}
             onSaved={() => {
                 setEditModalOpen(false);
                 onClose();
@@ -471,9 +455,9 @@ export default function InspectorEventDetails({
                         <Text fw={700} size="xl">{event.title}</Text>
                         <Group gap="xs">
                             <Badge variant="filled" color={
-                                status === "Approved" ? "teal" :
-                                    status === "Rejected" ? "red" :
-                                        status === "Submitted" ? "cyan" :
+                                status?.toLowerCase() === "approved" ? "teal" :
+                                    status?.toLowerCase() === "rejected" ? "red" :
+                                        status?.toLowerCase() === "submitted" ? "cyan" :
                                             status === "COMPLETED" ? "green" :
                                                 status === "IN_PROGRESS" ? "orange" :
                                                     status === "OVERDUE" ? "red" : "blue"
@@ -692,35 +676,54 @@ export default function InspectorEventDetails({
                     <Divider />
 
 
-                    {(["IN_PROGRESS", "SUBMITTED", "COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || hasReport || event.extendedProps?.executionNotes || (event.extendedProps?.fieldPhotos && event.extendedProps.fieldPhotos.length > 0)) && (
+                    {/* Report / Draft Actions */}
+                    {!checkingStatus && (["IN_PROGRESS", "SUBMITTED", "COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || hasReport || event.extendedProps?.executionNotes || (event.extendedProps?.fieldPhotos && event.extendedProps.fieldPhotos.length > 0)) && (
                         <Box mt="md">
                             <Text fw={600} mb="xs">
-                                {(["SUBMITTED", "COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || hasReport) ? "Report" : "Field Findings"}
+                                {(["SUBMITTED", "COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || (hasReport && reportData?.status === "Submitted") || (hasReport && reportData?.status === "Rejected")) ? "Report" : "Field Findings"}
                             </Text>
+
+                            {/* View Report / Draft Button */}
                             <Button
                                 variant="light"
-                                color={(["SUBMITTED", "COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || hasReport) ? "blue" : "orange"}
+                                color={
+                                    (["SUBMITTED", "COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || (hasReport && ["Submitted", "Approved", "Rejected"].includes(reportData?.status)))
+                                        ? "blue"
+                                        : "orange"
+                                }
                                 fullWidth
-
-                                display={isSupervisor && status?.toLowerCase() === "submitted" ? "none" : "block"}
+                                // Hide for supervisor if report is submitted (they see Review button instead), unless it's APPROVED/REJECTED then they can view it.
+                                display={isSupervisor && (status?.toLowerCase() === "submitted" || (hasReport && reportData?.status === "Submitted")) ? "none" : "block"}
                                 leftSection={<IconFileText size={18} />}
                                 onClick={() => {
-                                    if (["SUBMITTED", "COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || hasReport) {
-
+                                    if (["SUBMITTED", "COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || (hasReport && ["Submitted", "Approved"].includes(reportData?.status))) {
                                         setPdfModalOpen(true);
+                                    } else if (hasReport && reportData?.status === "Rejected") {
+                                        // Navigate to Rejected Tab
+                                        if (isSupervisor) {
+                                            navigate("/supervisor-review?tab=rejected");
+                                        } else {
+                                            navigate("/report-submission?tab=rejected");
+                                        }
                                     } else {
+                                        // View Draft
                                         setDraftModalOpen(true);
                                     }
                                 }}
                             >
-                                {(["SUBMITTED", "COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || hasReport) ? "View Report" : "View Draft Progress"}
+                                {
+                                    (hasReport && reportData?.status === "Rejected") ? "View Rejected Report" :
+                                        (["SUBMITTED", "COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || (hasReport && ["Submitted", "Approved"].includes(reportData?.status)))
+                                            ? "View Report"
+                                            : "View Draft Progress"
+
+                                }
                             </Button>
 
                             {!isSupervisor && (
                                 <Button
                                     fullWidth
-
-                                    display={(["SUBMITTED", "COMPLETED", "APPROVED"].includes(status?.toUpperCase())) ? "none" : "block"}
+                                    display={(["SUBMITTED", "COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || (hasReport && ["Submitted", "Approved", "Rejected"].includes(reportData?.status))) ? "none" : "block"}
                                     color="green"
                                     variant="filled"
                                     mt="md"
@@ -735,56 +738,66 @@ export default function InspectorEventDetails({
                     )}
 
 
-
-                    {isSupervisor && (status === "COMPLETED" || status?.toLowerCase() === "submitted") && (
-                        <Button fullWidth color="teal" size="md" mt="md" onClick={() => navigate('/supervisor-review')}>
-                            Review and Approval
-                        </Button>
-                    )}
-
-
-                    {(!isSupervisor || isAssigned) && (status === "PLANNED" || status === "SCHEDULED" || status === "OVERDUE") && (
-                        <Button
-                            fullWidth
-                            size="lg"
-                            mt="xl"
-                            color="blue"
-                            rightSection={<IconArrowRight size={20} />}
-                            onClick={async () => {
-                                // STARTING NEW INSPECTION
-                                try {
-                                    console.log("Starting inspection for:", event.id);
-                                    const role = isSupervisor ? "supervisor" : "inspector";
-                                    const user = userFullName || currentUser || "current_user";
+                    {/* Supervisor Review Button */}
+                    {isSupervisor && (
+                        (status === "COMPLETED" || status?.toLowerCase() === "submitted") ||
+                        (status === "OVERDUE" && hasReport && reportData?.status === "Submitted")
+                    ) && (
+                            <Button fullWidth color="teal" size="md" mt="md" onClick={() => navigate('/supervisor-review')}>
+                                Review and Approval
+                            </Button>
+                        )}
 
 
-                                    await inspectionService.updateInspectionPlan(event.id, { rescheduleRequest: null });
+                    {/* Start Field Visit Button - Hide if report exists/submitted */}
+                    {/* Start Field Visit Button - Hide if report exists or work started */}
+                    {(!isSupervisor || isAssigned) &&
+                        (status === "PLANNED" || status === "SCHEDULED" || status === "OVERDUE") &&
+                        !checkingStatus &&
+                        !hasReport &&
+                        !event.extendedProps?.executionNotes &&
+                        (!event.extendedProps?.fieldPhotos || event.extendedProps.fieldPhotos.length === 0) && (
+                            <Button
+                                fullWidth
+                                size="lg"
+                                mt="xl"
+                                color="blue"
+                                rightSection={<IconArrowRight size={20} />}
+                                onClick={async () => {
+                                    // STARTING NEW INSPECTION
+                                    try {
+                                        console.log("Starting inspection for:", event.id);
+                                        const role = isSupervisor ? "supervisor" : "inspector";
+                                        const user = userFullName || currentUser || "current_user";
 
-                                    await inspectionService.updateInspectionStatus(event.id, "IN_PROGRESS", role, user);
+
+                                        await inspectionService.updateInspectionPlan(event.id, { rescheduleRequest: null });
+
+                                        await inspectionService.updateInspectionStatus(event.id, "IN_PROGRESS", role, user);
 
 
-                                    await new Promise(r => setTimeout(r, 500));
+                                        await new Promise(r => setTimeout(r, 500));
 
-                                    if (onUpdate) onUpdate({
-                                        ...event,
-                                        status: "IN_PROGRESS",
-                                        rescheduleRequest: null,
-                                        extendedProps: { ...event.extendedProps, status: "IN_PROGRESS" }
-                                    });
+                                        if (onUpdate) onUpdate({
+                                            ...event,
+                                            status: "IN_PROGRESS",
+                                            rescheduleRequest: null,
+                                            extendedProps: { ...event.extendedProps, status: "IN_PROGRESS" }
+                                        });
 
 
-                                    console.log("Navigating to execution page...");
-                                    navigate(`/inspection-execution/${event.id}`);
-                                    onClose();
-                                } catch (e) {
-                                    console.error("Failed to update status on start:", e);
-                                    alert("Failed to start inspection: " + e.message);
-                                }
-                            }}
-                        >
-                            Start Field Visit
-                        </Button>
-                    )}
+                                        console.log("Navigating to execution page...");
+                                        navigate(`/inspection-execution/${event.id}`);
+                                        onClose();
+                                    } catch (e) {
+                                        console.error("Failed to update status on start:", e);
+                                        alert("Failed to start inspection: " + e.message);
+                                    }
+                                }}
+                            >
+                                Start Field Visit
+                            </Button>
+                        )}
 
 
                 </Stack>
