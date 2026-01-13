@@ -47,6 +47,7 @@ import {
   IconUpload,
   IconX,
 } from "@tabler/icons-react";
+import { useTheme } from "../components/context/ThemeContext";
 
 // Standard report fields
 const initialFormState = {
@@ -72,6 +73,8 @@ const EditInspectionForm = () => {
   const [formData, setFormData] = useState(initialFormState);
   const [equipmentList, setEquipmentList] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { colorScheme } = useTheme();
+  const isDark = colorScheme === "dark";
 
   // Step 2 State
   const [photoRows, setPhotoRows] = useState([]); // { id, file, preview, finding, recommendation }
@@ -84,12 +87,10 @@ const EditInspectionForm = () => {
 
   // --- Initial Data Loading ---
   useEffect(() => {
-   
     if (location.state && location.state.reportData) {
       const report = location.state.reportData;
       setEditingReportId(report.id);
 
-     
       setFormData({
         equipmentId: report.equipmentId || "",
         equipmentDescription: report.equipmentDescription || "",
@@ -107,13 +108,12 @@ const EditInspectionForm = () => {
         inspectionType: report.inspectionType || "VI",
       });
 
-      
       if (report.photoReport && report.photoReport.length > 0) {
         const rows = report.photoReport.map((item, index) => ({
           id: Date.now() + index,
           files: [],
           previews: item.photoUrls || [],
-          existingUrls: item.photoUrls || [], 
+          existingUrls: item.photoUrls || [],
           finding: item.finding || "",
           recommendation: item.recommendation || "",
         }));
@@ -126,7 +126,6 @@ const EditInspectionForm = () => {
         color: "blue",
       });
     } else {
-
       notifications.show({
         title: "Error",
         message: "No report selected for editing.",
@@ -148,7 +147,6 @@ const EditInspectionForm = () => {
     fetchEquipment();
   }, [location.state, navigate]);
 
- 
   const handleChange = (name, value) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
@@ -282,7 +280,6 @@ const EditInspectionForm = () => {
       if (editingReportId) {
         docRef = doc(db, "inspections", editingReportId);
       } else {
-
         docRef = doc(collection(db, "inspections"));
       }
       const docId = docRef.id;
@@ -292,7 +289,6 @@ const EditInspectionForm = () => {
       for (const row of photoRows) {
         // Start with existing URLs if any
         const photoUrls = [...(row.existingUrls || [])];
-
 
         if (row.files && row.files.length > 0) {
           for (const file of row.files) {
@@ -306,7 +302,6 @@ const EditInspectionForm = () => {
           }
         }
 
-    
         if (photoUrls.length > 0 || row.finding || row.recommendation) {
           uploadedPhotos.push({
             finding: row.finding,
@@ -316,7 +311,6 @@ const EditInspectionForm = () => {
           });
         }
       }
-
 
       const plant = formData.plantUnitArea
         ? formData.plantUnitArea.trim().toUpperCase().replace(/\s+/g, "")
@@ -384,7 +378,14 @@ const EditInspectionForm = () => {
           allowStepSelect={activeStep > 0}
         >
           {/* Step 1 Content: The General Form */}
-          <Paper withBorder shadow="sm" p="xl" radius="md">
+          <Paper
+            withBorder
+            shadow="sm"
+            p="xl"
+            radius="md"
+            bg={isDark ? "#1a1b1e" : undefined}
+            style={{ borderColor: isDark ? "#373a40" : undefined }}
+          >
             <form onSubmit={handleStep1Submit}>
               <Stack gap="xl">
                 {/* Section 1: Equipment Details */}
@@ -640,7 +641,14 @@ const EditInspectionForm = () => {
           description="Upload photos with findings"
         >
           {/* Step 2 Content: Photo Report */}
-          <Paper withBorder shadow="sm" p="xl" radius="md">
+          <Paper
+            withBorder
+            shadow="sm"
+            p="xl"
+            radius="md"
+            bg={isDark ? "#1a1b1e" : undefined}
+            style={{ borderColor: isDark ? "#373a40" : undefined }}
+          >
             <Stack>
               <Title order={4}>Photo Evidence & Specific Recommendations</Title>
               <Text c="dimmed" size="sm">
@@ -651,7 +659,7 @@ const EditInspectionForm = () => {
               {photoRows.length === 0 && (
                 <Box
                   p="xl"
-                  bg="gray.1"
+                  bg={isDark ? "#25262b" : "gray.1"}
                   style={{ textAlign: "center", borderRadius: 8 }}
                 >
                   <Text c="dimmed">
@@ -661,7 +669,25 @@ const EditInspectionForm = () => {
               )}
 
               {photoRows.map((row, index) => (
-                <Paper key={row.id} withBorder p="md" bg="gray.0">
+                <Paper
+                  key={row.id}
+                  withBorder
+                  p="md"
+                  bg={isDark ? "#25262b" : "gray.0"}
+                  style={{
+                    transition: "border-color 0.2s",
+                    borderColor: isDark ? "#373a40" : undefined,
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.style.borderColor = "#228be6";
+                  }}
+                  onDragLeave={(e) => {
+                    e.currentTarget.style.borderColor = isDark
+                      ? "#373a40"
+                      : "#ced4da";
+                  }}
+                >
                   <Group align="flex-start" justify="space-between" mb="xs">
                     <Badge variant="filled" color="gray">
                       Photo #{index + 1}
@@ -751,13 +777,16 @@ const EditInspectionForm = () => {
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          border: "1px dashed #ced4da",
+                          border: `1px dashed ${isDark ? "#373a40" : "#ced4da"
+                            }`,
                           borderRadius: 8,
                           cursor: "pointer",
                           overflow: "hidden",
                           backgroundColor:
-                            row.previews && row.previews.length > 0
-                              ? "white"
+                            row.photos && row.photos.length > 0
+                              ? isDark
+                                ? "#25262b"
+                                : "white"
                               : "transparent",
                           padding: 10,
                         }}
