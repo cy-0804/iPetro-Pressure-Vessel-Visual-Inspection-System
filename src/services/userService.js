@@ -76,45 +76,47 @@ export const userService = {
    * Uses a secondary app instance to separate admin session from new user creation
    */
   createUser: async (userData) => {
-    let secondaryApp = null;
-    try {
-      // 1. Initialize Secondary App
-      secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
-      const secondaryAuth = getAuth(secondaryApp);
+  let secondaryApp = null;
 
-      // 2. Create User in Auth
-      const userCredential = await createUserWithEmailAndPassword(
-        secondaryAuth,
-        userData.email,
-        userData.password
-      );
-      const uid = userCredential.user.uid;
+  try {
+    secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
+    const secondaryAuth = getAuth(secondaryApp);
 
-      // 3. Create User Doc in Firestore
-      await setDoc(doc(db, "users", uid), {
-        username: userData.username,
-        email: userData.email,
-        role: userData.role,
-        isActive: userData.isActive,
-        isFirstLogin: true,
-        createdAt: serverTimestamp(),
-        photoURL: userData.photoURL || null,
-      });
+    // 1. Create Auth user
+    const userCredential = await createUserWithEmailAndPassword(
+      secondaryAuth,
+      userData.email,
+      userData.password
+    );
 
-      // 4. Sign out from secondary app
-      await signOutSecondary(secondaryAuth);
+    const uid = userCredential.user.uid;
 
-      return uid;
-    } catch (error) {
-      console.error("Error creating user:", error);
-      throw error;
-    } finally {
-      // 5. Cleanup
-      if (secondaryApp) {
-        await deleteApp(secondaryApp);
-      }
+    // 2. Create Firestore profile
+    await setDoc(doc(db, "users", uid), {
+      uid, // store Firebase UID explicitly
+      userCode: userData.userCode || null, // ✅ YOUR CUSTOM ID
+      username: userData.username,
+      email: userData.email,
+      role: userData.role,
+      department: userData.department || null,
+      isActive: userData.isActive,
+      isFirstLogin: true,
+      photoURL: userData.photoURL || null,
+      createdAt: serverTimestamp(),
+    });
+
+    await signOutSecondary(secondaryAuth);
+    return uid;
+  } catch (error) {
+    console.error("Error creating user:", error);
+    throw error;
+  } finally {
+    if (secondaryApp) {
+      await deleteApp(secondaryApp);
     }
-  },
+  }
+},
+
 
   /**
    * Update existing user's Firestore profile

@@ -32,7 +32,7 @@ export default function UserProfile() {
 
   // New fields
   const [department, setDepartment] = useState("");
-  const [inspectorId, setInspectorId] = useState("");
+  const [userCode, setuserCode] = useState("");
 
   // Backup for cancel
   const [backupData, setBackupData] = useState({});
@@ -65,7 +65,7 @@ export default function UserProfile() {
         role: data.role || "",
         avatarUrl: user.photoURL || "",
         department: data.department || "",
-        inspectorId: data.inspectorId || "",
+        userCode: data.userCode || "",
       };
 
       setUsername(initialData.username);
@@ -76,7 +76,7 @@ export default function UserProfile() {
       setRole(initialData.role);
       setAvatarUrl(initialData.avatarUrl);
       setDepartment(initialData.department);
-      setInspectorId(initialData.inspectorId);
+      setuserCode(initialData.userCode);
 
       setBackupData(initialData);
     };
@@ -188,7 +188,7 @@ export default function UserProfile() {
     setRole(backupData.role);
     setAvatarUrl(backupData.avatarUrl);
     setDepartment(backupData.department);
-    setInspectorId(backupData.inspectorId);
+    setuserCode(backupData.userCode);
 
     notifications.show({
       title: "Cancelled",
@@ -262,7 +262,7 @@ export default function UserProfile() {
               />
             </Grid.Col>
             <Grid.Col span={6}>
-              <TextInput label="Inspector ID" value={inspectorId} disabled />
+              <TextInput label="User ID" value={userCode} disabled />
             </Grid.Col>
           </Grid>
 

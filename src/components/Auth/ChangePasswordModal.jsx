@@ -55,18 +55,9 @@ export default function ChangePasswordModal({ opened, user, onSuccess }) {
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, { isFirstLogin: false });
 
-      notifications.show({
-        title: "Success",
-        message: "Password updated successfully!",
-        position: "top-center",
-        autoClose: 2500,
-        color: "green",
-      });
-
       if (onSuccess) {
         onSuccess();
       }
-
     
     } catch (err) {
       console.error(err);

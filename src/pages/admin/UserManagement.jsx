@@ -210,7 +210,7 @@ export default function UserManagement() {
 
         // Create user with generated ID
         const createdUid = await userService.createUser({
-          id: newUid,
+          userCode: newUid,
           username: formData.username,
           email: formData.email,
           password: formData.password, // if needed
