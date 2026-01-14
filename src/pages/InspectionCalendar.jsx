@@ -175,9 +175,12 @@ export default function InspectionCalendar() {
           if (!match) return false;
         }
 
+        const evtStatus = (evt.extendedProps?.status || "").toUpperCase();
+        const filterStatus = statusFilter.toUpperCase();
+
         const ms = statusFilter === "all" ||
-          evt.extendedProps?.status === statusFilter ||
-          (statusFilter === "PLANNED" && evt.extendedProps?.status === "SCHEDULED"); // Match both for Planned
+          evtStatus === filterStatus ||
+          (filterStatus === "PLANNED" && evtStatus === "SCHEDULED"); // Match both for Planned
         return ms;
       }
 
