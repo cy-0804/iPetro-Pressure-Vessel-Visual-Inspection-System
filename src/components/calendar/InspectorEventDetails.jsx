@@ -2,11 +2,12 @@ import React, { useState, useEffect } from "react";
 import {
     Box, Text, Stack, Group, Button, ActionIcon,
     Progress, Textarea, ScrollArea, Divider,
-    Badge, Select, Tabs, FileInput, Image, TextInput, Paper, Modal, Checkbox
+    Badge, Select, Tabs, FileInput, Image, TextInput, Paper, Modal, Checkbox, Portal, Container
 } from "@mantine/core";
 import { db } from "../../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { ReportEditor } from "../../pages/ReportGeneration";
+import { InspectionReportView } from "../../components/InspectionReportView";
 import AddInspectionForm from "./AddInspectionEvent";
 import { useNavigate } from "react-router-dom";
 import CreateInspectionPlanForm from "../inspection/CreateInspectionPlanForm";
@@ -14,7 +15,7 @@ import InspectionDraftPreview from "../../pages/InspectionDraftPreview";
 import { inspectionService } from "../../services/inspectionService";
 import {
     IconX, IconPlus, IconTrash, IconListDetails, IconFileText,
-    IconActivity, IconFileCertificate, IconExternalLink, IconCamera, IconCalendarTime, IconArrowRight, IconPencil
+    IconActivity, IconFileCertificate, IconExternalLink, IconCamera, IconCalendarTime, IconArrowRight, IconPencil, IconPrinter
 } from "@tabler/icons-react";
 
 export default function InspectorEventDetails({
@@ -696,15 +697,24 @@ export default function InspectorEventDetails({
                                 display={isSupervisor && (status?.toLowerCase() === "submitted" || (hasReport && reportData?.status === "Submitted")) ? "none" : "block"}
                                 leftSection={<IconFileText size={18} />}
                                 onClick={() => {
-                                    if (["SUBMITTED", "COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || (hasReport && ["Submitted", "Approved"].includes(reportData?.status))) {
-                                        setPdfModalOpen(true);
-                                    } else if (hasReport && reportData?.status === "Rejected") {
-                                        // Navigate to Rejected Tab
-                                        if (isSupervisor) {
-                                            navigate("/supervisor-review?tab=rejected");
-                                        } else {
-                                            navigate("/report-submission?tab=rejected");
-                                        }
+                                    const statusMatch = ["SUBMITTED", "COMPLETED", "APPROVED"].includes(status?.toUpperCase()) || (hasReport && ["Submitted", "Approved"].includes(reportData?.status));
+                                    const isRejected = hasReport && reportData?.status === "Rejected";
+
+                                    if (statusMatch || isRejected) {
+                                        const target = isSupervisor ? "/supervisor-review" : "/report-submission";
+                                        let tab = "pending";
+                                        const s = reportData?.status?.toLowerCase();
+
+                                        // Map status to tab names in target pages
+                                        // ReportSubmission/SupervisorReview tabs: pending, completed (submitted), rejected, approved
+                                        if (s === "approved") tab = "approved";
+                                        else if (s === "rejected") tab = "rejected";
+                                        else if (s === "submitted") tab = "completed"; // 'completed' tab shows submitted reports
+
+                                        // Fallback for supervisor default view
+                                        if (isSupervisor && !s) tab = "pending";
+
+                                        navigate(`${target}?id=${reportData?.id || event.id}&tab=${tab}&hideBack=true`);
                                     } else {
                                         // View Draft
                                         setDraftModalOpen(true);
@@ -902,25 +912,7 @@ export default function InspectorEventDetails({
                 </Stack>
             </Modal>
 
-            {/* PDF Report Preview Modal */}
-            <Modal
-                opened={pdfModalOpen}
-                onClose={() => setPdfModalOpen(false)}
-                fullScreen
-                title="Inspection Report (PDF Preview)"
-                styles={{ body: { backgroundColor: '#525659' } }} // Dark background like PDF viewers
-            >
-                <Box py="xl">
-                    {reportData ? (
-                        <ReportEditor
-                            report={reportData}
-                            hideBackButton={true}
-                        />
-                    ) : (
-                        <Text c="white" ta="center">Loading PDF Report...</Text>
-                    )}
-                </Box>
-            </Modal>
+
         </>
     );
 }
