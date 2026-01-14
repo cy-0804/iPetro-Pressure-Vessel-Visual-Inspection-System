@@ -42,6 +42,7 @@ import {
   Drawer,
   Alert,
   ScrollArea,
+  Portal,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -161,14 +162,14 @@ const InspectionForm = () => {
         color: "blue",
       });
     } else {
-    // Use local date (avoid UTC shifting from toISOString())
-    const now = new Date();
-    const yyyy = now.getFullYear();
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const dd = String(now.getDate()).padStart(2, '0');
-    const today = `${yyyy}-${mm}-${dd}`;
+      // Use local date (avoid UTC shifting from toISOString())
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const today = `${yyyy}-${mm}-${dd}`;
 
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      const unsubscribe = auth.onAuthStateChanged(async (user) => {
         if (user) {
           let inspector = user.displayName || user.email || "Unknown Inspector";
 
@@ -1245,6 +1246,7 @@ const InspectionForm = () => {
             <ReportEditor
               report={previewData}
               hideBackButton
+              isPrintable={false}
               ActionButtons={
                 <Group>
                   <Button
@@ -1355,7 +1357,39 @@ const InspectionForm = () => {
           )}
         </Transition>
       </Affix>
-    </Container>
+
+      {/* Hidden Print Container - Rendered in Portal with CSS-based hiding */}
+      <Portal>
+        <style>{`
+            @media screen {
+                .print-only-wrapper { 
+                    display: none !important; 
+                }
+            }
+            @media print {
+                .print-only-wrapper { 
+                    display: block !important;
+                    position: absolute !important;
+                    top: 0 !important;
+                    left: 0 !important;
+                    width: 100% !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+            }
+        `}</style>
+        <div className="print-only-wrapper">
+          {previewData && (
+            <ReportEditor
+              report={previewData}
+              hideBackButton
+              isPrintable={true}
+              ActionButtons={<></>}
+            />
+          )}
+        </div>
+      </Portal>
+    </Container >
   );
 };
 

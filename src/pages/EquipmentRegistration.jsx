@@ -145,6 +145,41 @@ export default function EquipmentRegistration() {
         return matchSearch && matchType && matchStatus;
     });
 
+    const getStatusColor = (status) => {
+        if (!status) return 'gray';
+        const statusLower = status.toLowerCase();
+
+        // 1. Active
+        if (statusLower === 'active') return 'green';
+
+        // 2. Scrapped / Decommissioned
+        if (statusLower.includes('scrap') || statusLower.includes('decom')) return 'red';
+
+        // 3. Maintenance
+        if (statusLower.includes('maint')) return 'orange';
+
+        // 4. In Service
+        if (statusLower === 'in service') return 'blue';
+
+        // 5. Out of Service
+        if (statusLower === 'out of service') return 'gray';
+
+        // 6. Construction / Fabrication
+        if (statusLower.includes('construct') || statusLower.includes('fabricat')) return 'cyan';
+
+        // 7. Spare
+        if (statusLower === 'spare') return 'grape';
+
+        // Dynamic fallback for any other custom status
+        const colors = ['violet', 'indigo', 'teal', 'lime', 'pink', 'yellow'];
+        let hash = 0;
+        for (let i = 0; i < status.length; i++) {
+            hash = status.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const index = Math.abs(hash) % colors.length;
+        return colors[index];
+    };
+
     const renderList = () => (
         <Paper p="xl" withBorder>
             <Group justify="space-between" mb="md">
@@ -166,7 +201,7 @@ export default function EquipmentRegistration() {
                             <Table.Td>{item.tagNumber}</Table.Td>
                             <Table.Td>{item.type}</Table.Td>
                             <Table.Td>{item.plantUnitArea}</Table.Td>
-                            <Table.Td><Badge color={item.status === 'Active' ? 'green' : 'yellow'}>{item.status}</Badge></Table.Td>
+                            <Table.Td><Badge color={getStatusColor(item.status)}>{item.status}</Badge></Table.Td>
                             <Table.Td>
                                 <Group gap={0} justify="flex-end">
                                     <ActionIcon variant="subtle" color="gray"><IconArrowLeft size={16} style={{ transform: 'rotate(180deg)' }} /></ActionIcon>
@@ -207,7 +242,7 @@ export default function EquipmentRegistration() {
                     <Grid.Col span={{ base: 12, md: 8 }}>
                         <Stack gap="xs">
                             <Group><Text fw={700} w={120}>Type:</Text><Text>{selectedItem.type}</Text></Group>
-                            <Group><Text fw={700} w={120}>Status:</Text><Badge color={selectedItem.status === 'Active' ? 'green' : 'yellow'}>{selectedItem.status}</Badge></Group>
+                            <Group><Text fw={700} w={120}>Status:</Text><Badge color={getStatusColor(selectedItem.status)}>{selectedItem.status}</Badge></Group>
                             <Group><Text fw={700} w={120}>Plant/Unit:</Text><Text>{selectedItem.plantUnitArea}</Text></Group>
                             <Group><Text fw={700} w={120}>DOSH No:</Text><Text>{selectedItem.doshNumber || '-'}</Text></Group>
                             <Group><Text fw={700} w={120}>Description:</Text><Text>{selectedItem.equipmentDescription || '-'}</Text></Group>

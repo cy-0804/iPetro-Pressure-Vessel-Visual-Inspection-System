@@ -199,6 +199,7 @@ const ReportSubmission = () => {
           navigate("/report-submission");
         }}
         isDraft={["Draft", "Rejected", "FIELD_COMPLETED", "COMPLETED"].includes(selectedReport.status)}
+        hideBack={searchParams.get("hideBack") === "true"}
       />
     );
   }
@@ -434,7 +435,7 @@ const ReportSubmission = () => {
 
 
 
-const ReportEditor = ({ report, onBack, isDraft }) => {
+const ReportEditor = ({ report, onBack, isDraft, hideBack }) => {
   const [data, setData] = useState(report);
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = React.useRef(false);
@@ -559,13 +560,26 @@ const ReportEditor = ({ report, onBack, isDraft }) => {
     <Box>
 
       <Group mb="md" className="no-print" justify="space-between">
-        <Button
-          variant="default"
-          leftSection={<IconArrowLeft size={16} />}
-          onClick={onBack}
-        >
-          Back to List
-        </Button>
+        {!hideBack && (
+          <Button
+            variant="default"
+            leftSection={<IconArrowLeft size={16} />}
+            onClick={onBack}
+            className="no-print"
+          >
+            Back to List
+          </Button>
+        )}
+        {hideBack && (
+          <Button
+            variant="default"
+            leftSection={<IconArrowLeft size={16} />}
+            onClick={() => navigate("/inspection-plan")}
+            className="no-print"
+          >
+            Back to Calendar
+          </Button>
+        )}
 
         <Group>
           {isDraft && (

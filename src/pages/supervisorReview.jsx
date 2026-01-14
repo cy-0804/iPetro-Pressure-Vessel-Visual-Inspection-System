@@ -38,10 +38,11 @@ import { db, auth } from "../firebase";
 import { InspectionReportView } from "../components/InspectionReportView";
 import { useTheme } from "../components/context/ThemeContext";
 
-import { useSearchParams } from "react-router-dom"; // Import useSearchParams
+import { useSearchParams, useNavigate } from "react-router-dom"; // Import useSearchParams, useNavigate
 
 export default function SupervisorReview() {
   const [reports, setReports] = useState([]);
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [selectedReport, setSelectedReport] = useState(null);
   const [opened, { open, close }] = useDisclosure(false);
@@ -61,6 +62,27 @@ export default function SupervisorReview() {
     const tabParam = searchParams.get("tab");
     if (tabParam) {
       setActiveTab(tabParam);
+    }
+  }, [searchParams]);
+
+  // Handle direct report link via ?id=
+  useEffect(() => {
+    const reportId = searchParams.get("id");
+    if (reportId && !selectedReport) {
+      const fetchReport = async () => {
+        try {
+          const docRef = doc(db, "inspections", reportId);
+          const snap = await getDoc(docRef);
+          if (snap.exists()) {
+            // Try to get plan title too if possible, but basic data is enough for view
+            const data = { id: snap.id, ...snap.data() };
+            setSelectedReport(data);
+          }
+        } catch (e) {
+          console.error("Error fetching report by ID:", e);
+        }
+      };
+      fetchReport();
     }
   }, [searchParams]);
 
@@ -465,16 +487,27 @@ export default function SupervisorReview() {
         <Box>
 
           <Group mb="md" className="no-print" justify="space-between">
-            <Button
-              variant="default"
-              leftSection={<IconArrowLeft size={16} />}
-              onClick={() => {
-                setSelectedReport(null);
-                close();
-              }}
-            >
-              Back to List
-            </Button>
+            {searchParams.get("hideBack") !== "true" && (
+              <Button
+                variant="default"
+                leftSection={<IconArrowLeft size={16} />}
+                onClick={() => {
+                  setSelectedReport(null);
+                  close();
+                }}
+              >
+                Back to List
+              </Button>
+            )}
+            {searchParams.get("hideBack") === "true" && (
+              <Button
+                variant="default"
+                leftSection={<IconArrowLeft size={16} />}
+                onClick={() => navigate("/inspection-plan")}
+              >
+                Back to Calendar
+              </Button>
+            )}
             <Group>
               <Button variant="default" leftSection={<IconPrinter size={16} />} onClick={() => window.print()}>
                 Print PDF

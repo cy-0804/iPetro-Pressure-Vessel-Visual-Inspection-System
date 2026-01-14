@@ -182,62 +182,62 @@ export const InspectionReportView = ({
                       borderTop: "none",
                     }}
                   >
-                    <Text size="xs" c="dimmed" fs="italic">
+                    <Text style={{ fontSize: "8px", lineHeight: 1.1, whiteSpace: "pre-wrap" }} c="dimmed" fs="italic">
                       {data.condition ||
-                        "Condition: With respect to the internal surface, describe and state location of any scales, pits or other deposits..."}
+                        "Condition: With respect to the internal surface, describe and state location of any scales, pits or other deposits. Give location and extent of any corrosion and state whether active or inactive. State location and extent of any erosion, grooving, bulging, warping, cracking or similar condition. Report on any defective rivets bowed, loose or broken stays. State condition of all tubes, tube end, coils nipples, etc. Report condition of setting, linings, baffles, support, etc. Describe major changes or repairs made since last inspection"}
                     </Text>
                   </td>
                 </tr>
                 {/* Findings Content Row */}
                 <tr>
                   <td style={{ padding: "10px", verticalAlign: "top" }}>
-                    <Text td="underline" fw={700} size="sm" mb={4}>
+                    <Text td="underline" fw={700} size="xs" mb={4}>
                       FINDINGS
                     </Text>
 
-                    <Text size="sm" fw={700}>
+                    <Text size="xs" fw={700}>
                       Initial/Pre-Inspection -{" "}
                       <span style={{ fontWeight: 400 }}>
                         {data.preInspectionFinding || "Not applicable"}
                       </span>
                     </Text>
-                    <Text size="sm" fw={700} mt="xs">
+                    <Text size="xs" fw={700} mt="xs">
                       Post/Final Inspection
                     </Text>
                     {data.finalInspectionFinding && (
                       <Text
-                        size="sm"
+                        size="xs"
                         style={{ whiteSpace: "pre-wrap", marginBottom: "4px" }}
                       >
                         {data.finalInspectionFinding}
                       </Text>
                     )}
 
-                    <Text td="underline" size="sm" fw={700} mt="xs">
+                    <Text td="underline" size="xs" fw={700} mt="xs">
                       External
                     </Text>
-                    <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                    <Text size="xs" style={{ whiteSpace: "pre-wrap" }}>
                       {data.externalCondition || "No anomalies."}
                     </Text>
 
-                    <Text td="underline" size="sm" fw={700} mt="xs">
+                    <Text td="underline" size="xs" fw={700} mt="xs">
                       Internal
                     </Text>
-                    <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                    <Text size="xs" style={{ whiteSpace: "pre-wrap" }}>
                       {data.internalCondition || "No anomalies."}
                     </Text>
 
-                    <Text td="underline" fw={700} size="sm" mt="md" mb={4}>
+                    <Text td="underline" fw={700} size="xs" mt="md" mb={4}>
                       NON-DESTRUCTIVE TESTINGS
                     </Text>
-                    <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                    <Text size="xs" style={{ whiteSpace: "pre-wrap" }}>
                       {data.ndt || "UTTM: No significant wall loss detected."}
                     </Text>
 
-                    <Text td="underline" fw={700} size="sm" mt="md" mb={4}>
+                    <Text td="underline" fw={700} size="xs" mt="md" mb={4}>
                       RECOMMENDATIONS
                     </Text>
-                    <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                    <Text size="xs" style={{ whiteSpace: "pre-wrap" }}>
                       {data.recommendation ||
                         "To be monitored on next opportunity."}
                     </Text>
@@ -273,7 +273,7 @@ export const InspectionReportView = ({
                   <Text size="xs" fw={700}>
                     Inspected by:
                   </Text>
-                  <Text size="sm">{data.inspectorName}</Text>
+                  <Text size="xs">{data.inspectorName}</Text>
                 </td>
                 <td
                   style={{
@@ -286,7 +286,7 @@ export const InspectionReportView = ({
                   <Text size="xs" fw={700}>
                     Reviewed by:
                   </Text>
-                  <Text size="sm">{data.reviewedBy || ""}</Text>
+                  <Text size="xs">{data.reviewedBy || ""}</Text>
                 </td>
                 <td
                   style={{ width: "33%", padding: "5px", verticalAlign: "top" }}
@@ -304,7 +304,7 @@ export const InspectionReportView = ({
                   style={{
                     borderTop: "1px solid black",
                     padding: "5px",
-                    height: "80px",
+                    height: "50px",
                     verticalAlign: "top",
                     position: "relative",
                   }}
@@ -344,7 +344,7 @@ export const InspectionReportView = ({
                   style={{
                     borderTop: "1px solid black",
                     padding: "5px",
-                    height: "80px",
+                    height: "50px",
                     verticalAlign: "top",
                     position: "relative",
                   }}
@@ -643,20 +643,20 @@ export const InspectionReportView = ({
                           borderBottom: "2px solid black",
                         }}
                       >
-                        <Text td="underline" fw={700} size="sm">
+                        <Text td="underline" fw={700} size="xs">
                           Finding:
                         </Text>
                         <Text
-                          size="sm"
+                          size="xs"
                           mb="sm"
                           style={{ whiteSpace: "pre-wrap" }}
                         >
                           {row.finding || "No findings recorded."}
                         </Text>
-                        <Text td="underline" fw={700} size="sm">
+                        <Text td="underline" fw={700} size="xs">
                           Recommendation:
                         </Text>
-                        <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                        <Text size="xs" style={{ whiteSpace: "pre-wrap" }}>
                           {row.recommendation || "Nil."}
                         </Text>
                       </td>
@@ -722,7 +722,7 @@ export const InspectionReportView = ({
                 box-shadow: 0 0 10px rgba(0,0,0,0.1);
                 color: black;
                 font-family: Arial, sans-serif;
-                font-size: 11pt;
+                font-size: 9pt;
                 position: relative;
                 display: flex;
                 flex-direction: column;
