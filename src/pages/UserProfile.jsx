@@ -149,16 +149,33 @@ export default function UserProfile() {
       });
     }
 
+    if (!firstName.trim() || !lastName.trim()) {
+  return notifications.show({
+    title: "Validation Error",
+    message: "First name and last name are required",
+    color: "red",
+  });
+}
+
     try {
       setLoading(true);
       const user = auth.currentUser;
 
       await updateDoc(doc(db, "users", user.uid), {
+        firstName,
+        lastName,
         phoneNumber,
       });
 
+
       // Update backup for cancel
-      setBackupData((prev) => ({ ...prev, phoneNumber }));
+      setBackupData((prev) => ({
+  ...prev,
+  firstName,
+  lastName,
+  phoneNumber,
+}));
+
 
       notifications.show({
         title: "Saved",
@@ -228,7 +245,26 @@ export default function UserProfile() {
 
         {/* FORM */}
         <Stack gap="md">
-          <TextInput label="Full Name" value={displayName} disabled />
+          <Grid>
+  <Grid.Col span={6}>
+    <TextInput
+      label="First Name"
+      value={firstName}
+      onChange={(e) => setFirstName(e.currentTarget.value)}
+      placeholder="First name"
+    />
+  </Grid.Col>
+
+  <Grid.Col span={6}>
+    <TextInput
+      label="Last Name"
+      value={lastName}
+      onChange={(e) => setLastName(e.currentTarget.value)}
+      placeholder="Last name"
+    />
+  </Grid.Col>
+</Grid>
+
 
           <TextInput
             label="Email"
