@@ -1,6 +1,31 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Container, Title, Text, SimpleGrid, Paper, Group, ThemeIcon, Badge, Table, ActionIcon, Select, TextInput, Loader, Button, Tabs, Modal } from "@mantine/core";
-import { IconCheck, IconClock, IconAlertTriangle, IconSearch, IconEye, IconEdit, IconTrash } from "@tabler/icons-react";
+import {
+  Container,
+  Title,
+  Text,
+  SimpleGrid,
+  Paper,
+  Group,
+  ThemeIcon,
+  Badge,
+  Table,
+  ActionIcon,
+  Select,
+  TextInput,
+  Loader,
+  Button,
+  Tabs,
+  Modal,
+} from "@mantine/core";
+import {
+  IconCheck,
+  IconClock,
+  IconAlertTriangle,
+  IconSearch,
+  IconEye,
+  IconEdit,
+  IconTrash,
+} from "@tabler/icons-react";
 import { inspectionService } from "../../services/inspectionService";
 import { userService } from "../../services/userService";
 import { useNavigate } from "react-router-dom";
@@ -39,29 +64,32 @@ export default function TaskMonitoring() {
   const fetchData = async () => {
     setLoading(true);
     try {
-
       try {
         await inspectionService.checkOverdueStatus();
       } catch (err) {
         console.warn("Overdue check failed:", err);
       }
 
-
       const plans = await inspectionService.getInspectionPlans();
 
-      inspectionService.syncPlanStatusesWithReports().then(() => {
-        console.log("Auto-sync background check complete.");
-      }).catch(err => console.warn("Auto-sync warning:", err));
+      inspectionService
+        .syncPlanStatusesWithReports()
+        .then(() => {
+          console.log("Auto-sync background check complete.");
+        })
+        .catch((err) => console.warn("Auto-sync warning:", err));
 
       setTasks(plans);
 
       const users = await userService.getInspectors();
 
-      const inspectorUsers = users.filter(u => (u.role || "").toLowerCase() === 'inspector');
+      const inspectorUsers = users.filter(
+        (u) => (u.role || "").toLowerCase() === "inspector"
+      );
       console.log("Debug: Inspector Users Loaded:", inspectorUsers);
 
       const uniqueInspectorsMap = new Map();
-      inspectorUsers.forEach(u => {
+      inspectorUsers.forEach((u) => {
         const key = u.username || u.email;
         if (key) uniqueInspectorsMap.set(key, u);
       });
@@ -73,34 +101,49 @@ export default function TaskMonitoring() {
     }
   };
 
-
   const stats = useMemo(() => {
     const total = tasks.length;
-    const pending = tasks.filter(t => ["PLANNED", "SCHEDULED"].includes((t.status || "").toUpperCase())).length;
-    const inProgress = tasks.filter(t => (t.status || "").toUpperCase() === "IN_PROGRESS").length;
-    const completed = tasks.filter(t => ["COMPLETED", "APPROVED"].includes((t.status || "").toUpperCase())).length;
-    const overdue = tasks.filter(t => (t.status || "").toUpperCase() === "OVERDUE").length;
-    const needsApproval = tasks.filter(t => ["SUBMITTED", "PENDING REVIEW"].includes((t.status || "").toUpperCase())).length;
+    const pending = tasks.filter((t) =>
+      ["PLANNED", "SCHEDULED"].includes((t.status || "").toUpperCase())
+    ).length;
+    const inProgress = tasks.filter(
+      (t) => (t.status || "").toUpperCase() === "IN_PROGRESS"
+    ).length;
+    const completed = tasks.filter((t) =>
+      ["COMPLETED", "APPROVED"].includes((t.status || "").toUpperCase())
+    ).length;
+    const overdue = tasks.filter(
+      (t) => (t.status || "").toUpperCase() === "OVERDUE"
+    ).length;
+    const needsApproval = tasks.filter((t) =>
+      ["SUBMITTED", "PENDING REVIEW"].includes((t.status || "").toUpperCase())
+    ).length;
 
     return { total, pending, inProgress, completed, overdue, needsApproval };
   }, [tasks]);
 
-
   const filteredTasks = useMemo(() => {
-    console.log("Filtering Tasks. Total:", tasks.length, "Stats:", statusFilter, inspectorFilter, search);
-    return tasks.filter(task => {
+    console.log(
+      "Filtering Tasks. Total:",
+      tasks.length,
+      "Stats:",
+      statusFilter,
+      inspectorFilter,
+      search
+    );
+    return tasks.filter((task) => {
       const dbStatus = (task.status || "PLANNED").toUpperCase();
       const filterStatus = (statusFilter || "all").toUpperCase();
 
-      const matchStatus = statusFilter === "all" ||
+      const matchStatus =
+        statusFilter === "all" ||
         dbStatus === filterStatus ||
         (filterStatus === "PLANNED" && dbStatus === "SCHEDULED") ||
         (filterStatus === "OVERDUE" && dbStatus === "OVERDUE");
 
-
       const inspector = task.extendedProps?.inspector || "Unassigned";
-      const matchInspector = inspectorFilter === "all" || inspector === inspectorFilter;
-
+      const matchInspector =
+        inspectorFilter === "all" || inspector === inspectorFilter;
 
       const title = task.title || "";
       const matchSearch = title.toLowerCase().includes(search.toLowerCase());
@@ -116,8 +159,14 @@ export default function TaskMonitoring() {
       setSelectedTask(task);
       setAssignModalOpen(true);
     } else if (action === "reschedule") {
-      const start = task.start instanceof Date ? task.start.toISOString().split('T')[0] : (task.start || "");
-      const end = task.end instanceof Date ? task.end.toISOString().split('T')[0] : (task.end || "");
+      const start =
+        task.start instanceof Date
+          ? task.start.toISOString().split("T")[0]
+          : task.start || "";
+      const end =
+        task.end instanceof Date
+          ? task.end.toISOString().split("T")[0]
+          : task.end || "";
       setNewStart(start);
       setNewEnd(end);
       setSelectedTask(task);
@@ -131,14 +180,27 @@ export default function TaskMonitoring() {
   const submitAssign = async () => {
     if (!selectedTask || !targetInspector) return;
     try {
-      await inspectionService.assignInspector(selectedTask.id, targetInspector);
-      await inspectionService.updateInspectionPlan(selectedTask.id, { status: "SCHEDULED" });
-      notifications.show({ title: "Assigned & Scheduled", message: `Inspector ${targetInspector} assigned and task scheduled` });
+      // Use updateInspectionPlan with extendedProps fields, same approach as InspectorEventDetails
+      await inspectionService.updateInspectionPlan(selectedTask.id, {
+        inspector: targetInspector,
+        inspectors: [targetInspector],
+        "extendedProps.inspector": targetInspector,
+        "extendedProps.inspectors": [targetInspector],
+        status: "SCHEDULED",
+      });
+      notifications.show({
+        title: "Assigned & Scheduled",
+        message: `Inspector ${targetInspector} assigned and task scheduled`,
+      });
       setAssignModalOpen(false);
       fetchData();
     } catch (err) {
       console.error(err);
-      notifications.show({ title: "Error", message: "Failed to assign", color: "red" });
+      notifications.show({
+        title: "Error",
+        message: "Failed to assign",
+        color: "red",
+      });
     }
   };
 
@@ -147,24 +209,32 @@ export default function TaskMonitoring() {
     try {
       await inspectionService.updateInspectionPlan(selectedTask.id, {
         start: newStart,
-        end: newEnd
+        end: newEnd,
       });
-      notifications.show({ title: "Rescheduled", message: "Task rescheduled successfully" });
+      notifications.show({
+        title: "Rescheduled",
+        message: "Task rescheduled successfully",
+      });
       setRescheduleModalOpen(false);
       fetchData();
     } catch (err) {
       console.error(err);
-      notifications.show({ title: "Error", message: "Failed to reschedule", color: "red" });
+      notifications.show({
+        title: "Error",
+        message: "Failed to reschedule",
+        color: "red",
+      });
     }
   };
 
-  const eventForDetails = selectedTask ? {
-    ...selectedTask,
-    extendedProps: {
-      ...selectedTask.extendedProps,
-
-    }
-  } : null;
+  const eventForDetails = selectedTask
+    ? {
+        ...selectedTask,
+        extendedProps: {
+          ...selectedTask.extendedProps,
+        },
+      }
+    : null;
 
   return (
     <Container size="xl" py="xl">
@@ -173,7 +243,11 @@ export default function TaskMonitoring() {
           <Title order={2}>Task Monitoring Dashboard</Title>
           <Text c="dimmed">Overview of all inspection tasks</Text>
         </div>
-        <Button onClick={fetchData} variant="light" leftSection={<IconClock size={16} />}>
+        <Button
+          onClick={fetchData}
+          variant="light"
+          leftSection={<IconClock size={16} />}
+        >
           Refresh
         </Button>
       </Group>
@@ -182,38 +256,62 @@ export default function TaskMonitoring() {
       <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} mb="lg">
         <Paper withBorder p="md" radius="md">
           <Group justify="space-between">
-            <Text size="xs" c="dimmed" fw={700} tt="uppercase">Planned</Text>
-            <ThemeIcon color="gray" variant="light"><IconAlertTriangle size={16} /></ThemeIcon>
+            <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+              Planned
+            </Text>
+            <ThemeIcon color="gray" variant="light">
+              <IconAlertTriangle size={16} />
+            </ThemeIcon>
           </Group>
           <Group align="flex-end" gap="xs" mt={25}>
-            <Text fw={700} size="xl">{stats.pending}</Text>
+            <Text fw={700} size="xl">
+              {stats.pending}
+            </Text>
           </Group>
         </Paper>
         <Paper withBorder p="md" radius="md">
           <Group justify="space-between">
-            <Text size="xs" c="dimmed" fw={700} tt="uppercase">In Progress</Text>
-            <ThemeIcon color="blue" variant="light"><IconClock size={16} /></ThemeIcon>
+            <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+              In Progress
+            </Text>
+            <ThemeIcon color="blue" variant="light">
+              <IconClock size={16} />
+            </ThemeIcon>
           </Group>
           <Group align="flex-end" gap="xs" mt={25}>
-            <Text fw={700} size="xl">{stats.inProgress}</Text>
+            <Text fw={700} size="xl">
+              {stats.inProgress}
+            </Text>
           </Group>
         </Paper>
         <Paper withBorder p="md" radius="md">
           <Group justify="space-between">
-            <Text size="xs" c="dimmed" fw={700} tt="uppercase">Pending Review</Text>
-            <ThemeIcon color="cyan" variant="light"><IconCheck size={16} /></ThemeIcon>
+            <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+              Pending Review
+            </Text>
+            <ThemeIcon color="cyan" variant="light">
+              <IconCheck size={16} />
+            </ThemeIcon>
           </Group>
           <Group align="flex-end" gap="xs" mt={25}>
-            <Text fw={700} size="xl">{stats.needsApproval}</Text>
+            <Text fw={700} size="xl">
+              {stats.needsApproval}
+            </Text>
           </Group>
         </Paper>
         <Paper withBorder p="md" radius="md">
           <Group justify="space-between">
-            <Text size="xs" c="dimmed" fw={700} tt="uppercase">Overdue</Text>
-            <ThemeIcon color="red" variant="light"><IconAlertTriangle size={16} /></ThemeIcon>
+            <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+              Overdue
+            </Text>
+            <ThemeIcon color="red" variant="light">
+              <IconAlertTriangle size={16} />
+            </ThemeIcon>
           </Group>
           <Group align="flex-end" gap="xs" mt={25}>
-            <Text fw={700} size="xl">{stats.overdue}</Text>
+            <Text fw={700} size="xl">
+              {stats.overdue}
+            </Text>
           </Group>
         </Paper>
       </SimpleGrid>
@@ -226,7 +324,9 @@ export default function TaskMonitoring() {
           <Tabs.Tab value="Submitted">Pending Review</Tabs.Tab>
           <Tabs.Tab value="Rejected">Rejected</Tabs.Tab>
           <Tabs.Tab value="APPROVED">Approved</Tabs.Tab>
-          <Tabs.Tab value="OVERDUE" color="red">Overdue</Tabs.Tab>
+          <Tabs.Tab value="OVERDUE" color="red">
+            Overdue
+          </Tabs.Tab>
           <Tabs.Tab value="all">All Tasks</Tabs.Tab>
         </Tabs.List>
       </Tabs>
@@ -246,13 +346,17 @@ export default function TaskMonitoring() {
           <Select
             label="Inspector"
             placeholder="Filter by inspector"
-            data={[{ value: 'all', label: 'All Inspectors' }, ...inspectors.map(i => {
-              const first = i.firstName || "";
-              const last = i.lastName || "";
-              const full = (first && last) ? `${first} ${last}` : (first || last || "");
-              const label = full || i.fullName || i.username || i.email;
-              return { value: i.username || i.email, label: label };
-            })]}
+            data={[
+              { value: "all", label: "All Inspectors" },
+              ...inspectors.map((i) => {
+                const first = i.firstName || "";
+                const last = i.lastName || "";
+                const full =
+                  first && last ? `${first} ${last}` : first || last || "";
+                const label = full || i.fullName || i.username || i.email;
+                return { value: i.username || i.email, label: label };
+              }),
+            ]}
             value={inspectorFilter}
             onChange={setInspectorFilter}
           />
@@ -281,7 +385,7 @@ export default function TaskMonitoring() {
       >
         {selectedTask && (
           <InspectorEventDetails
-            event={tasks.find(t => t.id === selectedTask.id) || selectedTask}
+            event={tasks.find((t) => t.id === selectedTask.id) || selectedTask}
             viewMode="supervisor"
             onClose={() => setViewModalOpen(false)}
             onUpdate={fetchData}
@@ -298,10 +402,11 @@ export default function TaskMonitoring() {
       >
         <Select
           label="Assign New Inspector (if applicable)"
-          data={inspectors.map(i => {
+          data={inspectors.map((i) => {
             const first = i.firstName || "";
             const last = i.lastName || "";
-            const full = (first && last) ? `${first} ${last}` : (first || last || "");
+            const full =
+              first && last ? `${first} ${last}` : first || last || "";
             const label = full || i.fullName || i.username || i.email;
             return { value: i.username || i.email, label: label };
           })}
@@ -311,7 +416,9 @@ export default function TaskMonitoring() {
           searchable
         />
         <Group justify="flex-end">
-          <Button variant="default" onClick={() => setAssignModalOpen(false)}>Cancel</Button>
+          <Button variant="default" onClick={() => setAssignModalOpen(false)}>
+            Cancel
+          </Button>
           <Button onClick={submitAssign}>Assign</Button>
         </Group>
       </Modal>
@@ -337,11 +444,15 @@ export default function TaskMonitoring() {
           mb="md"
         />
         <Group justify="flex-end">
-          <Button variant="default" onClick={() => setRescheduleModalOpen(false)}>Cancel</Button>
+          <Button
+            variant="default"
+            onClick={() => setRescheduleModalOpen(false)}
+          >
+            Cancel
+          </Button>
           <Button onClick={submitReschedule}>Save Schedule</Button>
         </Group>
       </Modal>
-
     </Container>
   );
 }
