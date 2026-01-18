@@ -23,13 +23,13 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 // --- FIREBASE CONFIG (Required for Secondary App) ---
 // Note: In a production app, these should preferably be in a shared config file or env vars
 const firebaseConfig = {
-  apiKey: "AIzaSyB1fkkfdS_nyqGW02v5zvxEbzfIXQh0RCs",
-  authDomain: "workshop2-516a1.firebaseapp.com",
-  projectId: "workshop2-516a1",
-  storageBucket: "workshop2-516a1.firebasestorage.app",
-  messagingSenderId: "996928787873",
-  appId: "1:996928787873:web:36246420715c716aefa7e0",
-  measurementId: "G-G8NZ22LY22",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 export const userService = {
@@ -76,46 +76,46 @@ export const userService = {
    * Uses a secondary app instance to separate admin session from new user creation
    */
   createUser: async (userData) => {
-  let secondaryApp = null;
+    let secondaryApp = null;
 
-  try {
-    secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
-    const secondaryAuth = getAuth(secondaryApp);
+    try {
+      secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
+      const secondaryAuth = getAuth(secondaryApp);
 
-    // 1. Create Auth user
-    const userCredential = await createUserWithEmailAndPassword(
-      secondaryAuth,
-      userData.email,
-      userData.password
-    );
+      // 1. Create Auth user
+      const userCredential = await createUserWithEmailAndPassword(
+        secondaryAuth,
+        userData.email,
+        userData.password
+      );
 
-    const uid = userCredential.user.uid;
+      const uid = userCredential.user.uid;
 
-    // 2. Create Firestore profile
-    await setDoc(doc(db, "users", uid), {
-      uid, // store Firebase UID explicitly
-      userCode: userData.userCode || null, // ✅ YOUR CUSTOM ID
-      username: userData.username,
-      email: userData.email,
-      role: userData.role,
-      department: userData.department || null,
-      isActive: userData.isActive,
-      isFirstLogin: true,
-      photoURL: userData.photoURL || null,
-      createdAt: serverTimestamp(),
-    });
+      // 2. Create Firestore profile
+      await setDoc(doc(db, "users", uid), {
+        uid, // store Firebase UID explicitly
+        userCode: userData.userCode || null, // ✅ YOUR CUSTOM ID
+        username: userData.username,
+        email: userData.email,
+        role: userData.role,
+        department: userData.department || null,
+        isActive: userData.isActive,
+        isFirstLogin: true,
+        photoURL: userData.photoURL || null,
+        createdAt: serverTimestamp(),
+      });
 
-    await signOutSecondary(secondaryAuth);
-    return uid;
-  } catch (error) {
-    console.error("Error creating user:", error);
-    throw error;
-  } finally {
-    if (secondaryApp) {
-      await deleteApp(secondaryApp);
+      await signOutSecondary(secondaryAuth);
+      return uid;
+    } catch (error) {
+      console.error("Error creating user:", error);
+      throw error;
+    } finally {
+      if (secondaryApp) {
+        await deleteApp(secondaryApp);
+      }
     }
-  }
-},
+  },
 
 
   /**
